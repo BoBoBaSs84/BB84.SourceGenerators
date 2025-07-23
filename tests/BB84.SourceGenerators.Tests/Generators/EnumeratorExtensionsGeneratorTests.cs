@@ -13,16 +13,16 @@ public sealed class EnumeratorExtensionsGeneratorTests
 	[TestMethod]
 	public void GetNamesShouldReturnCorrectNames()
 	{
-		string[] expectedNames = [nameof(TestEnum.None), nameof(TestEnum.One), nameof(TestEnum.Two), nameof(TestEnum.Three)];
+		string[] expectedNames = [nameof(GeneratorTestType.None), nameof(GeneratorTestType.One), nameof(GeneratorTestType.Two), nameof(GeneratorTestType.Three)];
 
-		string[] actualNames = TestEnum.None.GetNames();
+		string[] actualNames = GeneratorTestType.None.GetNames();
 		
 		CollectionAssert.AreEqual(expectedNames, actualNames);
 	}
 }
 
 [GenerateEnumeratorExtensions]
-public enum TestEnum
+public enum GeneratorTestType
 {
 	None = 0,
 	One = 1,

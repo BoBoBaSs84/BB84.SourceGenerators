@@ -8,6 +8,9 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace BB84.SourceGenerators.Extensions;
 
+/// <summary>
+/// Extensions for <see cref="BaseTypeDeclarationSyntax"/> to retrieve the namespace of a type declaration.
+/// </summary>
 internal static class BaseTypeDeclarationSyntaxExtensions
 {
 	/// <summary>

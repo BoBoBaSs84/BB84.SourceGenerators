@@ -8,7 +8,7 @@ using System.Text;
 namespace BB84.SourceGenerators.Extensions;
 
 /// <summary>
-/// The <see cref="StringBuilder"/> extension methods.
+/// The extensions for <see cref="StringBuilder"/> to append an auto-generated warning comment.
 /// </summary>
 internal static class StringBuilderExtensions
 {
