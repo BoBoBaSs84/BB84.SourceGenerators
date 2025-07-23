@@ -1,0 +1,53 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{02EA681E-C7D8-13C7-8484-4AC65E1B71E8}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{94FDB536-9D3F-441B-A92E-BB49FEA49108}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BB84.SourceGenerators", "src\BB84.SourceGenerators\BB84.SourceGenerators.csproj", "{1E58C99A-E864-493E-B9C5-DA49E7E5C739}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BB84.SourceGenerators.Tests", "tests\BB84.SourceGenerators.Tests\BB84.SourceGenerators.Tests.csproj", "{345B7ECB-2469-4E6F-B824-F561F1A8D05B}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{8EC462FD-D22E-90A8-E5CE-7E832BA40C5D}"
+	ProjectSection(SolutionItems) = preProject
+		.editorconfig = .editorconfig
+		.gitignore = .gitignore
+		BB84.SourceGenerators.sln.licenseheader = BB84.SourceGenerators.sln.licenseheader
+		CODEOWNERS = CODEOWNERS
+		CODE_OF_CONDUCT.md = CODE_OF_CONDUCT.md
+		Directory.Build.props = Directory.Build.props
+		Directory.Packages.props = Directory.Packages.props
+		icon.png = icon.png
+		LICENSE = LICENSE
+		README.md = README.md
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{1E58C99A-E864-493E-B9C5-DA49E7E5C739}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1E58C99A-E864-493E-B9C5-DA49E7E5C739}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1E58C99A-E864-493E-B9C5-DA49E7E5C739}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1E58C99A-E864-493E-B9C5-DA49E7E5C739}.Release|Any CPU.Build.0 = Release|Any CPU
+		{345B7ECB-2469-4E6F-B824-F561F1A8D05B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{345B7ECB-2469-4E6F-B824-F561F1A8D05B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{345B7ECB-2469-4E6F-B824-F561F1A8D05B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{345B7ECB-2469-4E6F-B824-F561F1A8D05B}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{1E58C99A-E864-493E-B9C5-DA49E7E5C739} = {02EA681E-C7D8-13C7-8484-4AC65E1B71E8}
+		{345B7ECB-2469-4E6F-B824-F561F1A8D05B} = {94FDB536-9D3F-441B-A92E-BB49FEA49108}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {E6717893-F866-40A0-888E-45326BC79564}
+	EndGlobalSection
+EndGlobal
