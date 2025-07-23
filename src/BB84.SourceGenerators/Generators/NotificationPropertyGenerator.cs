@@ -8,6 +8,7 @@ using System.Text;
 
 using BB84.SourceGenerators.Attributes;
 using BB84.SourceGenerators.Extensions;
+using BB84.SourceGenerators.Generators.Base;
 
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -19,38 +20,19 @@ namespace BB84.SourceGenerators.Generators;
 /// <see cref="GenerateNotificationPropertyAttribute"/> attribute.
 /// </summary>
 [Generator(LanguageNames.CSharp)]
-public sealed class NotificationPropertyGenerator : IIncrementalGenerator
+public sealed class NotificationPropertyGenerator : IncrementalGenerator
 {
-	private const string AttributeName = "GenerateNotificationProperty";
+	/// <summary>
+	/// Initializes a new instance of the <see cref="NotificationPropertyGenerator"/> class.
+	/// </summary>
+	public NotificationPropertyGenerator() : base("GenerateNotificationProperty")
+	{ }
 
 	/// <inheritdoc/>
-	public void Initialize(IncrementalGeneratorInitializationContext context)
+	protected override void Execute(SyntaxNode syntaxNode, SourceProductionContext context)
 	{
-		IncrementalValuesProvider<ClassDeclarationSyntax> provider = context.SyntaxProvider.CreateSyntaxProvider(
-			predicate: (node, _) =>
-			{
-				bool result = node is ClassDeclarationSyntax classDeclaration
-					&& classDeclaration.Members.Count > 0
-					&& classDeclaration.Members.OfType<FieldDeclarationSyntax>().Any(fieldDeclaration
-						=> fieldDeclaration is not null && fieldDeclaration.AttributeLists.Count > 0
-						&& fieldDeclaration.AttributeLists.Any(attributeList
-							=> attributeList.Attributes.Any(attribute
-								=> attribute.Name.ToString() == AttributeName)));
+		ClassDeclarationSyntax classDeclaration = (ClassDeclarationSyntax)syntaxNode;
 
-				return result;
-			},
-			transform: (context, _) =>
-			{
-				ClassDeclarationSyntax classDeclaration = (ClassDeclarationSyntax)context.Node;
-				return classDeclaration;
-			});
-
-		context.RegisterSourceOutput(provider, (context, classDeclaration)
-			=> Execute(classDeclaration, context));
-	}
-
-	private static void Execute(ClassDeclarationSyntax classDeclaration, SourceProductionContext context)
-	{
 		List<FieldDeclarationSyntax> members = [.. classDeclaration.Members
 			.OfType<FieldDeclarationSyntax>()
 			.Where(fieldDeclaration => fieldDeclaration is not null && fieldDeclaration.AttributeLists
@@ -77,7 +59,6 @@ public sealed class NotificationPropertyGenerator : IIncrementalGenerator
 		sourceBuilder.AppendLine("    /// <inheritdoc/>");
 		sourceBuilder.AppendLine("    public event PropertyChangingEventHandler? PropertyChanging;");
 		sourceBuilder.AppendLine();
-
 		foreach (FieldDeclarationSyntax member in members)
 		{
 			foreach (VariableDeclaratorSyntax variable in member.Declaration.Variables)
@@ -111,7 +92,6 @@ public sealed class NotificationPropertyGenerator : IIncrementalGenerator
 				sourceBuilder.AppendLine();
 			}
 		}
-
 		sourceBuilder.AppendLine("    protected void RaisePropertyChanging(string propertyName)");
 		sourceBuilder.AppendLine("      => PropertyChanging?.Invoke(this, new PropertyChangingEventArgs(propertyName));");
 		sourceBuilder.AppendLine();
@@ -123,5 +103,26 @@ public sealed class NotificationPropertyGenerator : IIncrementalGenerator
 
 		string sourceText = sourceBuilder.ToString();
 		context.AddSource($"{className}.g.cs", sourceText);
+	}
+
+	/// <inheritdoc/>
+	protected override bool Predicate(SyntaxNode node)
+	{
+		bool result = node is ClassDeclarationSyntax classDeclaration
+			&& classDeclaration.Members.Count > 0
+			&& classDeclaration.Members.OfType<FieldDeclarationSyntax>().Any(fieldDeclaration
+				=> fieldDeclaration is not null && fieldDeclaration.AttributeLists.Count > 0
+				&& fieldDeclaration.AttributeLists.Any(attributeList
+					=> attributeList.Attributes.Any(attribute
+						=> attribute.Name.ToString() == AttributeName)));
+
+		return result;
+	}
+
+	/// <inheritdoc/>
+	protected override SyntaxNode Transform(GeneratorSyntaxContext context)
+	{
+		ClassDeclarationSyntax classDeclaration = (ClassDeclarationSyntax)context.Node;
+		return classDeclaration;
 	}
 }
