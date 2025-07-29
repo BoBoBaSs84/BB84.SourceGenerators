@@ -19,7 +19,7 @@ namespace BB84.SourceGenerators.Generators;
 /// with the <see cref="GenerateEnumeratorExtensionsAttribute"/> attribute.
 /// </summary>
 [Generator(LanguageNames.CSharp)]
-public sealed class EnumeratorExtensionsGenerator : IncrementalGenerator
+public sealed class EnumeratorExtensionsGenerator : AttributeBasedGenerator
 {
 	/// <summary>
 	/// Initializes a new instance of the <see cref="EnumeratorExtensionsGenerator"/> class.
@@ -30,7 +30,7 @@ public sealed class EnumeratorExtensionsGenerator : IncrementalGenerator
 	/// <inheritdoc/>
 	protected override void Execute(SyntaxNode syntaxNode, SourceProductionContext context)
 	{
-		var enumDeclaration = (EnumDeclarationSyntax)syntaxNode;
+		EnumDeclarationSyntax enumDeclaration = (EnumDeclarationSyntax)syntaxNode;
 
 		List<EnumMemberDeclarationSyntax> members = [.. enumDeclaration.Members
 			.OfType<EnumMemberDeclarationSyntax>()
@@ -113,8 +113,8 @@ public sealed class EnumeratorExtensionsGenerator : IncrementalGenerator
 		sourceBuilder.AppendLine($"    /// Returns the values of the <see cref=\"{enumName}\"/> enumeration.");
 		sourceBuilder.AppendLine("    /// </summary>");
 		sourceBuilder.AppendLine("    /// <param name=\"value\">The enumeration value to get the values for.</param>");
-		sourceBuilder.AppendLine("    /// <returns>An array of the enumeration values.</returns>");
-		sourceBuilder.AppendLine($"    public static {enumName}[] GetValues(this {enumName} value)");
+		sourceBuilder.AppendLine("    /// <returns>An collection of the enumeration values.</returns>");
+		sourceBuilder.AppendLine($"    public static IEnumerable<{enumName}> GetValuesFast(this {enumName} value)");
 		sourceBuilder.AppendLine("    {");
 		sourceBuilder.AppendLine("      return new[]");
 		sourceBuilder.AppendLine("      {");
@@ -127,11 +127,11 @@ public sealed class EnumeratorExtensionsGenerator : IncrementalGenerator
 		sourceBuilder.AppendLine("    }");
 		sourceBuilder.AppendLine();
 		sourceBuilder.AppendLine("    /// <summary>");
-		sourceBuilder.AppendLine($"    /// Returns the names of the <see cref=\"{enumName}\"/> enumeration as an array of strings.");
+		sourceBuilder.AppendLine($"    /// Returns the names of the <see cref=\"{enumName}\"/> enumeration as an collection of strings.");
 		sourceBuilder.AppendLine("    /// </summary>");
 		sourceBuilder.AppendLine("    /// <param name=\"value\">The enumeration value to get the names for.</param>");
 		sourceBuilder.AppendLine("    /// <returns>An array of strings containing the names of the enumeration values.</returns>");
-		sourceBuilder.AppendLine($"    public static string[] GetNames(this {enumName} value)");
+		sourceBuilder.AppendLine($"    public static IEnumerable<string> GetNamesFast(this {enumName} value)");
 		sourceBuilder.AppendLine("    {");
 		sourceBuilder.AppendLine("      return new[]");
 		sourceBuilder.AppendLine("      {");

@@ -6,9 +6,6 @@
     <IncludeBuildOutput>False</IncludeBuildOutput>
   </PropertyGroup>
   <ItemGroup>
-    <None Include="Attributes\GenerateNotificationPropertiesAttribute.cs" />
-  </ItemGroup>
-  <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.Analyzers">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>

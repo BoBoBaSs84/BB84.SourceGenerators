@@ -30,7 +30,7 @@ public sealed class NotificationPropertiesGeneratorTests
 	}
 }
 
-[GenerateNotificationProperties]
+[GenerateNotifications]
 public partial class NotificationProperties
 {
 	/// <summary>

@@ -8,10 +8,10 @@ using Microsoft.CodeAnalysis;
 namespace BB84.SourceGenerators.Generators.Base;
 
 /// <summary>
-/// Represents a base class for incremental generators that process syntax nodes.
+/// Represents a base class for incremental generators that process syntax nodes based on a specific attribute.
 /// </summary>
 /// <param name="attributeName">The name of the attribute that the generator will look for in the syntax nodes.</param>
-public abstract class IncrementalGenerator(string attributeName) : IIncrementalGenerator
+public abstract class AttributeBasedGenerator(string attributeName) : IIncrementalGenerator
 {
 	/// <summary>
 	/// Gets the name of the attribute that the generator will look for in the syntax nodes.
@@ -19,7 +19,7 @@ public abstract class IncrementalGenerator(string attributeName) : IIncrementalG
 	public string AttributeName => attributeName;
 
 	/// <inheritdoc/>
-	public virtual void Initialize(IncrementalGeneratorInitializationContext context)
+	public void Initialize(IncrementalGeneratorInitializationContext context)
 	{
 		IncrementalValuesProvider<SyntaxNode> provider = context.SyntaxProvider
 			.CreateSyntaxProvider(

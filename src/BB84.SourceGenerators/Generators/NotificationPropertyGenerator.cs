@@ -16,16 +16,16 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 namespace BB84.SourceGenerators.Generators;
 
 /// <summary>
-/// Responsible for generating a notification property for fields marked with the
-/// <see cref="GenerateNotificationPropertyAttribute"/> attribute.
+/// Responsible for generating a notification property for fields marked
+/// with the <see cref="GenerateNotificationAttribute"/> attribute.
 /// </summary>
 [Generator(LanguageNames.CSharp)]
-public sealed class NotificationPropertyGenerator : IncrementalGenerator
+public sealed class NotificationPropertyGenerator : AttributeBasedGenerator
 {
 	/// <summary>
 	/// Initializes a new instance of the <see cref="NotificationPropertyGenerator"/> class.
 	/// </summary>
-	public NotificationPropertyGenerator() : base("GenerateNotificationProperty")
+	public NotificationPropertyGenerator() : base("GenerateNotification")
 	{ }
 
 	/// <inheritdoc/>

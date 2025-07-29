@@ -29,9 +29,9 @@ public sealed class NotificationPropertyGeneratorTests
 
 public partial class NotificationProperty
 {
-	[GenerateNotificationProperty]
+	[GenerateNotification]
 	private int _id;
-	[GenerateNotificationProperty]
+	[GenerateNotification]
 	private string _name;
 
 	public NotificationProperty(int id, string name)

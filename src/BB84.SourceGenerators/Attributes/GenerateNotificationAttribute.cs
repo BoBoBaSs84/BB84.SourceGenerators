@@ -8,13 +8,13 @@ using System.ComponentModel;
 namespace BB84.SourceGenerators.Attributes;
 
 /// <summary>
-/// Indicates that the decorated class should have properties with changing and changed notifications
-/// generated for its fields. The generated code will use the following interfaces:
+/// Indicates that the decorated <c>field</c> should have a property with changing and changed
+/// notifications generated for its class. The generated code will use the following interfaces:
 /// <list type="bullet">
 /// <item>The <see cref="INotifyPropertyChanging"/> interface for property changing notifications.</item>
 /// <item>The <see cref="INotifyPropertyChanged"/> interface for property changed notifications.</item>
 /// </list>
 /// </summary>
-[AttributeUsage(AttributeTargets.Class, Inherited = false, AllowMultiple = false)]
-public sealed class GenerateNotificationPropertiesAttribute : Attribute
+[AttributeUsage(AttributeTargets.Field, Inherited = false, AllowMultiple = false)]
+public sealed class GenerateNotificationAttribute : Attribute
 { }
