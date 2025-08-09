@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "Development": {
+      "commandName": "DebugRoslynComponent",
+      "targetProject": "..\\..\\tests\\BB84.SourceGenerators.Tests\\BB84.SourceGenerators.Tests.csproj"
+    }
+  }
+}
