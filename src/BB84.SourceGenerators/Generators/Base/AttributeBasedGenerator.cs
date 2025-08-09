@@ -25,7 +25,7 @@ public abstract class AttributeBasedGenerator(string attributeName) : IIncrement
 			.CreateSyntaxProvider(
 				predicate: (node, _) => Predicate(node),
 				transform: (context, _) => Transform(context))
-			.Where(x => x is not null);
+			.Where(node => node is not null);
 
 		context.RegisterSourceOutput(provider, (context, classDeclaration)
 			=> Execute(classDeclaration, context));
