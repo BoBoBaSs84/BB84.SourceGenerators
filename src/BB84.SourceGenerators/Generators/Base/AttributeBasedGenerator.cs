@@ -18,6 +18,11 @@ public abstract class AttributeBasedGenerator(string attributeName) : IIncrement
 	/// </summary>
 	public string AttributeName => attributeName;
 
+	/// <summary>
+	/// Gets the name of the generator.
+	/// </summary>
+	public abstract string GeneratorName { get; }
+
 	/// <inheritdoc/>
 	public void Initialize(IncrementalGeneratorInitializationContext context)
 	{
@@ -27,21 +32,28 @@ public abstract class AttributeBasedGenerator(string attributeName) : IIncrement
 				transform: (context, _) => Transform(context))
 			.Where(node => node is not null);
 
-		context.RegisterSourceOutput(provider, (context, classDeclaration)
-			=> Execute(classDeclaration, context));
+		//IncrementalValuesProvider<SyntaxNode> otherProvider = context.SyntaxProvider
+		//	.ForAttributeWithMetadataName(
+		//		fullyQualifiedMetadataName: AttributeName,
+		//		predicate: (node, _) => true,
+		//		transform: (context, _) => context.TargetNode)
+		//	.Where(node => node is not null);
+
+		context.RegisterSourceOutput(provider, Execute);
 	}
 
 	/// <summary>
 	/// Responsible for executing the generator logic on the provided syntax node.
 	/// </summary>
-	/// <param name="syntaxNode">
-	/// The syntax node to process.
-	/// This node should be a valid syntax node that matches the predicate defined in the generator.
-	/// </param>
 	/// <param name="context">
-	/// The source production context that provides methods to report diagnostics and generate source files.
+	/// The source production context that provides methods to report diagnostics and generate
+	/// source files.
 	/// </param>
-	protected abstract void Execute(SyntaxNode syntaxNode, SourceProductionContext context);
+	/// <param name="syntaxNode">
+	/// The syntax node to process. This node should be a valid syntax node that matches the
+	/// predicate defined in the generator.
+	/// </param>
+	protected abstract void Execute(SourceProductionContext context, SyntaxNode syntaxNode);
 
 	/// <summary>
 	/// Responsible for transforming the syntax node in the context of the generator.
