@@ -20,16 +20,10 @@ namespace BB84.SourceGenerators.Generators;
 /// with the <see cref="GenerateEnumeratorExtensionsAttribute"/> attribute.
 /// </summary>
 [Generator(LanguageNames.CSharp)]
-public sealed class EnumeratorExtensionsGenerator : AttributeBasedGenerator
+public sealed class EnumeratorExtensionsGenerator : AttributeBasedGenerator<GenerateEnumeratorExtensionsAttribute>
 {
 	/// <inheritdoc/>
 	public override string GeneratorName => "BB84.SourceGenerators.EnumeratorExtensionsGenerator";
-
-	/// <summary>
-	/// Initializes a new instance of the <see cref="EnumeratorExtensionsGenerator"/> class.
-	/// </summary>
-	public EnumeratorExtensionsGenerator() : base("GenerateEnumeratorExtensions")
-	{ }
 
 	/// <inheritdoc/>
 	protected override void Execute(SourceProductionContext context, SyntaxNode syntaxNode)
@@ -67,23 +61,12 @@ public sealed class EnumeratorExtensionsGenerator : AttributeBasedGenerator
 	}
 
 	/// <inheritdoc/>
-	protected override SyntaxNode Transform(GeneratorSyntaxContext context)
-	{
-		EnumDeclarationSyntax enumDeclaration = (EnumDeclarationSyntax)context.Node;
-		return enumDeclaration;
-	}
+	protected override SyntaxNode Transform(SyntaxNode targetNode)
+		=> (EnumDeclarationSyntax)targetNode;
 
 	/// <inheritdoc/>
 	protected override bool Predicate(SyntaxNode node)
-	{
-		bool result = node is EnumDeclarationSyntax enumDeclaration
-			&& enumDeclaration.AttributeLists.Count > 0
-			&& enumDeclaration.AttributeLists.Any(attributeList
-				=> attributeList.Attributes.Any(attribute
-					=> attribute.Name.ToString() == AttributeName));
-
-		return result;
-	}
+		=> node is EnumDeclarationSyntax;
 
 	private static void AppendHeader(StringBuilder builder)
 	{

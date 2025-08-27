@@ -33,14 +33,13 @@ public sealed class NotificationPropertiesGeneratorTests
 [GenerateNotifications]
 public partial class NotificationProperties
 {
-	/// <summary>
-	/// The unique identifier for the test class.
-	/// </summary>
 	private int _id;
 	private string _name;
 	private string _description;
 	private DateTime _createdAt;
 	private DateTime? _updatedAt;
+	private int _quanity;
+	private float _price;
 
 	public NotificationProperties(int id, string name, string description, DateTime createdAt, DateTime? updatedAt = null)
 	{
