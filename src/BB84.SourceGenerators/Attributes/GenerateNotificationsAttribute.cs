@@ -15,6 +15,14 @@ namespace BB84.SourceGenerators.Attributes;
 /// <item>The <see cref="INotifyPropertyChanged"/> interface for property changed notifications.</item>
 /// </list>
 /// </summary>
+/// <param name="isChanged">
+/// Indicates whether a boolean property named <c>IsChanged</c> should be generated.
+/// </param>
 [AttributeUsage(AttributeTargets.Class, Inherited = false, AllowMultiple = false)]
-public sealed class GenerateNotificationsAttribute : Attribute
-{ }
+public sealed class GenerateNotificationsAttribute(bool isChanged = false) : Attribute
+{
+	/// <summary>
+	/// Indicates whether a boolean property named <c>IsChanged</c> should be generated.
+	/// </summary>
+	public bool IsChanged => isChanged;
+}

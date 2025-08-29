@@ -73,11 +73,21 @@ public sealed class EnumeratorExtensionsGeneratorTests
 		Assert.AreEqual("999", ((GeneratorTestType)999).ToStringFast());
 		Assert.AreEqual("-1", ((GeneratorTestType)(-1)).ToStringFast());
 	}
+
+	[TestMethod]
+	public void GetDescriptionFastShouldReturnCorrectDescriptions()
+	{
+		Assert.AreEqual("No value", GeneratorTestType.None.GetDescriptionFast());
+		Assert.AreEqual(nameof(GeneratorTestType.One), GeneratorTestType.One.GetDescriptionFast());
+		Assert.AreEqual(nameof(GeneratorTestType.Two), GeneratorTestType.Two.GetDescriptionFast());
+		Assert.AreEqual(nameof(GeneratorTestType.Three), GeneratorTestType.Three.GetDescriptionFast());
+	}
 }
 
 [GenerateEnumeratorExtensions]
 public enum GeneratorTestType
 {
+	[System.ComponentModel.Description("No value")]
 	None = 0,
 	One = 1,
 	Two = 2,
