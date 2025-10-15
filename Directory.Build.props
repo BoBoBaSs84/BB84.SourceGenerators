@@ -49,6 +49,7 @@
 		<PackageReadmeFile>README.md</PackageReadmeFile>
 		<PackageReleaseNotes>https://github.com/BoBoBaSs84/BB84.SourceGenerators/releases/tag/v$(FileVersion)</PackageReleaseNotes>
 		<PackageRequireLicenseAcceptance>True</PackageRequireLicenseAcceptance>		
+		<PackageTags>source-generators; roslyn; analyzers; csharp; generators; code-generation</PackageTags>
 		<PackageVersion>$(FileVersion)</PackageVersion>
 	</PropertyGroup>
 
