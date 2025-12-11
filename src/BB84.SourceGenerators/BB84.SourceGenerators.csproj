@@ -1,6 +1,5 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-		<GeneratePackageOnBuild>True</GeneratePackageOnBuild>
 		<IsPackable>True</IsPackable>
     <EnforceExtendedAnalyzerRules>True</EnforceExtendedAnalyzerRules>
     <IncludeBuildOutput>False</IncludeBuildOutput>
