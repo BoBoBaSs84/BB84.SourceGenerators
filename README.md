@@ -2,8 +2,15 @@
 
 A collection of C# source generators that automatically generate boilerplate code at compile time, reducing manual coding and improving code maintainability.
 
+[![CodeQL](https://github.com/BoBoBaSs84/BB84.SourceGenerators/actions/workflows/github-code-scanning/codeql/badge.svg?branch=main)](https://github.com/BoBoBaSs84/BB84.SourceGenerators/actions/workflows/github-code-scanning/codeql)
+[![Dependabot](https://github.com/BoBoBaSs84/BB84.SourceGenerators/actions/workflows/dependabot/dependabot-updates/badge.svg?branch=main)](https://github.com/BoBoBaSs84/BB84.SourceGenerators/actions/workflows/dependabot/dependabot-updates)
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![.NET Standard 2.0](https://img.shields.io/badge/.NET%20Standard-2.0-blue.svg)](https://docs.microsoft.com/en-us/dotnet/standard/net-standard)
+[![Issues](https://img.shields.io/github/issues/BoBoBaSs84/BB84.SourceGenerators)](https://github.com/BoBoBaSs84/BB84.SourceGenerators/issues)
+[![Commit](https://img.shields.io/github/last-commit/BoBoBaSs84/BB84.SourceGenerators)](https://github.com/BoBoBaSs84/BB84.SourceGenerators/commit/main)
+[![RepoSize](https://img.shields.io/github/repo-size/BoBoBaSs84/BB84.SourceGenerators)](https://github.com/BoBoBaSs84/BB84.SourceGenerators)
+[![Release](https://img.shields.io/github/v/release/BoBoBaSs84/BB84.SourceGenerators)](https://github.com/BoBoBaSs84/BB84.SourceGenerators/releases/latest)
 
 ## Features
 
