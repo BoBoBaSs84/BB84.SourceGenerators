@@ -3,8 +3,10 @@
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
   </PropertyGroup>
   <ItemGroup>
-    <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="4.14.0" />
-    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" />
+		<!--Version 4.14 includes C# 13.0 (Visual Studio 2022 version 17.14, .NET 9)-->
+    <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="[4.14.0]" />
+		<!--Version 4.14 includes C# 13.0 (Visual Studio 2022 version 17.14, .NET 9)-->
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="[4.14.0]" />
     <PackageVersion Include="MSTest" Version="4.0.2" />
     <PackageVersion Include="PolySharp" Version="1.15.0" />
   </ItemGroup>
