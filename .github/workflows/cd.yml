@@ -1,0 +1,86 @@
+name: Continuous Deployment
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+.[0-9]+'
+
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+    name: Build, Test & Publish
+    runs-on: ubuntu-latest
+
+    env:
+      DOTNET_NOLOGO: true
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.x
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          TAG_NAME="${GITHUB_REF#refs/tags/v}"
+          echo "VERSION=${TAG_NAME}" >> "$GITHUB_OUTPUT"
+          echo "Extracted version: ${TAG_NAME}"
+
+      - name: Restore dependencies
+        run: dotnet restore BB84.SourceGenerators.sln
+
+      - name: Build solution
+        run: >
+          dotnet build BB84.SourceGenerators.sln
+          --configuration Release
+          --no-restore
+          -p:VersionPrefix=${{ steps.version.outputs.VERSION }}
+          -p:VersionSuffix=
+          -p:FileVersion=${{ steps.version.outputs.VERSION }}
+          -p:PackageVersion=${{ steps.version.outputs.VERSION }}
+
+      - name: Run tests
+        run: dotnet test BB84.SourceGenerators.sln --configuration Release --no-build --verbosity normal --logger "trx;LogFileName=test-results.trx"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: '**/TestResults/*.trx'
+
+      - name: Create NuGet package
+        run: >
+          dotnet pack src/BB84.SourceGenerators/BB84.SourceGenerators.csproj
+          --configuration Release
+          --no-build
+          --output ./artifacts
+          -p:PackageVersion=${{ steps.version.outputs.VERSION }}
+
+      - name: Upload NuGet package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuget-package
+          path: ./artifacts/*.nupkg
+
+      - name: Publish to NuGet.org
+        run: >
+          dotnet nuget push ./artifacts/*.nupkg
+          --api-key ${{ secrets.NUGET_API_KEY }}
+          --source https://api.nuget.org/v3/index.json
+          --skip-duplicate
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ steps.version.outputs.VERSION }}
+          generate_release_notes: true
+          files: ./artifacts/*.nupkg

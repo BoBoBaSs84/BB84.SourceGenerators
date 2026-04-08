@@ -2,7 +2,7 @@
 
 	<PropertyGroup Label="Versioning">
 		<VersionMajor>1</VersionMajor>
-		<VersionMinor>0</VersionMinor>
+		<VersionMinor>1</VersionMinor>
 		<VersionPatch>$([System.DateTime]::UtcNow.ToString("MMdd"))</VersionPatch>
 		<VersionRevision>$([System.DateTime]::UtcNow.TimeOfDay.TotalMinutes.ToString("0"))</VersionRevision>
 		<VersionPrefix>$(VersionMajor).$(VersionMinor).$(VersionPatch).$(VersionRevision)</VersionPrefix>
@@ -32,7 +32,7 @@
 	</PropertyGroup>
 
 	<PropertyGroup Condition="!$(MSBuildProjectName.EndsWith('Tests'))" Label="MetaData">
-		<Author>BoBoBaSs84</Author>
+		<Author>Author</Author>
 		<Authors>$(Author)</Authors>
 		<Company>https://github.com/$(Author)</Company>
 		<Copyright>Copyright © $([System.DateTime]::UtcNow.Year) $(Author)</Copyright>
@@ -50,7 +50,7 @@
 		<PackageProjectUrl>https://github.com/$(Author)/$(Product)</PackageProjectUrl>
 		<PackageReadmeFile>README.md</PackageReadmeFile>
 		<PackageReleaseNotes>https://github.com/$(Author)/$(Product)/releases/tag/v$(FileVersion)</PackageReleaseNotes>
-		<PackageRequireLicenseAcceptance>True</PackageRequireLicenseAcceptance>		
+		<PackageRequireLicenseAcceptance>True</PackageRequireLicenseAcceptance>
 		<PackageTags>source-generators; roslyn; analyzers; csharp; generators; code-generation</PackageTags>
 		<PackageVersion>$(FileVersion)</PackageVersion>
 	</PropertyGroup>
