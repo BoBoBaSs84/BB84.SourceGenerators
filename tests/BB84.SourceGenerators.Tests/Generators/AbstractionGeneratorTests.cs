@@ -23,7 +23,7 @@ public sealed class AbstractionGeneratorTests
 }
 
 [GenerateAbstraction(typeof(File), typeof(IFileProvider), typeof(FileProvider))]
-public partial class FileProvider
+internal partial class FileProvider
 { }
 
 public partial interface IFileProvider
