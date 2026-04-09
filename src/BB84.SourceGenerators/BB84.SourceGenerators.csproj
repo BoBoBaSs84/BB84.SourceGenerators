@@ -28,9 +28,10 @@
 		</PackageReference>
 	</ItemGroup>
 	<ItemGroup>
+	  <None Remove="bin\Debug\netstandard2.0\\BB84.SourceGenerators.dll" />
+	</ItemGroup>
+	<ItemGroup>
 		<!-- Packs the generator DLL into the analyzers folder so Roslyn loads it as a source generator -->
 		<None Include="$(OutputPath)\$(AssemblyName).dll" Pack="True" PackagePath="analyzers/dotnet/cs" Visible="False" />
-		<!-- Packs the DLL into the lib folder so consumers can reference the attribute types -->
-		<None Include="$(OutputPath)\$(AssemblyName).dll" Pack="True" PackagePath="lib/$(TargetFramework)" Visible="False" />
 	</ItemGroup>
 </Project>
