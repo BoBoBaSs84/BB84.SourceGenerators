@@ -33,7 +33,10 @@
 	<ItemGroup>
 		<EmbeddedResource Include="Attributes\GenerateAbstractionAttribute.cs" LogicalName="GenerateAbstractionAttribute.cs" />
 		<EmbeddedResource Include="Attributes\GenerateEnumeratorExtensionsAttribute.cs" LogicalName="GenerateEnumeratorExtensionsAttribute.cs" />
+		<EmbeddedResource Include="Attributes\GenerateIniFileAttribute.cs" LogicalName="GenerateIniFileAttribute.cs" />
 		<EmbeddedResource Include="Attributes\GenerateNotificationsAttribute.cs" LogicalName="GenerateNotificationsAttribute.cs" />
+		<EmbeddedResource Include="Attributes\GenerateIniFileSectionAttribute.cs" LogicalName="IniFileSectionAttribute.cs" />
+		<EmbeddedResource Include="Attributes\GenerateIniFileValueAttribute.cs" LogicalName="IniFileValueAttribute.cs" />
 	</ItemGroup>
 	<ItemGroup>
 		<!-- Packs the generator DLL into the analyzers folder so Roslyn loads it as a source generator -->
