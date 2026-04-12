@@ -23,6 +23,7 @@ This package provides four powerful source generators:
 - **Enumerator Extensions Generator** - Fast, allocation-free extension methods for enums
 - **Notification Properties Generator** - Automatic INotifyPropertyChanged/INotifyPropertyChanging implementation
 - **Abstraction Generator** - Interface and implementation generation for static classes
+- **INI File Generator** - Compile-time INI file serialization and deserialization
 
 ## Installation
 
@@ -232,6 +233,102 @@ var mockFileProvider = new Mock<IFileProvider>();
 mockFileProvider.Setup(x => x.ReadAllText(It.IsAny<string>())).Returns("test content");
 ```
 
+### 4. INI File Generator
+
+Generates static `Read` and `Write` methods for classes, enabling compile-time INI file serialization and deserialization based on decorated properties.
+
+#### Attributes
+
+```csharp
+[GenerateIniFile]
+[GenerateIniFileSection(string? name = null)]
+[GenerateIniFileValue(string? name = null)]
+```
+
+**Parameters:**
+- `GenerateIniFile` - Marks a class for INI file code generation
+- `GenerateIniFileSection` - Marks a property as an INI file section. The optional `name` parameter specifies the section name; if omitted, the property name is used
+- `GenerateIniFileValue` - Marks a property as a key-value pair within an INI section. The optional `name` parameter specifies the key name; if omitted, the property name is used
+
+**Supported Value Types:**
+`string`, `int`, `long`, `float`, `double`, `bool`, `decimal`, `DateTime`
+
+#### Example
+
+```csharp
+using BB84.SourceGenerators.Attributes;
+
+[GenerateIniFile]
+public partial class AppConfig
+{
+    [GenerateIniFileSection("General")]
+    public GeneralSection General { get; set; }
+
+    [GenerateIniFileSection("Database")]
+    public DatabaseSection Database { get; set; }
+}
+
+public class GeneralSection
+{
+    [GenerateIniFileValue("AppName")]
+    public string AppName { get; set; }
+
+    [GenerateIniFileValue("Version")]
+    public int Version { get; set; }
+
+    [GenerateIniFileValue("Debug")]
+    public bool Debug { get; set; }
+}
+
+public class DatabaseSection
+{
+    [GenerateIniFileValue("Server")]
+    public string Server { get; set; }
+
+    [GenerateIniFileValue("Port")]
+    public int Port { get; set; }
+
+    [GenerateIniFileValue("Timeout")]
+    public double Timeout { get; set; }
+}
+```
+
+#### Generated Methods
+
+The generator creates the following static methods on the decorated class:
+
+- `Read(string content)` - Parses an INI file string and returns a deserialized instance
+- `Write(TClass instance)` - Serializes an instance into an INI file string
+
+#### Usage Example
+
+```csharp
+// Reading an INI file
+string iniContent = File.ReadAllText("config.ini");
+AppConfig config = AppConfig.Read(iniContent);
+
+Console.WriteLine(config.General.AppName); // "MyApp"
+Console.WriteLine(config.Database.Port);   // 5432
+
+// Modifying and writing back
+config.General.Debug = false;
+config.Database.Timeout = 60.0;
+
+string output = AppConfig.Write(config);
+File.WriteAllText("config.ini", output);
+
+// Output:
+// [General]
+// AppName=MyApp
+// Version=1
+// Debug=False
+//
+// [Database]
+// Server=localhost
+// Port=5432
+// Timeout=60
+```
+
 ## Requirements
 
 - .NET Standard 2.0 or higher
@@ -251,6 +348,11 @@ The generated enum extension methods provide significant performance improvement
 - Generates optimized property setters with inline equality checks
 - Avoids reflection overhead of PropertyChanged.Fody or similar tools
 - Compile-time code generation means zero runtime overhead
+
+### INI File Serialization
+- Generates direct string parsing and formatting code at compile time
+- Avoids runtime reflection or third-party INI parsing libraries
+- Uses `CultureInfo.InvariantCulture` for consistent cross-platform formatting
 
 ## How It Works
 
