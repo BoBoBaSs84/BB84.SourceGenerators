@@ -1,4 +1,4 @@
-// Copyright: 2025 Robert Peter Meyer
+// Copyright: 2026 Robert Peter Meyer
 // License: MIT
 //
 // This source code is licensed under the MIT license found in the
@@ -31,10 +31,10 @@ public sealed class AttributeSourceGenerator : IIncrementalGenerator
 		AttributeSourceRewriter.ReadAndTransform("GenerateIniFileAttribute.cs");
 
 	private static readonly string GenerateIniFileSectionAttributeSource =
-		AttributeSourceRewriter.ReadAndTransform("IniFileSectionAttribute.cs");
+		AttributeSourceRewriter.ReadAndTransform("GenerateIniFileSectionAttribute.cs");
 
 	private static readonly string GenerateIniFileValueAttributeSource =
-		AttributeSourceRewriter.ReadAndTransform("IniFileValueAttribute.cs");
+		AttributeSourceRewriter.ReadAndTransform("GenerateIniFileValueAttribute.cs");
 
 	private static readonly string GenerateNotificationsAttributeSource =
 		AttributeSourceRewriter.ReadAndTransform("GenerateNotificationsAttribute.cs");
