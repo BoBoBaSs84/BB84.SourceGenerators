@@ -8,7 +8,7 @@ namespace BB84.SourceGenerators.Attributes;
 /// <summary>
 /// Indicates that the decorated property represents a section within an INI file.
 /// The property type must be a class whose properties can be decorated with
-/// <see cref="IniFileValueAttribute"/> to define key-value pairs within the section.
+/// <see cref="GenerateIniFileValueAttribute"/> to define key-value pairs within the section.
 /// </summary>
 /// <param name="name">
 /// The name of the section in the INI file. If not specified, the property name is used.

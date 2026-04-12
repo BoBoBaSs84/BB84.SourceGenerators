@@ -393,7 +393,7 @@ public sealed class IniFileGeneratorTests
 #region Test Types
 
 [GenerateIniFile]
-internal partial class TestIniFile
+internal sealed partial class TestIniFile
 {
 	[GenerateIniFileSection]
 	public TestGeneralSection? General { get; set; }
@@ -427,7 +427,7 @@ public class TestDatabaseSection
 }
 
 [GenerateIniFile]
-internal partial class TestIniFileWithCustomNames
+internal sealed partial class TestIniFileWithCustomNames
 {
 	[GenerateIniFileSection("CustomSection")]
 	public TestCustomSection? Stats { get; set; }
@@ -449,7 +449,7 @@ public class TestMetricsSection
 }
 
 [GenerateIniFile]
-internal partial class TestIniFileAllTypes
+internal sealed partial class TestIniFileAllTypes
 {
 	[GenerateIniFileSection]
 	public TestAllTypesSection? AllTypes { get; set; }
@@ -483,7 +483,7 @@ public class TestAllTypesSection
 }
 
 [GenerateIniFile]
-internal partial class TestIniFileWithInit
+internal sealed partial class TestIniFileWithInit
 {
 	[GenerateIniFileSection]
 	public TestSettingsSection Settings { get; set; } = new TestSettingsSection();
