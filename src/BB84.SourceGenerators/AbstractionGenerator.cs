@@ -53,10 +53,9 @@ public sealed class AbstractionGenerator : IIncrementalGenerator
 	/// </returns>
 	private static string GenerateAbstractionSource(AbstractionRequest request)
 	{
-		IEnumerable<IMethodSymbol> methodSymbols = request.TargetType
-			.GetMembers()
-			.OfType<IMethodSymbol>()
-			.Where(m => m.DeclaredAccessibility == Accessibility.Public && m.IsStatic && !request.ExcludeMethods.Contains(m.Name));
+		IEnumerable<IPropertySymbol> propertySymbols = GetPropertySymbols(request);
+		HashSet<string> propertyAccessorNames = GetPropertyAccessorNames(propertySymbols);
+		IEnumerable<IMethodSymbol> methodSymbols = GetMethodSymbols(request, propertyAccessorNames);
 
 		string abstractionNamespace = GetFullNamespace(request.AbstractionType);
 
@@ -68,6 +67,11 @@ public sealed class AbstractionGenerator : IIncrementalGenerator
 		sb.AppendLine("{");
 		sb.AppendLine($"  {GetAccessibilityKeyword(request.AbstractionType.DeclaredAccessibility)} partial interface {request.AbstractionType.Name}");
 		sb.AppendLine("  {");
+		foreach (IPropertySymbol propertySymbol in propertySymbols)
+		{
+			sb.AppendLine($"    {CreatePropertyComment(request, propertySymbol)}");
+			sb.AppendLine($"    {CreateAbstractionPropertySignature(propertySymbol)}");
+		}
 		foreach (IMethodSymbol methodSymbol in methodSymbols)
 		{
 			sb.AppendLine($"    {CreateMethodComment(request, methodSymbol)}");
@@ -81,10 +85,9 @@ public sealed class AbstractionGenerator : IIncrementalGenerator
 
 	private static string GenerateImplementationSource(AbstractionRequest request)
 	{
-		IEnumerable<IMethodSymbol> methodSymbols = request.TargetType
-			.GetMembers()
-			.OfType<IMethodSymbol>()
-			.Where(m => m.DeclaredAccessibility == Accessibility.Public && m.IsStatic && !request.ExcludeMethods.Contains(m.Name));
+		IEnumerable<IPropertySymbol> propertySymbols = GetPropertySymbols(request);
+		HashSet<string> propertyAccessorNames = GetPropertyAccessorNames(propertySymbols);
+		IEnumerable<IMethodSymbol> methodSymbols = GetMethodSymbols(request, propertyAccessorNames);
 
 		string abstractionNamespace = GetFullNamespace(request.AbstractionType);
 		string implementationNamespace = GetFullNamespace(request.ImplementationType);
@@ -102,6 +105,11 @@ public sealed class AbstractionGenerator : IIncrementalGenerator
 		sb.AppendLine("{");
 		sb.AppendLine($"  {GetAccessibilityKeyword(request.ImplementationType.DeclaredAccessibility)} partial class {request.ImplementationType.Name} : {request.AbstractionType.Name}");
 		sb.AppendLine("  {");
+		foreach (IPropertySymbol propertySymbol in propertySymbols)
+		{
+			sb.AppendLine($"    {CreatePropertyComment(request, propertySymbol)}");
+			sb.AppendLine($"    {CreateImplementationPropertySignature(request, propertySymbol)}");
+		}
 		foreach (IMethodSymbol methodSymbol in methodSymbols)
 		{
 			sb.AppendLine($"    public {CreateMethodSignature(methodSymbol)}");
@@ -111,6 +119,51 @@ public sealed class AbstractionGenerator : IIncrementalGenerator
 		sb.AppendLine("}");
 		return sb.ToString();
 	}
+
+	/// <summary>
+	/// Gets the public static property symbols from the target type, excluding any properties in the exclusion list.
+	/// </summary>
+	/// <param name="request">The abstraction request containing the target type and exclusion information.</param>
+	/// <returns>An enumerable of public static property symbols.</returns>
+	private static IEnumerable<IPropertySymbol> GetPropertySymbols(AbstractionRequest request)
+		=> request.TargetType
+			.GetMembers()
+			.OfType<IPropertySymbol>()
+			.Where(p => p.DeclaredAccessibility == Accessibility.Public && p.IsStatic && !request.ExcludeProperties.Contains(p.Name));
+
+	/// <summary>
+	/// Gets the set of property accessor method names (e.g. get_PropertyName, set_PropertyName)
+	/// for the given property symbols, so they can be filtered from method generation.
+	/// </summary>
+	/// <param name="propertySymbols">The property symbols to extract accessor names from.</param>
+	/// <returns>A set of accessor method names.</returns>
+	private static HashSet<string> GetPropertyAccessorNames(IEnumerable<IPropertySymbol> propertySymbols)
+	{
+		HashSet<string> names = [];
+		foreach (IPropertySymbol property in propertySymbols)
+		{
+			if (property.GetMethod != null)
+				names.Add(property.GetMethod.Name);
+			if (property.SetMethod != null)
+				names.Add(property.SetMethod.Name);
+		}
+		return names;
+	}
+
+	/// <summary>
+	/// Gets the public static method symbols from the target type, excluding any methods in the exclusion list
+	/// and any property accessor methods.
+	/// </summary>
+	/// <param name="request">The abstraction request containing the target type and exclusion information.</param>
+	/// <param name="propertyAccessorNames">The set of property accessor method names to exclude.</param>
+	/// <returns>An enumerable of public static method symbols.</returns>
+	private static IEnumerable<IMethodSymbol> GetMethodSymbols(AbstractionRequest request, HashSet<string> propertyAccessorNames)
+		=> request.TargetType
+			.GetMembers()
+			.OfType<IMethodSymbol>()
+			.Where(m => m.DeclaredAccessibility == Accessibility.Public && m.IsStatic
+				&& !request.ExcludeMethods.Contains(m.Name)
+				&& !propertyAccessorNames.Contains(m.Name));
 
 	/// <summary>
 	/// Creates a string representation of the specified method symbol, including its name and parameter list.
@@ -140,6 +193,61 @@ public sealed class AbstractionGenerator : IIncrementalGenerator
 		IEnumerable<string> parameters = methodSymbol.Parameters.Select(p => $"{p.Type} {p.Name}");
 		return $"{methodSymbol.ReturnType} {methodSymbol.Name}({string.Join(", ", parameters)})";
 	}
+
+	/// <summary>
+	/// Creates a property signature for the abstraction interface, including the getter and/or setter.
+	/// </summary>
+	/// <param name="propertySymbol">The property symbol to generate the signature for.</param>
+	/// <returns>A string containing the property signature for the abstraction interface.</returns>
+	private static string CreateAbstractionPropertySignature(IPropertySymbol propertySymbol)
+	{
+		string accessors = GetPropertyAccessors(propertySymbol);
+		return $"{propertySymbol.Type} {propertySymbol.Name} {{ {accessors} }}";
+	}
+
+	/// <summary>
+	/// Creates a property implementation that delegates to the target static class.
+	/// </summary>
+	/// <param name="request">The abstraction request containing the target type information.</param>
+	/// <param name="propertySymbol">The property symbol to generate the implementation for.</param>
+	/// <returns>A string containing the property implementation.</returns>
+	private static string CreateImplementationPropertySignature(AbstractionRequest request, IPropertySymbol propertySymbol)
+	{
+		string getter = propertySymbol.GetMethod != null && propertySymbol.GetMethod.DeclaredAccessibility == Accessibility.Public
+			? $"get => {request.TargetType}.{propertySymbol.Name};"
+			: string.Empty;
+		string setter = propertySymbol.SetMethod != null && propertySymbol.SetMethod.DeclaredAccessibility == Accessibility.Public
+			? $"set => {request.TargetType}.{propertySymbol.Name} = value;"
+			: string.Empty;
+		return $"public {propertySymbol.Type} {propertySymbol.Name} {{{getter}{setter}}}";
+	}
+
+	/// <summary>
+	/// Gets the accessor string (get; set;) for the given property symbol.
+	/// </summary>
+	/// <param name="propertySymbol">The property symbol.</param>
+	/// <returns>A string containing the applicable accessors.</returns>
+	private static string GetPropertyAccessors(IPropertySymbol propertySymbol)
+	{
+		string getter = propertySymbol.GetMethod != null && propertySymbol.GetMethod.DeclaredAccessibility == Accessibility.Public
+			? "get; "
+			: string.Empty;
+		string setter = propertySymbol.SetMethod != null && propertySymbol.SetMethod.DeclaredAccessibility == Accessibility.Public
+			? "set; "
+			: string.Empty;
+		return $" {getter}{setter}";
+	}
+
+	/// <summary>
+	/// Generates an XML documentation comment that inherits documentation from the specified target property.
+	/// </summary>
+	/// <param name="request">The abstraction request containing the target type information for documentation inheritance.</param>
+	/// <param name="propertySymbol">The symbol representing the property for which the documentation comment is generated.</param>
+	/// <returns>
+	/// A string containing the XML documentation comment that references the target property using <c>&lt;inheritdoc&gt;</c>.
+	/// </returns>
+	private static string CreatePropertyComment(AbstractionRequest request, IPropertySymbol propertySymbol)
+		=> $"/// <inheritdoc cref=\"{request.TargetType}.{propertySymbol.Name}\"/>";
 
 	/// <summary>
 	/// Generates an XML documentation comment that inherits documentation from the specified target method.
@@ -217,6 +325,13 @@ public sealed class AbstractionGenerator : IIncrementalGenerator
 				if (excludeMethodsArg.Kind is TypedConstantKind.Array)
 					excludeMethods = [.. excludeMethodsArg.Values.Select(v => v.Value as string ?? string.Empty)];
 
+				string[] excludeProperties = [];
+				foreach (KeyValuePair<string, TypedConstant> namedArg in attributeData.NamedArguments)
+				{
+					if (namedArg.Key == nameof(GenerateAbstractionAttribute.ExcludeProperties) && namedArg.Value.Kind is TypedConstantKind.Array)
+						excludeProperties = [.. namedArg.Value.Values.Select(v => v.Value as string ?? string.Empty)];
+				}
+
 				if (targetTypeArg.Value is INamedTypeSymbol targetType
 					&& abstractionTypeArg.Value is INamedTypeSymbol abstractionType
 					&& implementationTypeArg.Value is INamedTypeSymbol implementationType)
@@ -224,7 +339,8 @@ public sealed class AbstractionGenerator : IIncrementalGenerator
 						TargetType: targetType,
 						AbstractionType: abstractionType,
 						ImplementationType: implementationType,
-						ExcludeMethods: excludeMethods
+						ExcludeMethods: excludeMethods,
+						ExcludeProperties: excludeProperties
 						);
 			}
 		}

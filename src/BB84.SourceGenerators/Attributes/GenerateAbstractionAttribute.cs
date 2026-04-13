@@ -41,4 +41,9 @@ internal sealed class GenerateAbstractionAttribute(Type targetType, Type abstrac
 	/// Gets the methods to exclude from the generated abstraction.
 	/// </summary>
 	public string[] ExcludeMethods => excludeMethods;
+
+	/// <summary>
+	/// Gets or sets the properties to exclude from the generated abstraction.
+	/// </summary>
+	public string[] ExcludeProperties { get; set; } = [];
 }
