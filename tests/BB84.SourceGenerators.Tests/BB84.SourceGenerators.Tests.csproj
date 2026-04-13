@@ -2,7 +2,7 @@
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
 		<EmitCompilerGeneratedFiles>True</EmitCompilerGeneratedFiles>
-		<NoWarn>$(NoWarn);CS0436</NoWarn>
+		<NoWarn>$(NoWarn);CA1859;CS0436</NoWarn>
   </PropertyGroup>
 	<ItemGroup>
 		<PackageReference Include="MSTest" />
