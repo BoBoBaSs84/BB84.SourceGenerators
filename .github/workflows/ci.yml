@@ -38,7 +38,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-results
           path: '**/TestResults/*.trx'
@@ -47,7 +47,7 @@ jobs:
         run: dotnet pack src/BB84.SourceGenerators/BB84.SourceGenerators.csproj --configuration Release --no-build --output ./artifacts
 
       - name: Upload NuGet package artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: nuget-package
           path: ./artifacts/*.nupkg
