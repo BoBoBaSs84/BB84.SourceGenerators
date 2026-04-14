@@ -6,7 +6,7 @@ A collection of C# source generators that automatically generate boilerplate cod
 [![CD](https://github.com/BoBoBaSs84/BB84.SourceGenerators/actions/workflows/cd.yml/badge.svg?branch=main)](https://github.com/BoBoBaSs84/BB84.SourceGenerators/actions/workflows/cd.yml)
 [![CodeQL](https://github.com/BoBoBaSs84/BB84.SourceGenerators/actions/workflows/github-code-scanning/codeql/badge.svg?branch=main)](https://github.com/BoBoBaSs84/BB84.SourceGenerators/actions/workflows/github-code-scanning/codeql)
 [![Dependabot](https://github.com/BoBoBaSs84/BB84.SourceGenerators/actions/workflows/dependabot/dependabot-updates/badge.svg?branch=main)](https://github.com/BoBoBaSs84/BB84.SourceGenerators/actions/workflows/dependabot/dependabot-updates)
-[![NuGet](https://img.shields.io/nuget/v/BB84.SourceGenerators.svg?logo=nuget&logoColor=white)](https://www.nuget.org/packages/BB84.SourceGenerators)
+
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![C#](https://img.shields.io/badge/C%23-13.0-239120)](https://github.com/BoBoBaSs84/BB84.SourceGenerators)
@@ -14,16 +14,17 @@ A collection of C# source generators that automatically generate boilerplate cod
 [![Issues](https://img.shields.io/github/issues/BoBoBaSs84/BB84.SourceGenerators)](https://github.com/BoBoBaSs84/BB84.SourceGenerators/issues)
 [![Commit](https://img.shields.io/github/last-commit/BoBoBaSs84/BB84.SourceGenerators)](https://github.com/BoBoBaSs84/BB84.SourceGenerators/commit/main)
 [![RepoSize](https://img.shields.io/github/repo-size/BoBoBaSs84/BB84.SourceGenerators)](https://github.com/BoBoBaSs84/BB84.SourceGenerators)
-[![Release](https://img.shields.io/github/v/release/BoBoBaSs84/BB84.SourceGenerators)](https://github.com/BoBoBaSs84/BB84.SourceGenerators/releases/latest)
+[![NuGet](https://img.shields.io/nuget/v/BB84.SourceGenerators.svg?logo=nuget&logoColor=white)](https://www.nuget.org/packages/BB84.SourceGenerators)
 
 ## Features
 
-This package provides four powerful source generators:
+This package provides five powerful source generators:
 
 - **Enumerator Extensions Generator** - Fast, allocation-free extension methods for enums
 - **Notification Properties Generator** - Automatic INotifyPropertyChanged/INotifyPropertyChanging implementation
 - **Abstraction Generator** - Interface and implementation generation for static classes
 - **INI File Generator** - Compile-time INI file serialization and deserialization
+- **Builder Generator** - Fluent builder pattern generation for classes
 
 ## Installation
 
@@ -329,6 +330,67 @@ File.WriteAllText("config.ini", output);
 // Timeout=60
 ```
 
+### 5. Builder Generator
+
+Generates a fluent builder class for classes, providing `With{PropertyName}(value)` methods for each public settable property and a `Build()` method that creates the instance.
+
+#### Attribute
+
+```csharp
+[GenerateBuilder]
+```
+
+#### Example
+
+```csharp
+using BB84.SourceGenerators.Attributes;
+
+[GenerateBuilder]
+public partial class UserProfile
+{
+    public int Id { get; set; }
+    public string Name { get; set; }
+    public string? Email { get; set; }
+    public int Age { get; set; }
+    public bool IsActive { get; set; }
+}
+```
+
+#### Generated Code
+
+The generator creates a `{ClassName}Builder` class with:
+
+- A `With{PropertyName}(value)` fluent method for each public settable property
+- A `Build()` method that creates the instance via object initializer
+- Proper nullable reference type annotations
+- XML documentation comments
+
+#### Usage Example
+
+```csharp
+// Create an instance using the fluent builder
+UserProfile profile = new UserProfileBuilder()
+    .WithId(1)
+    .WithName("John Doe")
+    .WithEmail("john@example.com")
+    .WithAge(30)
+    .WithIsActive(true)
+    .Build();
+
+// Only set the properties you need - others use default values
+UserProfile minimal = new UserProfileBuilder()
+    .WithName("Jane Doe")
+    .Build();
+
+// Builders can be reused to create multiple instances
+var builder = new UserProfileBuilder()
+    .WithName("Template User")
+    .WithIsActive(true);
+
+UserProfile first = builder.WithId(1).Build();
+UserProfile second = builder.WithId(2).Build();
+```
+
 ## Requirements
 
 - .NET Standard 2.0 or higher
@@ -353,6 +415,12 @@ The generated enum extension methods provide significant performance improvement
 - Generates direct string parsing and formatting code at compile time
 - Avoids runtime reflection or third-party INI parsing libraries
 - Uses `CultureInfo.InvariantCulture` for consistent cross-platform formatting
+
+### Builder Pattern
+- Generates a complete fluent builder class at compile time
+- Eliminates hand-written builder boilerplate that must be kept in sync with the target class
+- Replaces reflection-based or expression-tree-based builder libraries with zero-overhead generated code
+- Full nullable reference type support for type-safe builder APIs
 
 ## How It Works
 

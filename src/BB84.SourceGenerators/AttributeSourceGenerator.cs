@@ -24,6 +24,9 @@ public sealed class AttributeSourceGenerator : IIncrementalGenerator
 	private static readonly string GenerateAbstractionAttributeSource =
 		AttributeSourceRewriter.ReadAndTransform("GenerateAbstractionAttribute.cs");
 
+	private static readonly string GenerateBuilderAttributeSource =
+		AttributeSourceRewriter.ReadAndTransform("GenerateBuilderAttribute.cs");
+
 	private static readonly string GenerateEnumeratorExtensionsAttributeSource =
 		AttributeSourceRewriter.ReadAndTransform("GenerateEnumeratorExtensionsAttribute.cs");
 
@@ -45,6 +48,7 @@ public sealed class AttributeSourceGenerator : IIncrementalGenerator
 		context.RegisterPostInitializationOutput(static ctx =>
 		{
 			ctx.AddSource("GenerateAbstractionAttribute.g.cs", GenerateAbstractionAttributeSource);
+			ctx.AddSource("GenerateBuilderAttribute.g.cs", GenerateBuilderAttributeSource);
 			ctx.AddSource("GenerateEnumeratorExtensionsAttribute.g.cs", GenerateEnumeratorExtensionsAttributeSource);
 			ctx.AddSource("GenerateIniFileAttribute.g.cs", GenerateIniFileAttributeSource);
 			ctx.AddSource("GenerateIniFileSectionAttribute.g.cs", GenerateIniFileSectionAttributeSource);
