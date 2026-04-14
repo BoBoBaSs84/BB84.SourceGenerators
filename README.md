@@ -1,4 +1,4 @@
-# BB84.SourceGenerators
+ï»¿# BB84.SourceGenerators
 
 A collection of C# source generators that automatically generate boilerplate code at compile time, reducing manual coding and improving code maintainability.
 
@@ -6,7 +6,6 @@ A collection of C# source generators that automatically generate boilerplate cod
 [![CD](https://github.com/BoBoBaSs84/BB84.SourceGenerators/actions/workflows/cd.yml/badge.svg?branch=main)](https://github.com/BoBoBaSs84/BB84.SourceGenerators/actions/workflows/cd.yml)
 [![CodeQL](https://github.com/BoBoBaSs84/BB84.SourceGenerators/actions/workflows/github-code-scanning/codeql/badge.svg?branch=main)](https://github.com/BoBoBaSs84/BB84.SourceGenerators/actions/workflows/github-code-scanning/codeql)
 [![Dependabot](https://github.com/BoBoBaSs84/BB84.SourceGenerators/actions/workflows/dependabot/dependabot-updates/badge.svg?branch=main)](https://github.com/BoBoBaSs84/BB84.SourceGenerators/actions/workflows/dependabot/dependabot-updates)
-
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![C#](https://img.shields.io/badge/C%23-13.0-239120)](https://github.com/BoBoBaSs84/BB84.SourceGenerators)
@@ -18,7 +17,7 @@ A collection of C# source generators that automatically generate boilerplate cod
 
 ## Features
 
-This package provides six powerful source generators:
+This package provides seven powerful source generators:
 
 - **Enumerator Extensions Generator** - Fast, allocation-free extension methods for enums
 - **Notification Properties Generator** - Automatic INotifyPropertyChanged/INotifyPropertyChanging implementation
@@ -26,6 +25,7 @@ This package provides six powerful source generators:
 - **INI File Generator** - Compile-time INI file serialization and deserialization
 - **Builder Generator** - Fluent builder pattern generation for classes
 - **ToString Generator** - Compile-time `ToString()` override generation
+- **Validator Generator** - Compile-time data annotation validation
 
 ## Installation
 
@@ -112,6 +112,7 @@ Automatically generates properties with `INotifyPropertyChanged` and `INotifyPro
 ```
 
 **Parameters:**
+
 - `isChanged` - When `true`, generates an additional `IsChanged` boolean property that is set to `true` when any property changes
 
 #### Example
@@ -179,6 +180,7 @@ Generates interface and implementation classes for static classes, making them t
 ```
 
 **Parameters:**
+
 - `targetType` - The static class to generate an abstraction for
 - `abstractionType` - The interface type to generate
 - `implementationType` - The implementation class type to generate
@@ -248,6 +250,7 @@ Generates static `Read` and `Write` methods for classes, enabling compile-time I
 ```
 
 **Parameters:**
+
 - `GenerateIniFile` - Marks a class for INI file code generation
 - `GenerateIniFileSection` - Marks a property as an INI file section. The optional `name` parameter specifies the section name; if omitted, the property name is used
 - `GenerateIniFileValue` - Marks a property as a key-value pair within an INI section. The optional `name` parameter specifies the key name; if omitted, the property name is used
@@ -403,6 +406,7 @@ Generates a `ToString()` override for classes, returning a formatted string cont
 ```
 
 **Parameters:**
+
 - `excludeProperties` - Optional list of property names to exclude from the generated `ToString()` output
 
 #### Example
@@ -465,6 +469,107 @@ Console.WriteLine(user.ToString());
 // Output: User { Id = 42, Name = John Doe }
 ```
 
+### 7. Validator Generator
+
+Generates a `Validate()` method for classes, scanning properties for data annotation attributes at compile time and emitting direct validation checks. This replaces runtime reflection-based `Validator.TryValidateObject()` with zero-overhead generated code.
+
+#### Attribute
+
+```csharp
+[GenerateValidator]
+```
+
+**Supported Data Annotations:**
+
+- `[Required]` - Validates that the property is not null (or not null/empty for strings)
+- `[Range(min, max)]` - Validates that a numeric value falls within a specified range, or that a collection has between min and max elements
+- `[StringLength(max, MinimumLength = min)]` - Validates string length within bounds
+- `[MinLength(length)]` - Validates minimum length of a string or collection
+- `[MaxLength(length)]` - Validates maximum length of a string or collection
+- `[RegularExpression(pattern)]` - Validates that a string matches a regex pattern
+
+#### Example
+
+```csharp
+using System.ComponentModel.DataAnnotations;
+using BB84.SourceGenerators.Attributes;
+
+[GenerateValidator]
+public partial class UserRegistration
+{
+    [Required]
+    [StringLength(100, MinimumLength = 2)]
+    public string? Name { get; set; }
+
+    [Required]
+    [RegularExpression(@"^[^@\s]+@[^@\s]+\.[^@\s]+$")]
+    public string? Email { get; set; }
+
+    [Range(18, 120)]
+    public int Age { get; set; }
+
+    [Required]
+    [MinLength(8)]
+    [MaxLength(128)]
+    public string? Password { get; set; }
+
+		[Range(1, 10)]
+		public List<int>? Skills { get; set; }
+}
+```
+
+#### Generated Code
+
+The generator creates a `Validate()` method on the partial class that:
+
+- Returns a `List<string>` of validation error messages
+- Contains direct `if`-checks for each data annotation rule
+- Supports custom error messages via `ErrorMessage` property
+- Returns an empty list when the instance is valid
+
+#### Usage Example
+
+```csharp
+var registration = new UserRegistration
+{
+    Name = "J",
+    Email = "not-an-email",
+    Age = 15,
+    Password = "short"
+};
+
+List<string> errors = registration.Validate();
+
+if (errors.Count > 0)
+{
+    foreach (string error in errors)
+    {
+        Console.WriteLine(error);
+    }
+    // Output:
+    // The field Name must be a string with a minimum length of 2 and a maximum length of 100.
+    // The field Email must match the regular expression '^[^@\s]+@[^@\s]+\.[^@\s]+$'.
+    // The field Age must be between 18 and 120.
+    // The field Password must be a string or collection with a minimum length of 8.
+}
+else
+{
+    Console.WriteLine("Registration is valid!");
+}
+
+// Custom error messages
+[GenerateValidator]
+public partial class LoginModel
+{
+    [Required(ErrorMessage = "Username is required.")]
+    public string? Username { get; set; }
+
+    [Required(ErrorMessage = "Password cannot be empty.")]
+    [MinLength(6, ErrorMessage = "Password must be at least 6 characters.")]
+    public string? Password { get; set; }
+}
+```
+
 ## Requirements
 
 - .NET Standard 2.0 or higher
@@ -474,6 +579,7 @@ Console.WriteLine(user.ToString());
 ## Performance Benefits
 
 ### Enum Extensions
+
 The generated enum extension methods provide significant performance improvements over reflection-based `Enum` methods:
 
 - **ToStringFast()** - Avoids boxing and uses switch expressions
@@ -481,26 +587,37 @@ The generated enum extension methods provide significant performance improvement
 - **GetNamesFast()/GetValuesFast()** - Returns pre-allocated arrays instead of reflection
 
 ### Notification Properties
+
 - Generates optimized property setters with inline equality checks
 - Avoids reflection overhead of PropertyChanged.Fody or similar tools
 - Compile-time code generation means zero runtime overhead
 
 ### INI File Serialization
+
 - Generates direct string parsing and formatting code at compile time
 - Avoids runtime reflection or third-party INI parsing libraries
 - Uses `CultureInfo.InvariantCulture` for consistent cross-platform formatting
 
 ### Builder Pattern
+
 - Generates a complete fluent builder class at compile time
 - Eliminates hand-written builder boilerplate that must be kept in sync with the target class
 - Replaces reflection-based or expression-tree-based builder libraries with zero-overhead generated code
 - Full nullable reference type support for type-safe builder APIs
 
 ### ToString Generation
+
 - Generates a direct property-formatting `ToString()` override at compile time
 - Replaces runtime reflection approaches (`typeof(T).GetProperties().Select(...)`) with zero-overhead generated code
-- Automatically stays in sync with the class definition — no manual maintenance required
+- Automatically stays in sync with the class definition - no manual maintenance required
 - Supports property exclusion for sensitive or verbose fields
+
+### Validation
+
+- Generates direct `if`-checks at compile time for each data annotation rule
+- Replaces `Validator.TryValidateObject()` which uses `TypeDescriptor` and reflection at runtime
+- Provides compile-time discovery of validation attributes - no runtime attribute scanning
+- Supports custom error messages for localization and user-friendly feedback
 
 ## How It Works
 

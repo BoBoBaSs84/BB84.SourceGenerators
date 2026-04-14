@@ -39,6 +39,7 @@
 		<EmbeddedResource Include="Attributes\GenerateIniFileSectionAttribute.cs" LogicalName="GenerateIniFileSectionAttribute.cs" />
 		<EmbeddedResource Include="Attributes\GenerateIniFileValueAttribute.cs" LogicalName="GenerateIniFileValueAttribute.cs" />
 		<EmbeddedResource Include="Attributes\GenerateToStringAttribute.cs" LogicalName="GenerateToStringAttribute.cs" />
+		<EmbeddedResource Include="Attributes\GenerateValidatorAttribute.cs" LogicalName="GenerateValidatorAttribute.cs" />
 	</ItemGroup>
 	<ItemGroup>
 		<!-- Packs the generator DLL into the analyzers folder so Roslyn loads it as a source generator -->
