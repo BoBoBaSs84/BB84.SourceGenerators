@@ -18,13 +18,14 @@ A collection of C# source generators that automatically generate boilerplate cod
 
 ## Features
 
-This package provides five powerful source generators:
+This package provides six powerful source generators:
 
 - **Enumerator Extensions Generator** - Fast, allocation-free extension methods for enums
 - **Notification Properties Generator** - Automatic INotifyPropertyChanged/INotifyPropertyChanging implementation
 - **Abstraction Generator** - Interface and implementation generation for static classes
 - **INI File Generator** - Compile-time INI file serialization and deserialization
 - **Builder Generator** - Fluent builder pattern generation for classes
+- **ToString Generator** - Compile-time `ToString()` override generation
 
 ## Installation
 
@@ -391,6 +392,79 @@ UserProfile first = builder.WithId(1).Build();
 UserProfile second = builder.WithId(2).Build();
 ```
 
+### 6. ToString Generator
+
+Generates a `ToString()` override for classes, returning a formatted string containing the class name and all (or selected) public readable property values in the format `ClassName { Prop1 = val1, Prop2 = val2 }`.
+
+#### Attribute
+
+```csharp
+[GenerateToString(params string[] excludeProperties)]
+```
+
+**Parameters:**
+- `excludeProperties` - Optional list of property names to exclude from the generated `ToString()` output
+
+#### Example
+
+```csharp
+using BB84.SourceGenerators.Attributes;
+
+[GenerateToString]
+public partial class Product
+{
+    public int Id { get; set; }
+    public string Name { get; set; }
+    public double Price { get; set; }
+    public bool InStock { get; set; }
+}
+
+// Exclude sensitive or verbose properties
+[GenerateToString("PasswordHash", "InternalNotes")]
+public partial class User
+{
+    public int Id { get; set; }
+    public string Name { get; set; }
+    public string PasswordHash { get; set; }
+    public string InternalNotes { get; set; }
+}
+```
+
+#### Generated Code
+
+The generator creates a `ToString()` override on the partial class that:
+
+- Includes all public readable properties by default
+- Excludes properties specified in the attribute parameter
+- Formats output as `ClassName { Prop1 = val1, Prop2 = val2 }`
+- Returns `ClassName { }` when all properties are excluded
+
+#### Usage Example
+
+```csharp
+var product = new Product
+{
+    Id = 1,
+    Name = "Widget",
+    Price = 9.99,
+    InStock = true
+};
+
+Console.WriteLine(product.ToString());
+// Output: Product { Id = 1, Name = Widget, Price = 9.99, InStock = True }
+
+var user = new User
+{
+    Id = 42,
+    Name = "John Doe",
+    PasswordHash = "abc123hash",
+    InternalNotes = "VIP customer"
+};
+
+Console.WriteLine(user.ToString());
+// Output: User { Id = 42, Name = John Doe }
+```
+
 ## Requirements
 
 - .NET Standard 2.0 or higher
@@ -421,6 +495,12 @@ The generated enum extension methods provide significant performance improvement
 - Eliminates hand-written builder boilerplate that must be kept in sync with the target class
 - Replaces reflection-based or expression-tree-based builder libraries with zero-overhead generated code
 - Full nullable reference type support for type-safe builder APIs
+
+### ToString Generation
+- Generates a direct property-formatting `ToString()` override at compile time
+- Replaces runtime reflection approaches (`typeof(T).GetProperties().Select(...)`) with zero-overhead generated code
+- Automatically stays in sync with the class definition — no manual maintenance required
+- Supports property exclusion for sensitive or verbose fields
 
 ## How It Works
 
