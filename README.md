@@ -18,7 +18,7 @@ A collection of C# source generators that automatically generate boilerplate cod
 
 ## Features
 
-This package provides seven powerful source generators:
+This package provides eight powerful source generators:
 
 - **Enumerator Extensions Generator** - Fast, allocation-free extension methods for enums
 - **Notification Properties Generator** - Automatic INotifyPropertyChanged/INotifyPropertyChanging implementation
@@ -27,6 +27,7 @@ This package provides seven powerful source generators:
 - **Builder Generator** - Fluent builder pattern generation for classes
 - **ToString Generator** - Compile-time `ToString()` override generation
 - **Validator Generator** - Compile-time data annotation validation
+- **Equality Generator** - Compile-time `Equals`, `GetHashCode`, and operator generation
 
 ## Installation
 
@@ -568,6 +569,80 @@ public partial class LoginModel
 }
 ```
 
+### 8. Equality Generator
+
+Generates `Equals(object)`, `Equals(T)`, `GetHashCode()`, `operator ==`, and `operator !=` for classes, implementing `IEquatable<T>`. This replaces tedious and error-prone manual equality implementations with zero-overhead generated code.
+
+#### Attribute
+
+```csharp
+[GenerateEquality(params string[] excludeProperties)]
+```
+
+**Parameters:**
+
+- `excludeProperties` - Optional list of property names to exclude from the generated equality comparison
+
+#### Example
+
+```csharp
+using BB84.SourceGenerators.Attributes;
+
+[GenerateEquality]
+public partial class Product
+{
+    public int Id { get; set; }
+    public string? Name { get; set; }
+    public double Price { get; set; }
+    public bool InStock { get; set; }
+}
+
+// Exclude volatile or non-significant properties
+[GenerateEquality("CachedHash", "LastAccessed")]
+public partial class User
+{
+    public int Id { get; set; }
+    public string? Name { get; set; }
+    public string? CachedHash { get; set; }
+    public DateTime LastAccessed { get; set; }
+}
+```
+
+#### Generated Code
+
+The generator creates the following members on the partial class:
+
+- `Equals(object?)` override — delegates to the typed `Equals(T?)` method
+- `Equals(T?)` implementing `IEquatable<T>` — compares all (or selected) public properties
+- `GetHashCode()` override — produces a consistent hash from all (or selected) public properties
+- `operator ==` and `operator !=` — delegates to `Equals`
+
+#### Usage Example
+
+```csharp
+var a = new Product { Id = 1, Name = "Widget", Price = 9.99, InStock = true };
+var b = new Product { Id = 1, Name = "Widget", Price = 9.99, InStock = true };
+var c = new Product { Id = 2, Name = "Gadget", Price = 19.99, InStock = false };
+
+// Typed equality
+bool equal = a.Equals(b);    // true
+bool different = a.Equals(c); // false
+
+// Operator equality
+bool op = a == b;  // true
+bool neq = a != c; // true
+
+// Consistent hash codes
+bool sameHash = a.GetHashCode() == b.GetHashCode(); // true
+
+// Works with collections that use equality
+var set = new HashSet<Product> { a };
+bool contains = set.Contains(b); // true
+
+// IEquatable<T> is implemented
+IEquatable<Product> equatable = a;
+```
+
 ## Requirements
 
 - .NET Standard 2.0 or higher
@@ -616,6 +691,14 @@ The generated enum extension methods provide significant performance improvement
 - Replaces `Validator.TryValidateObject()` which uses `TypeDescriptor` and reflection at runtime
 - Provides compile-time discovery of validation attributes - no runtime attribute scanning
 - Supports custom error messages for localization and user-friendly feedback
+
+### Equality
+
+- Generates correct `Equals`, `GetHashCode`, `==`, and `!=` implementations at compile time
+- Eliminates tedious and error-prone manual equality boilerplate
+- Replaces runtime reflection approaches with zero-overhead generated code
+- Properly handles null references and value type properties
+- Supports property exclusion for volatile or non-significant fields
 
 ## How It Works
 
