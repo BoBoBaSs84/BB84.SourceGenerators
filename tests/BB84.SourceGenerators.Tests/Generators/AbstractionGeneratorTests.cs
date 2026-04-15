@@ -39,15 +39,26 @@ public sealed class AbstractionGeneratorTests
 	[TestMethod]
 	public void ExcludePropertiesTest()
 	{
-		IDirectoryProvider? provider;
+		IPathProvider? provider;
 
-		provider = new DirectoryProvider();
+		provider = new PathProvider();
 
 		Assert.IsNotNull(provider);
-		Assert.IsInstanceOfType<IDirectoryProvider>(provider);
+		Assert.IsInstanceOfType<IPathProvider>(provider);
 
-		string currentDirectory = provider.GetCurrentDirectory();
-		Assert.IsNotNull(currentDirectory);
+		string randomFileName = provider.GetRandomFileName();
+		Assert.IsNotNull(randomFileName);
+	}
+
+	[TestMethod]
+	public void OutParameterTest()
+	{
+		IOutParamProvider provider = new OutParamProvider();
+
+		bool result = provider.TryParse("42", out int value);
+
+		Assert.IsTrue(result);
+		Assert.AreEqual(42, value);
 	}
 }
 
@@ -65,9 +76,22 @@ internal sealed partial class EnvironmentProvider
 public partial interface IEnvironmentProvider
 { }
 
-[GenerateAbstraction(typeof(Directory), typeof(IDirectoryProvider), typeof(DirectoryProvider), ExcludeProperties = new string[] { "Dummy" })]
-internal sealed partial class DirectoryProvider
+[GenerateAbstraction(typeof(Path), typeof(IPathProvider), typeof(PathProvider), ExcludeProperties = new string[] { nameof(Path.EndsInDirectorySeparator) })]
+internal sealed partial class PathProvider
 { }
 
-public partial interface IDirectoryProvider
+public partial interface IPathProvider
+{ }
+
+public static class OutParamHelper
+{
+	public static bool TryParse(string input, out int result)
+		=> int.TryParse(input, out result);
+}
+
+[GenerateAbstraction(typeof(OutParamHelper), typeof(IOutParamProvider), typeof(OutParamProvider))]
+internal sealed partial class OutParamProvider
+{ }
+
+public partial interface IOutParamProvider
 { }
