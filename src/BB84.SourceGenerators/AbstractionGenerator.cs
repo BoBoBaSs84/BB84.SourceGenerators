@@ -175,7 +175,7 @@ public sealed class AbstractionGenerator : IIncrementalGenerator
 	/// </returns>
 	private static string CreateMethodUsing(AbstractionRequest request, IMethodSymbol methodSymbol)
 	{
-		IEnumerable<string> parameters = methodSymbol.Parameters.Select(p => p.Name);
+		IEnumerable<string> parameters = methodSymbol.Parameters.Select(p => $"{GetCallSiteModifier(p)}{p.Name}");
 		return $"{request.TargetType}.{methodSymbol.Name}({string.Join(", ", parameters)})";
 	}
 
@@ -190,7 +190,7 @@ public sealed class AbstractionGenerator : IIncrementalGenerator
 	/// </returns>
 	private static string CreateMethodSignature(IMethodSymbol methodSymbol)
 	{
-		IEnumerable<string> parameters = methodSymbol.Parameters.Select(p => $"{p.Type} {p.Name}");
+		IEnumerable<string> parameters = methodSymbol.Parameters.Select(p => $"{GetParameterModifier(p)}{p.Type} {p.Name}");
 		return $"{methodSymbol.ReturnType} {methodSymbol.Name}({string.Join(", ", parameters)})";
 	}
 
@@ -259,8 +259,42 @@ public sealed class AbstractionGenerator : IIncrementalGenerator
 	/// </returns>
 	private static string CreateMethodComment(AbstractionRequest request, IMethodSymbol methodSymbol)
 	{
-		IEnumerable<string> parameters = methodSymbol.Parameters.Select(p => $"{p.Type}".Replace('<', '{').Replace('>', '}'));
+		IEnumerable<string> parameters = methodSymbol.Parameters.Select(p => $"{GetParameterModifier(p)}{p.Type}".Replace('<', '{').Replace('>', '}'));
 		return $"/// <inheritdoc cref=\"{request.TargetType}.{methodSymbol.Name}({string.Join(", ", parameters)})\"/>";
+	}
+
+	/// <summary>
+	/// Gets the C# keyword prefix for a parameter declaration based on its ref kind and params status.
+	/// </summary>
+	/// <param name="parameter">The parameter symbol.</param>
+	/// <returns>The modifier keyword followed by a space, or an empty string if none applies.</returns>
+	private static string GetParameterModifier(IParameterSymbol parameter)
+	{
+		if (parameter.IsParams)
+			return "params ";
+
+		return parameter.RefKind switch
+		{
+			RefKind.Out => "out ",
+			RefKind.Ref => "ref ",
+			RefKind.In => "in ",
+			_ => string.Empty
+		};
+	}
+
+	/// <summary>
+	/// Gets the C# keyword prefix for a call-site argument based on its ref kind.
+	/// </summary>
+	/// <param name="parameter">The parameter symbol.</param>
+	/// <returns>The modifier keyword followed by a space, or an empty string if none applies.</returns>
+	private static string GetCallSiteModifier(IParameterSymbol parameter)
+	{
+		return parameter.RefKind switch
+		{
+			RefKind.Out => "out ",
+			RefKind.Ref => "ref ",
+			_ => string.Empty
+		};
 	}
 
 	/// <summary>
