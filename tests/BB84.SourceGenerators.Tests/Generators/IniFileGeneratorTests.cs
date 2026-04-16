@@ -454,6 +454,79 @@ public sealed class IniFileGeneratorTests
 		Assert.Contains("DoubleValue=2.718281828", result);
 		Assert.Contains("DecimalValue=123.456", result);
 	}
+
+	[TestMethod]
+	public void ReadShouldSupportSectionNesting()
+	{
+		string content = "[Section]\r\n" +
+			"Domain=example.com\r\n" +
+			"[Section.SubSection]\r\n" +
+			"Foo=Bar";
+
+		TestIniFileWithNestedSection result = TestIniFileWithNestedSection.Read(content);
+
+		Assert.IsNotNull(result.Section);
+		Assert.AreEqual("example.com", result.Section.Domain);
+		Assert.IsNotNull(result.Section.SubSection);
+		Assert.AreEqual("Bar", result.Section.SubSection.Foo);
+	}
+
+	[TestMethod]
+	public void WriteShouldSupportSectionNesting()
+	{
+		TestIniFileWithNestedSection instance = new()
+		{
+			Section = new TestSection
+			{
+				Domain = "example.com",
+				SubSection = new TestSubSection { Foo = "Bar" }
+			}
+		};
+
+		string result = TestIniFileWithNestedSection.Write(instance);
+
+		Assert.Contains("[Section]", result);
+		Assert.Contains("Domain=example.com", result);
+		Assert.Contains("[Section.SubSection]", result);
+		Assert.Contains("Foo=Bar", result);
+	}
+
+	[TestMethod]
+	public void ReadShouldSupportCustomSectionDelimiter()
+	{
+		string content = "[Section]\r\n" +
+			"Domain=example.com\r\n" +
+			"[Section/SubSection]\r\n" +
+			"Foo=Bar";
+
+		TestIniFileWithCustomDelimiter result = TestIniFileWithCustomDelimiter.Read(content);
+
+		Assert.IsNotNull(result.Section);
+		Assert.AreEqual("example.com", result.Section.Domain);
+		Assert.IsNotNull(result.Section.SubSection);
+		Assert.AreEqual("Bar", result.Section.SubSection.Foo);
+	}
+
+	[TestMethod]
+	public void WriteShouldSupportCustomSectionDelimiter()
+	{
+		TestIniFileWithCustomDelimiter instance = new()
+		{
+			Section = new TestSection
+			{
+				Domain = "example.com",
+				SubSection = new TestSubSection
+				{
+					Foo = "Bar"
+				}
+			}
+		};
+
+		string result = TestIniFileWithCustomDelimiter.Write(instance);
+
+		Assert.Contains("[Section/SubSection]", result);
+		Assert.DoesNotContain("[Section.SubSection]", result);
+	}
 }
 
 #region Test Types
@@ -566,6 +639,34 @@ internal sealed partial class TestIniFileCaseSensitive
 {
 	[GenerateIniFileSection]
 	public TestGeneralSection? General { get; set; }
+}
+
+[GenerateIniFile]
+internal sealed partial class TestIniFileWithNestedSection
+{
+	[GenerateIniFileSection]
+	public TestSection Section { get; set; } = new TestSection();
+}
+
+public class TestSection
+{
+	[GenerateIniFileValue]
+	public string? Domain { get; set; }
+	[GenerateIniFileSection]
+	public TestSubSection SubSection { get; set; } = new TestSubSection();
+}
+
+public class TestSubSection
+{
+	[GenerateIniFileValue]
+	public string? Foo { get; set; }
+}
+
+[GenerateIniFile(sectionDelimiter: "/")]
+internal sealed partial class TestIniFileWithCustomDelimiter
+{
+	[GenerateIniFileSection]
+	public TestSection Section { get; set; } = new TestSection();
 }
 
 #endregion

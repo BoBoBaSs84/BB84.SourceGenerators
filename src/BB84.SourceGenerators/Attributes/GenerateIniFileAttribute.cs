@@ -14,8 +14,9 @@ namespace BB84.SourceGenerators.Attributes;
 /// </list>
 /// </summary>
 /// <param name="stringComparison">The value that determines how section and key names are compared.</param>
+/// <param name="sectionDelimiter">The delimiter used to separate nested section names. Defaults to <c>"."</c>.</param>
 [AttributeUsage(AttributeTargets.Class, Inherited = false, AllowMultiple = false)]
-internal sealed class GenerateIniFileAttribute(StringComparison stringComparison = StringComparison.OrdinalIgnoreCase) : Attribute
+internal sealed class GenerateIniFileAttribute(StringComparison stringComparison = StringComparison.OrdinalIgnoreCase, string sectionDelimiter = ".") : Attribute
 {
 	/// <summary>
 	/// Gets the value that determines how section and key names are compared when reading and writing INI file content.
@@ -23,4 +24,10 @@ internal sealed class GenerateIniFileAttribute(StringComparison stringComparison
 	/// be compared in a case-insensitive manner using ordinal comparison rules.
 	/// </summary>
 	public StringComparison StringComparison { get; } = stringComparison;
+
+	/// <summary>
+	/// Gets the delimiter used to separate nested section names in the INI file.
+	/// The default value is <c>"."</c>, which means nested sections are represented as <c>[Parent.Child]</c>.
+	/// </summary>
+	public string SectionDelimiter { get; } = sectionDelimiter;
 }

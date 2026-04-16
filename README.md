@@ -240,15 +240,15 @@ Generates static `Read` and `Write` methods for classes, enabling compile-time I
 #### Attributes
 
 ```csharp
-[GenerateIniFile(StringComparison stringComparison = StringComparison.OrdinalIgnoreCase)]
+[GenerateIniFile(StringComparison stringComparison = StringComparison.OrdinalIgnoreCase, string sectionDelimiter = ".")]
 [GenerateIniFileSection(string? name = null)]
 [GenerateIniFileValue(string? name = null)]
 ```
 
 **Parameters:**
 
-- `GenerateIniFile` - Marks a class for INI file code generation. The optional `stringComparison` parameter controls how section and key names are compared during deserialization (default: `OrdinalIgnoreCase`)
-- `GenerateIniFileSection` - Marks a property as an INI file section. The optional `name` parameter specifies the section name; if omitted, the property name is used
+- `GenerateIniFile` - Marks a class for INI file code generation. The optional `stringComparison` parameter controls how section and key names are compared during deserialization (default: `OrdinalIgnoreCase`). The optional `sectionDelimiter` parameter specifies the delimiter for nested section names (default: `"."`)
+- `GenerateIniFileSection` - Marks a property as an INI file section. The optional `name` parameter specifies the section name; if omitted, the property name is used. Can also be applied to properties within section types to create nested sections
 - `GenerateIniFileValue` - Marks a property as a key-value pair within an INI section. The optional `name` parameter specifies the key name; if omitted, the property name is used
 
 **Supported Value Types:**
@@ -344,6 +344,51 @@ public partial class StrictConfig
     [GenerateIniFileSection("General")]
     public GeneralSection General { get; set; }
 }
+```
+
+**Nested Sections:**
+
+The generator supports nested sections by applying `[GenerateIniFileSection]` to properties within section types. Nested sections are represented with dotted names (e.g., `[Server.Database]`), and nesting is supported up to 8 levels deep:
+
+```csharp
+[GenerateIniFile]
+public partial class Config
+{
+    [GenerateIniFileSection]
+    public ServerSection Server { get; set; }
+}
+
+public class ServerSection
+{
+    [GenerateIniFileValue]
+    public string Host { get; set; }
+
+    [GenerateIniFileSection]
+    public DatabaseSection Database { get; set; }
+}
+
+public class DatabaseSection
+{
+    [GenerateIniFileValue]
+    public int Port { get; set; }
+}
+```
+
+This produces:
+
+```ini
+[Server]
+Host=localhost
+[Server.Database]
+Port=5432
+```
+
+To use a custom delimiter (e.g., `/`):
+
+```csharp
+[GenerateIniFile(sectionDelimiter: "/")]
+public partial class Config { ... }
+// Produces: [Server/Database]
 ```
 
 ### 5. Builder Generator
