@@ -108,6 +108,21 @@ public sealed class ToStringGeneratorTests
 
 		Assert.AreEqual(expected, result);
 	}
+
+	[TestMethod]
+	public void ToStringShouldWorkForNestedClasses()
+	{
+		ToStringOuterTestModel.ToStringNestedTestModel model = new()
+		{
+			Id = 1,
+			Name = "Nested"
+		};
+
+		string? result = model.ToString();
+		string expected = $"ToStringNestedTestModel {{ Id = {model.Id}, Name = {model.Name} }}";
+
+		Assert.AreEqual(expected, result);
+	}
 }
 
 [GenerateToString]
@@ -133,4 +148,14 @@ public partial class ToStringExcludeTestModel
 public partial class ToStringAllExcludedTestModel
 {
 	public string? Value { get; set; }
+}
+
+public partial class ToStringOuterTestModel
+{
+	[GenerateToString]
+	public partial class ToStringNestedTestModel
+	{
+		public int Id { get; set; }
+		public string? Name { get; set; }
+	}
 }
