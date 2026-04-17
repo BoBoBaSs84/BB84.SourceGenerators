@@ -359,6 +359,33 @@ public sealed class ValidatorGeneratorTests
 		Assert.IsNotEmpty(errors);
 		Assert.IsTrue(errors.Exists(e => e.Contains("Tags")));
 	}
+
+	[TestMethod]
+	public void ValidateShouldWorkForNestedClasses()
+	{
+		ValidatorOuterTestModel.ValidatorNestedTestModel model = new()
+		{
+			Id = 0
+		};
+
+		List<string> errors = model.Validate();
+
+		Assert.IsNotEmpty(errors);
+		Assert.IsTrue(errors.Exists(e => e.Contains("Id")));
+	}
+
+	[TestMethod]
+	public void ValidateShouldReturnEmptyListForValidNestedClass()
+	{
+		ValidatorOuterTestModel.ValidatorNestedTestModel model = new()
+		{
+			Id = 5
+		};
+
+		List<string> errors = model.Validate();
+
+		Assert.IsEmpty(errors);
+	}
 }
 
 [GenerateValidator]
@@ -407,4 +434,14 @@ public partial class ValidatorStringCollectionRangeTestModel
 {
 	[Range(0, 10)]
 	public string[]? Tags { get; set; }
+}
+
+public partial class ValidatorOuterTestModel
+{
+	[GenerateValidator]
+	public partial class ValidatorNestedTestModel
+	{
+		[Range(1, int.MaxValue)]
+		public int Id { get; set; }
+	}
 }
