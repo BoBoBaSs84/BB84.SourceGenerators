@@ -27,6 +27,7 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 	private static readonly string GeneratorAttributeName = typeof(GenerateIniFileAttribute).FullName;
 	private static readonly string SectionAttributeName = typeof(GenerateIniFileSectionAttribute).FullName;
 	private static readonly string ValueAttributeName = typeof(GenerateIniFileValueAttribute).FullName;
+	private static readonly string[] LineBreakSeparators = ["\r\n", "\n"];
 
 	/// <inheritdoc/>
 	public void Initialize(IncrementalGeneratorInitializationContext context)
@@ -60,8 +61,9 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 		string accessibility = GetAccessibility(classDeclaration);
 		string stringComparison = GetStringComparison(classDeclaration, semanticModel);
 		string sectionDelimiter = GetSectionDelimiter(classDeclaration, semanticModel);
+		bool serializeComments = GetSerializeComments(classDeclaration);
 
-		List<SectionInfo> sections = GetSections(classDeclaration, semanticModel, sectionDelimiter);
+		List<SectionInfo> sections = GetSections(classDeclaration, semanticModel, sectionDelimiter, serializeComments);
 
 		StringBuilder sb = new();
 
@@ -76,7 +78,7 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 		sb.AppendLine("{");
 
 		AppendReadMethod(sb, className, accessibility, sections, stringComparison);
-		AppendWriteMethod(sb, className, sections);
+		AppendWriteMethod(sb, className, sections, serializeComments);
 
 		sb.AppendLine("  }");
 		sb.AppendLine("}");
@@ -156,7 +158,7 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 		sb.AppendLine();
 	}
 
-	private static void AppendWriteMethod(StringBuilder sb, string className, List<SectionInfo> sections)
+	private static void AppendWriteMethod(StringBuilder sb, string className, List<SectionInfo> sections, bool serializeComments)
 	{
 		sb.AppendLine("    /// <summary>");
 		sb.AppendLine($"    /// Writes the specified <see cref=\"{className}\"/> instance to an INI file string.");
@@ -178,10 +180,17 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 			string nullCheck = BuildNullCheck($"instance.{section.PropertyPath}");
 			sb.AppendLine($"      if ({nullCheck})");
 			sb.AppendLine("      {");
+
+			if (serializeComments && section.Comment is not null)
+				sb.AppendLine($"        sb.AppendLine(\"; {EscapeString(section.Comment)}\");");
+
 			sb.AppendLine($"        sb.AppendLine(\"[{section.SectionName}]\");");
 
 			foreach (ValueInfo value in section.Values)
 			{
+				if (serializeComments && value.Comment is not null)
+					sb.AppendLine($"        sb.AppendLine(\"; {EscapeString(value.Comment)}\");");
+
 				sb.AppendLine($"        sb.AppendLine(\"{value.KeyName}=\" + {GetToStringExpression($"instance.{section.PropertyPath}.{value.PropertyName}", value)});");
 			}
 
@@ -193,7 +202,7 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 		sb.AppendLine("    }");
 	}
 
-	private static List<SectionInfo> GetSections(ClassDeclarationSyntax classDeclaration, SemanticModel semanticModel, string sectionDelimiter)
+	private static List<SectionInfo> GetSections(ClassDeclarationSyntax classDeclaration, SemanticModel semanticModel, string sectionDelimiter, bool serializeComments)
 	{
 		List<SectionInfo> sections = [];
 		INamedTypeSymbol? classSymbol = semanticModel.GetDeclaredSymbol(classDeclaration);
@@ -232,8 +241,9 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 
 			bool needsInit = !HasInitializer(classDeclaration, propertySymbol.Name);
 			string propertyPath = propertySymbol.Name;
+			string? comment = serializeComments ? GetXmlSummaryComment(propertySymbol) : null;
 
-			List<ValueInfo> values = GetValues(sectionType);
+			List<ValueInfo> values = GetValues(sectionType, serializeComments);
 
 			sections.Add(new SectionInfo(
 				PropertyName: propertySymbol.Name,
@@ -241,16 +251,17 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 				SectionName: sectionName,
 				TypeName: sectionType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
 				NeedsInitialization: needsInit,
-				Values: values
+				Values: values,
+				Comment: comment
 			));
 
-			CollectNestedSections(sections, sectionType, sectionName, propertyPath, sectionDelimiter, 1);
+			CollectNestedSections(sections, sectionType, sectionName, propertyPath, sectionDelimiter, 1, serializeComments);
 		}
 
 		return sections;
 	}
 
-	private static void CollectNestedSections(List<SectionInfo> sections, INamedTypeSymbol parentType, string parentSectionName, string parentPropertyPath, string sectionDelimiter, int depth)
+	private static void CollectNestedSections(List<SectionInfo> sections, INamedTypeSymbol parentType, string parentSectionName, string parentPropertyPath, string sectionDelimiter, int depth, bool serializeComments)
 	{
 		if (depth >= 8)
 			return;
@@ -286,8 +297,9 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 
 			string fullSectionName = $"{parentSectionName}{sectionDelimiter}{sectionName}";
 			string propertyPath = $"{parentPropertyPath}.{propertySymbol.Name}";
+			string? comment = serializeComments ? GetXmlSummaryComment(propertySymbol) : null;
 
-			List<ValueInfo> values = GetValues(sectionType);
+			List<ValueInfo> values = GetValues(sectionType, serializeComments);
 
 			sections.Add(new SectionInfo(
 				PropertyName: propertySymbol.Name,
@@ -295,14 +307,15 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 				SectionName: fullSectionName,
 				TypeName: sectionType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
 				NeedsInitialization: false,
-				Values: values
+				Values: values,
+				Comment: comment
 			));
 
-			CollectNestedSections(sections, sectionType, fullSectionName, propertyPath, sectionDelimiter, depth + 1);
+			CollectNestedSections(sections, sectionType, fullSectionName, propertyPath, sectionDelimiter, depth + 1, serializeComments);
 		}
 	}
 
-	private static List<ValueInfo> GetValues(INamedTypeSymbol sectionType)
+	private static List<ValueInfo> GetValues(INamedTypeSymbol sectionType, bool serializeComments = false)
 	{
 		List<ValueInfo> values = [];
 
@@ -356,13 +369,16 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 					.Any(a => a.AttributeClass?.ToDisplayString() == "System.FlagsAttribute");
 			}
 
+			string? comment = serializeComments ? GetXmlSummaryComment(propertySymbol) : null;
+
 			values.Add(new ValueInfo(
 				PropertyName: propertySymbol.Name,
 				KeyName: keyName,
 				TypeName: typeName,
 				IsEnum: isEnum,
 				IsFlagsEnum: isFlagsEnum,
-				EnumFullName: enumFullName
+				EnumFullName: enumFullName,
+				Comment: comment
 			));
 		}
 
@@ -474,6 +490,84 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 		return ".";
 	}
 
+	private static bool GetSerializeComments(ClassDeclarationSyntax classDeclaration)
+	{
+		foreach (AttributeListSyntax attributeList in classDeclaration.AttributeLists)
+		{
+			foreach (AttributeSyntax attribute in attributeList.Attributes)
+			{
+				string name = attribute.Name.ToString();
+
+				if (name is not "GenerateIniFile" and not "GenerateIniFileAttribute")
+					continue;
+
+				if (attribute.ArgumentList is null)
+					continue;
+
+				foreach (AttributeArgumentSyntax argument in attribute.ArgumentList.Arguments)
+				{
+					if (argument.NameEquals?.Name.Identifier.Text == "SerializeComments")
+					{
+						string expressionText = argument.Expression.ToString();
+						if (expressionText == "true")
+							return true;
+					}
+				}
+			}
+		}
+
+		return false;
+	}
+
+	private static string? GetXmlSummaryComment(ISymbol symbol)
+	{
+		foreach (SyntaxReference syntaxRef in symbol.DeclaringSyntaxReferences)
+		{
+			SyntaxNode node = syntaxRef.GetSyntax();
+
+			if (!node.HasLeadingTrivia)
+				continue;
+
+			foreach (SyntaxTrivia trivia in node.GetLeadingTrivia())
+			{
+				if (trivia.IsKind(SyntaxKind.SingleLineDocumentationCommentTrivia) || trivia.IsKind(SyntaxKind.MultiLineDocumentationCommentTrivia))
+				{
+					SyntaxNode? structure = trivia.GetStructure();
+					if (structure is null)
+						continue;
+
+					foreach (SyntaxNode child in structure.ChildNodes())
+					{
+						if (child is not XmlElementSyntax xmlElement)
+							continue;
+
+						if (xmlElement.StartTag.Name.ToString() != "summary")
+							continue;
+
+						string content = xmlElement.Content.ToString();
+						string[] lines = content.Split(LineBreakSeparators, StringSplitOptions.RemoveEmptyEntries);
+
+						List<string> cleanLines = [];
+						foreach (string line in lines)
+						{
+							string trimmed = line.Trim().TrimStart('/').Trim();
+							if (trimmed.Length > 0)
+								cleanLines.Add(trimmed);
+						}
+
+						if (cleanLines.Count > 0)
+							return string.Join(" ", cleanLines);
+					}
+				}
+			}
+		}
+
+		return null;
+	}
+
+	private static string EscapeString(string value)
+		=> value.Replace("\\", "\\\\").Replace("\"", "\\\"");
+
 	private static string BuildNullCheck(string propertyPath)
 	{
 		string[] segments = propertyPath.Split('.');
@@ -512,7 +606,8 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 		string SectionName,
 		string TypeName,
 		bool NeedsInitialization,
-		List<ValueInfo> Values
+		List<ValueInfo> Values,
+		string? Comment = null
 	);
 
 	private sealed record ValueInfo(
@@ -521,6 +616,7 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 		string TypeName,
 		bool IsEnum = false,
 		bool IsFlagsEnum = false,
-		string? EnumFullName = null
+		string? EnumFullName = null,
+		string? Comment = null
 	);
 }

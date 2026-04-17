@@ -606,6 +606,66 @@ public sealed class IniFileGeneratorTests
 		Assert.IsNotNull(deserialized.App);
 		Assert.AreEqual(original.App.Perms, deserialized.App.Perms);
 	}
+
+	[TestMethod]
+	public void WriteShouldIncludeCommentsWhenSerializeCommentsIsTrue()
+	{
+		TestIniFileWithComments instance = new()
+		{
+			General = new TestCommentedGeneralSection
+			{
+				AppName = "MyApp",
+				Version = 2
+			}
+		};
+
+		string result = TestIniFileWithComments.Write(instance);
+
+		Assert.Contains("; General application settings", result);
+		Assert.Contains("[General]", result);
+		Assert.Contains("; The display name of the application", result);
+		Assert.Contains("AppName=MyApp", result);
+		Assert.Contains("; The current version number", result);
+		Assert.Contains("Version=2", result);
+	}
+
+	[TestMethod]
+	public void WriteShouldNotIncludeCommentsWhenSerializeCommentsIsFalse()
+	{
+		TestIniFile instance = new()
+		{
+			General = new TestGeneralSection
+			{
+				AppName = "MyApp",
+				Version = 1,
+				Enabled = true
+			}
+		};
+
+		string result = TestIniFile.Write(instance);
+
+		Assert.DoesNotContain("; ", result);
+	}
+
+	[TestMethod]
+	public void ReadShouldSkipCommentLinesFromSerializedOutput()
+	{
+		TestIniFileWithComments instance = new()
+		{
+			General = new TestCommentedGeneralSection
+			{
+				AppName = "TestApp",
+				Version = 5
+			}
+		};
+
+		string serialized = TestIniFileWithComments.Write(instance);
+		TestIniFileWithComments deserialized = TestIniFileWithComments.Read(serialized);
+
+		Assert.IsNotNull(deserialized.General);
+		Assert.AreEqual("TestApp", deserialized.General.AppName);
+		Assert.AreEqual(5, deserialized.General.Version);
+	}
 }
 
 #region Test Types
@@ -777,6 +837,31 @@ public class TestFlagsAppSection
 {
 	[GenerateIniFileValue]
 	public TestPermissions Perms { get; set; }
+}
+
+[GenerateIniFile(SerializeComments = true)]
+internal sealed partial class TestIniFileWithComments
+{
+	/// <summary>
+	/// General application settings
+	/// </summary>
+	[GenerateIniFileSection]
+	public TestCommentedGeneralSection? General { get; set; }
+}
+
+public class TestCommentedGeneralSection
+{
+	/// <summary>
+	/// The display name of the application
+	/// </summary>
+	[GenerateIniFileValue]
+	public string? AppName { get; set; }
+
+	/// <summary>
+	/// The current version number
+	/// </summary>
+	[GenerateIniFileValue]
+	public int Version { get; set; }
 }
 
 #endregion

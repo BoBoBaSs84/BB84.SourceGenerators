@@ -247,7 +247,7 @@ Generates static `Read` and `Write` methods for classes, enabling compile-time I
 
 **Parameters:**
 
-- `GenerateIniFile` - Marks a class for INI file code generation. The optional `stringComparison` parameter controls how section and key names are compared during deserialization (default: `OrdinalIgnoreCase`). The optional `sectionDelimiter` parameter specifies the delimiter for nested section names (default: `"."`)
+- `GenerateIniFile` - Marks a class for INI file code generation. The optional `stringComparison` parameter controls how section and key names are compared during deserialization (default: `OrdinalIgnoreCase`). The optional `sectionDelimiter` parameter specifies the delimiter for nested section names (default: `"."`). The optional `SerializeComments` property, when set to `true`, includes XML documentation `<summary>` comments from section and value properties as INI comment lines (prefixed with `; `) in the generated `Write` output (default: `false`)
 - `GenerateIniFileSection` - Marks a property as an INI file section. The optional `name` parameter specifies the section name; if omitted, the property name is used. Can also be applied to properties within section types to create nested sections
 - `GenerateIniFileValue` - Marks a property as a key-value pair within an INI section. The optional `name` parameter specifies the key name; if omitted, the property name is used
 
@@ -379,6 +379,7 @@ This produces:
 ```ini
 [Server]
 Host=localhost
+
 [Server.Database]
 Port=5432
 ```
@@ -389,6 +390,48 @@ To use a custom delimiter (e.g., `/`):
 [GenerateIniFile(sectionDelimiter: "/")]
 public partial class Config { ... }
 // Produces: [Server/Database]
+```
+
+**Serializing Comments:**
+
+When `SerializeComments` is set to `true`, XML documentation `<summary>` comments on section and value properties are emitted as INI comment lines (prefixed with `; `) in the `Write` output. The `Read` method automatically skips these comment lines during deserialization:
+
+```csharp
+[GenerateIniFile(SerializeComments = true)]
+public partial class AppConfig
+{
+    /// <summary>
+    /// General application settings
+    /// </summary>
+    [GenerateIniFileSection]
+    public GeneralSection General { get; set; }
+}
+
+public class GeneralSection
+{
+    /// <summary>
+    /// The display name of the application
+    /// </summary>
+    [GenerateIniFileValue]
+    public string AppName { get; set; }
+
+    /// <summary>
+    /// The current version number
+    /// </summary>
+    [GenerateIniFileValue]
+    public int Version { get; set; }
+}
+```
+
+This produces:
+
+```ini
+; General application settings
+[General]
+; The display name of the application
+AppName=MyApp
+; The current version number
+Version=1
 ```
 
 ### 5. Builder Generator

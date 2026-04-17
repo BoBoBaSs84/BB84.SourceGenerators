@@ -30,4 +30,11 @@ internal sealed class GenerateIniFileAttribute(StringComparison stringComparison
 	/// The default value is <c>"."</c>, which means nested sections are represented as <c>[Parent.Child]</c>.
 	/// </summary>
 	public string SectionDelimiter { get; } = sectionDelimiter;
+
+	/// <summary>
+	/// Gets or sets a value indicating whether XML documentation comments on section and value
+	/// properties should be serialized as INI comment lines (prefixed with <c>; </c>) in the
+	/// generated <c>Write</c> method output. The default value is <c>false</c>.
+	/// </summary>
+	public bool SerializeComments { get; set; }
 }
