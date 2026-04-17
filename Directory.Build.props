@@ -56,7 +56,6 @@
 	</PropertyGroup>
 
 	<PropertyGroup Condition="$(MSBuildProjectName.EndsWith('Tests'))">
-		<GenerateDocumentationFile>False</GenerateDocumentationFile>
 		<IsPackable>False</IsPackable>
 		<IsTestProject>True</IsTestProject>
 	</PropertyGroup>
