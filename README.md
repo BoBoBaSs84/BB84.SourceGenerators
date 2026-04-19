@@ -18,7 +18,7 @@ A collection of C# source generators that automatically generate boilerplate cod
 
 ## Features
 
-This package provides eight powerful source generators:
+This package provides nine powerful source generators:
 
 - **Enumerator Extensions Generator** - Fast, allocation-free extension methods for enums
 - **Notification Properties Generator** - Automatic INotifyPropertyChanged/INotifyPropertyChanging implementation
@@ -28,6 +28,7 @@ This package provides eight powerful source generators:
 - **ToString Generator** - Compile-time `ToString()` override generation
 - **Validator Generator** - Compile-time data annotation validation
 - **Equality Generator** - Compile-time `Equals`, `GetHashCode`, and operator generation
+- **Cloneable Generator** - Compile-time `Clone()` and `DeepClone()` method generation
 
 ## Installation
 
@@ -772,6 +773,90 @@ bool contains = set.Contains(b); // true
 IEquatable<Product> equatable = a;
 ```
 
+### 9. Cloneable Generator
+
+Generates `Clone()` and `DeepClone()` methods for classes, implementing `ICloneable`. The `Clone()` method performs a shallow copy, while `DeepClone()` recursively deep clones reference-type properties that are also marked with `[GenerateCloneable]`.
+
+#### Attribute
+
+```csharp
+[GenerateCloneable(params string[] excludeProperties)]
+```
+
+**Parameters:**
+
+- `excludeProperties` - Optional list of property names to exclude from the generated clone methods
+
+#### Example
+
+```csharp
+using BB84.SourceGenerators.Attributes;
+
+[GenerateCloneable]
+public partial class UserProfile
+{
+    public int Id { get; set; }
+    public string? Name { get; set; }
+    public double Score { get; set; }
+    public Address? Address { get; set; }
+}
+
+[GenerateCloneable]
+public partial class Address
+{
+    public string? Street { get; set; }
+    public string? City { get; set; }
+}
+
+// Exclude specific properties from cloning
+[GenerateCloneable("CacheToken")]
+public partial class Session
+{
+    public int Id { get; set; }
+    public string? User { get; set; }
+    public string? CacheToken { get; set; }
+}
+```
+
+#### Generated Code
+
+The generator creates the following members on the partial class:
+
+- `Clone()` — creates a shallow copy by assigning all included public read/write properties
+- `DeepClone()` — creates a deep copy; reference-type properties marked with `[GenerateCloneable]` are recursively deep cloned, while other properties are shallow copied
+- Explicit `ICloneable.Clone()` — delegates to `DeepClone()`
+
+#### Usage Example
+
+```csharp
+var original = new UserProfile
+{
+    Id = 1,
+    Name = "John Doe",
+    Score = 95.5,
+    Address = new Address { Street = "123 Main St", City = "Springfield" }
+};
+
+// Shallow clone - Address is the same reference
+UserProfile shallow = original.Clone();
+shallow.Address.City = "Shelbyville";
+Console.WriteLine(original.Address.City); // "Shelbyville" (shared reference)
+
+// Deep clone - Address is a new independent instance
+UserProfile deep = original.DeepClone();
+deep.Address.City = "Capital City";
+Console.WriteLine(original.Address.City); // "Shelbyville" (unaffected)
+
+// ICloneable is implemented (delegates to DeepClone)
+ICloneable cloneable = original;
+object copy = cloneable.Clone();
+
+// Excluded properties are not copied
+var session = new Session { Id = 1, User = "admin", CacheToken = "abc123" };
+Session clonedSession = session.Clone();
+Console.WriteLine(clonedSession.CacheToken); // null
+```
+
 ## Requirements
 
 - .NET Standard 2.0 or higher
@@ -828,6 +913,14 @@ The generated enum extension methods provide significant performance improvement
 - Replaces runtime reflection approaches with zero-overhead generated code
 - Properly handles null references and value type properties
 - Supports property exclusion for volatile or non-significant fields
+
+### Cloneable
+
+- Generates `Clone()` and `DeepClone()` methods at compile time with zero runtime overhead
+- Replaces `MemberwiseClone` (shallow only), serialization round-trips (slow), and manual clone implementations (error-prone)
+- Recursively deep clones reference-type properties marked with `[GenerateCloneable]`
+- Implements `ICloneable` for framework compatibility
+- Supports property exclusion for transient or computed fields
 
 ## How It Works
 
