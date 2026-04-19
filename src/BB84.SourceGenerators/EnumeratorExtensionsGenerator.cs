@@ -222,7 +222,7 @@ public sealed class EnumeratorExtensionsGenerator : IIncrementalGenerator
 	{
 		builder.AppendLine("    /// <summary>");
 		builder.AppendLine($"    /// Returns the description of the <see cref=\"{enumName}\"/> enumeration if the");
-		builder.AppendLine("    /// <see cref=\"DescriptionAttribute\"/> is applied to the");
+		builder.AppendLine("    /// <see cref=\"System.ComponentModel.DescriptionAttribute\"/> is applied to the");
 		builder.AppendLine("    /// enumeration value; otherwise, returns the name of the enumeration value.");
 		builder.AppendLine("    /// </summary>");
 		builder.AppendLine("    /// <param name=\"value\">The enumeration value to get the description for.</param>");

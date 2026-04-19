@@ -5,7 +5,7 @@
 // LICENSE file in the root directory of this source tree.
 using BB84.SourceGenerators.Attributes;
 
-namespace BB84.SourceGenerators.Tests.Generators;
+namespace BB84.SourceGenerators.Tests;
 
 [TestClass]
 public sealed class CloneableGeneratorTests
@@ -47,7 +47,7 @@ public sealed class CloneableGeneratorTests
     Assert.AreNotSame(original, clone);
     Assert.AreNotSame(original.Nested, clone.Nested);
     Assert.AreEqual(original.Id, clone.Id);
-    Assert.AreEqual(original.Nested.Value, clone.Nested.Value);
+    Assert.AreEqual(original.Nested.Value, clone.Nested?.Value);
   }
 
   [TestMethod]
@@ -120,7 +120,7 @@ public sealed class CloneableGeneratorTests
     CloneableParentModel typedClone = (CloneableParentModel)clone;
     Assert.AreNotSame(original, typedClone);
     Assert.AreNotSame(original.Nested, typedClone.Nested);
-    Assert.AreEqual(original.Nested.Value, typedClone.Nested.Value);
+    Assert.AreEqual(original.Nested.Value, typedClone.Nested?.Value);
   }
 
   [TestMethod]

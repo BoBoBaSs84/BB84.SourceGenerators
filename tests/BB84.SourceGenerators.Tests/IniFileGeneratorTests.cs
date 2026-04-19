@@ -7,7 +7,7 @@ using System.Globalization;
 
 using BB84.SourceGenerators.Attributes;
 
-namespace BB84.SourceGenerators.Tests.Generators;
+namespace BB84.SourceGenerators.Tests;
 
 [TestClass]
 public sealed class IniFileGeneratorTests
