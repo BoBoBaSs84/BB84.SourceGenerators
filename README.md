@@ -272,13 +272,13 @@ public partial class AppConfig
 public class GeneralSection
 {
     [GenerateIniFileValue("AppName")]
-    public string AppName { get; set; }
+    public string ApplicationName { get; set; }
 
     [GenerateIniFileValue("Version")]
-    public int Version { get; set; }
+    public int ApplicationVersion { get; set; }
 
     [GenerateIniFileValue("Debug")]
-    public bool Debug { get; set; }
+    public bool IsDebug { get; set; }
 }
 
 public class DatabaseSection
@@ -308,7 +308,7 @@ The generator creates the following static methods on the decorated class:
 string iniContent = File.ReadAllText("config.ini");
 AppConfig config = AppConfig.Read(iniContent);
 
-Console.WriteLine(config.General.AppName); // "MyApp"
+Console.WriteLine(config.General.ApplicationName); // "MyApp"
 Console.WriteLine(config.Database.Port);   // 5432
 
 // Modifying and writing back
@@ -432,6 +432,34 @@ This produces:
 AppName=MyApp
 ; The current version number
 Version=1
+```
+
+**Enumeration Support:**
+
+Regular enums will be serialized as their string name. Enum flags will be serialized as a space-delimited string of individual flag names.
+
+```csharp
+public enum LogLevel { Debug, Info, Warning, Error }
+
+[Flags]
+public enum Permissions { None = 0, Read = 1, Write = 2, Execute = 4 }
+
+public class AppSection
+{
+    [GenerateIniFileValue]
+    public LogLevel Level { get; set; }
+
+    [GenerateIniFileValue]
+    public Permissions Perms { get; set; }
+}
+```
+
+This produces:
+
+```ini
+[App]
+Level=Warning
+Perms=Read Write Execute
 ```
 
 ### 5. Builder Generator
