@@ -18,7 +18,7 @@ A collection of C# source generators that automatically generate boilerplate cod
 
 ## Features
 
-This package provides nine powerful source generators:
+This package provides ten powerful source generators:
 
 - **Enumerator Extensions Generator** - Fast, allocation-free extension methods for enums
 - **Notification Properties Generator** - Automatic INotifyPropertyChanged/INotifyPropertyChanging implementation
@@ -29,6 +29,7 @@ This package provides nine powerful source generators:
 - **Validator Generator** - Compile-time data annotation validation
 - **Equality Generator** - Compile-time `Equals`, `GetHashCode`, and operator generation
 - **Cloneable Generator** - Compile-time `Clone()` and `DeepClone()` method generation
+- **Assembly Information Generator** - Compile-time assembly metadata constants without reflection
 
 ## Installation
 
@@ -857,6 +858,51 @@ Session clonedSession = session.Clone();
 Console.WriteLine(clonedSession.CacheToken); // null
 ```
 
+### 10. Assembly Information Generator
+
+Generates compile-time constant properties for assembly metadata (title, version, company, copyright, etc.), eliminating the need for runtime reflection via `Assembly.GetCustomAttribute<T>()`.
+
+#### Attribute
+
+```csharp
+[GenerateAssemblyInformation]
+```
+
+#### Example
+
+```csharp
+using BB84.SourceGenerators.Attributes;
+
+[GenerateAssemblyInformation]
+public partial class AppInfo
+{ }
+```
+
+#### Generated Code
+
+The generator creates `public const string` properties for each standard assembly attribute:
+
+- `Title` — from `AssemblyTitleAttribute`
+- `Description` — from `AssemblyDescriptionAttribute`
+- `Company` — from `AssemblyCompanyAttribute`
+- `Product` — from `AssemblyProductAttribute`
+- `Copyright` — from `AssemblyCopyrightAttribute`
+- `Trademark` — from `AssemblyTrademarkAttribute`
+- `Configuration` — from `AssemblyConfigurationAttribute`
+- `Version` — from `AssemblyVersionAttribute`
+- `FileVersion` — from `AssemblyFileVersionAttribute`
+- `InformationalVersion` — from `AssemblyInformationalVersionAttribute`
+
+#### Usage Example
+
+```csharp
+Console.WriteLine(AppInfo.Title);                // "MyApp"
+Console.WriteLine(AppInfo.Version);              // "1.0.0.0"
+Console.WriteLine(AppInfo.Company);              // "My Company"
+Console.WriteLine(AppInfo.Copyright);            // "Copyright © 2025"
+Console.WriteLine(AppInfo.InformationalVersion); // "1.0.0+abc123"
+```
+
 ## Requirements
 
 - .NET Standard 2.0 or higher
@@ -921,6 +967,13 @@ The generated enum extension methods provide significant performance improvement
 - Recursively deep clones reference-type properties marked with `[GenerateCloneable]`
 - Implements `ICloneable` for framework compatibility
 - Supports property exclusion for transient or computed fields
+
+### Assembly Information
+
+- Generates `const string` properties at compile time for all standard assembly attributes
+- Eliminates runtime reflection via `Assembly.GetCustomAttribute<T>()`
+- Constants can be used in attribute arguments, switch expressions, and other compile-time contexts
+- Automatically stays in sync with project file properties (`<AssemblyTitle>`, `<Version>`, etc.)
 
 ## How It Works
 
