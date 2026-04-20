@@ -650,12 +650,12 @@ public partial class UserRegistration
 
 #### Generated Code
 
-The generator creates a `Validate()` method on the partial class that:
+The generator creates the following methods on the partial class:
 
-- Returns a `List<string>` of validation error messages
-- Contains direct `if`-checks for each data annotation rule
-- Supports custom error messages via `ErrorMessage` property
-- Returns an empty list when the instance is valid
+- `Validate()` - Returns a `Dictionary<string, List<string>>` where each key is a property name and the value is a list of validation error messages for that property. An empty dictionary indicates a valid instance.
+- `Validate(string propertyName)` - Returns a `List<string>` of validation error messages for the specified property. An empty list indicates the property is valid.
+
+Both methods contain direct `if`-checks for each data annotation rule and support custom error messages via `ErrorMessage` property.
 
 #### Usage Example
 
@@ -668,23 +668,38 @@ var registration = new UserRegistration
     Password = "short"
 };
 
-List<string> errors = registration.Validate();
+Dictionary<string, List<string>> errors = registration.Validate();
 
 if (errors.Count > 0)
 {
-    foreach (string error in errors)
+    foreach (KeyValuePair<string, List<string>> entry in errors)
     {
-        Console.WriteLine(error);
+        Console.WriteLine($"{entry.Key}:");
+        foreach (string error in entry.Value)
+        {
+            Console.WriteLine($"  - {error}");
+        }
     }
     // Output:
-    // The field Name must be a string with a minimum length of 2 and a maximum length of 100.
-    // The field Email must match the regular expression '^[^@\s]+@[^@\s]+\.[^@\s]+$'.
-    // The field Age must be between 18 and 120.
-    // The field Password must be a string or collection with a minimum length of 8.
+    // Name:
+    //   - The field Name must be a string with a minimum length of 2 and a maximum length of 100.
+    // Email:
+    //   - The field Email must match the regular expression '^[^@\s]+@[^@\s]+\.[^@\s]+$'.
+    // Age:
+    //   - The field Age must be between 18 and 120.
+    // Password:
+    //   - The field Password must be a string or collection with a minimum length of 8.
 }
 else
 {
     Console.WriteLine("Registration is valid!");
+}
+
+// Validate a single property
+List<string> nameErrors = registration.Validate("Name");
+if (nameErrors.Count > 0)
+{
+    Console.WriteLine($"Name errors: {string.Join(", ", nameErrors)}");
 }
 
 // Custom error messages

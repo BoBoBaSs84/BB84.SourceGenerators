@@ -185,7 +185,7 @@ namespace TestNamespace
 
 		Assert.IsEmpty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
 		Assert.IsNotEmpty(generatedSources);
-		string generated = generatedSources.First(s => s.Contains("List<string> Validate()"));
+		string generated = generatedSources.First(s => s.Contains("Dictionary<string, List<string>> Validate()"));
 		Assert.Contains("Validate()", generated);
 	}
 

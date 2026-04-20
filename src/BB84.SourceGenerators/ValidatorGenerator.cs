@@ -117,13 +117,15 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 
 		sb.AppendLine($"{indent}{accessibility} partial class {className}");
 		sb.AppendLine($"{indent}{{");
+
+		// Generate Validate() returning Dictionary<string, List<string>>
 		sb.AppendLine($"{innerIndent}/// <summary>");
-		sb.AppendLine($"{innerIndent}/// Validates the current instance and returns a list of validation errors.");
+		sb.AppendLine($"{innerIndent}/// Validates the current instance and returns a dictionary of validation errors grouped by property name.");
 		sb.AppendLine($"{innerIndent}/// </summary>");
-		sb.AppendLine($"{innerIndent}/// <returns>A list of validation error messages. An empty list indicates a valid instance.</returns>");
-		sb.AppendLine($"{innerIndent}public List<string> Validate()");
+		sb.AppendLine($"{innerIndent}/// <returns>A dictionary where each key is a property name and the value is a list of validation error messages. An empty dictionary indicates a valid instance.</returns>");
+		sb.AppendLine($"{innerIndent}public Dictionary<string, List<string>> Validate()");
 		sb.AppendLine($"{innerIndent}{{");
-		sb.AppendLine($"{bodyIndent}List<string> errors = new List<string>();");
+		sb.AppendLine($"{bodyIndent}Dictionary<string, List<string>> errors = new Dictionary<string, List<string>>();");
 
 		foreach (PropertyValidationInfo property in validatedProperties)
 		{
@@ -134,6 +136,21 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 		}
 
 		sb.AppendLine($"{bodyIndent}return errors;");
+		sb.AppendLine($"{innerIndent}}}");
+		sb.AppendLine();
+
+		// Generate Validate(string propertyName) returning List<string>
+		sb.AppendLine($"{innerIndent}/// <summary>");
+		sb.AppendLine($"{innerIndent}/// Validates a specific property of the current instance and returns a list of validation errors.");
+		sb.AppendLine($"{innerIndent}/// </summary>");
+		sb.AppendLine($"{innerIndent}/// <param name=\"propertyName\">The name of the property to validate.</param>");
+		sb.AppendLine($"{innerIndent}/// <returns>A list of validation error messages for the specified property. An empty list indicates the property is valid.</returns>");
+		sb.AppendLine($"{innerIndent}public List<string> Validate(string propertyName)");
+		sb.AppendLine($"{innerIndent}{{");
+		sb.AppendLine($"{bodyIndent}Dictionary<string, List<string>> allErrors = Validate();");
+		sb.AppendLine($"{bodyIndent}if (allErrors.TryGetValue(propertyName, out List<string>? propertyErrors))");
+		sb.AppendLine($"{bodyIndent}  return propertyErrors;");
+		sb.AppendLine($"{bodyIndent}return new List<string>();");
 		sb.AppendLine($"{innerIndent}}}");
 		sb.AppendLine($"{indent}}}");
 	}
@@ -178,7 +195,7 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 			sb.AppendLine($"{bodyIndent}if ({propertyName} == null)");
 		}
 
-		sb.AppendLine($"{bodyIndent}  errors.Add(\"{EscapeString(message)}\");");
+		AppendAddError(sb, propertyName, message, bodyIndent);
 	}
 
 	private static void AppendRangeValidation(StringBuilder sb, string propertyName, bool isCollection, bool isArray, ValidationRule rule, string bodyIndent)
@@ -189,14 +206,14 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 			string message = rule.ErrorMessage ?? $"The field {propertyName} must have between {rule.MinValue} and {rule.MaxValue} elements.";
 
 			sb.AppendLine($"{bodyIndent}if ({propertyName} != null && ({propertyName}.{countAccessor} < {rule.MinValue} || {propertyName}.{countAccessor} > {rule.MaxValue}))");
-			sb.AppendLine($"{bodyIndent}  errors.Add(\"{EscapeString(message)}\");");
+			AppendAddError(sb, propertyName, message, bodyIndent);
 		}
 		else
 		{
 			string message = rule.ErrorMessage ?? $"The field {propertyName} must be between {rule.MinValue} and {rule.MaxValue}.";
 
 			sb.AppendLine($"{bodyIndent}if ({propertyName} < {rule.MinValue} || {propertyName} > {rule.MaxValue})");
-			sb.AppendLine($"{bodyIndent}  errors.Add(\"{EscapeString(message)}\");");
+			AppendAddError(sb, propertyName, message, bodyIndent);
 		}
 	}
 
@@ -207,14 +224,14 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 			string minMessage = rule.ErrorMessage ?? $"The field {propertyName} must be a string with a minimum length of {rule.MinValue} and a maximum length of {rule.MaxValue}.";
 
 			sb.AppendLine($"{bodyIndent}if ({propertyName} != null && ({propertyName}.Length < {rule.MinValue} || {propertyName}.Length > {rule.MaxValue}))");
-			sb.AppendLine($"{bodyIndent}  errors.Add(\"{EscapeString(minMessage)}\");");
+			AppendAddError(sb, propertyName, minMessage, bodyIndent);
 		}
 		else
 		{
 			string message = rule.ErrorMessage ?? $"The field {propertyName} must be a string with a maximum length of {rule.MaxValue}.";
 
 			sb.AppendLine($"{bodyIndent}if ({propertyName} != null && {propertyName}.Length > {rule.MaxValue})");
-			sb.AppendLine($"{bodyIndent}  errors.Add(\"{EscapeString(message)}\");");
+			AppendAddError(sb, propertyName, message, bodyIndent);
 		}
 	}
 
@@ -223,7 +240,7 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 		string message = rule.ErrorMessage ?? $"The field {propertyName} must be a string or collection with a minimum length of {rule.MinValue}.";
 
 		sb.AppendLine($"{bodyIndent}if ({propertyName} != null && {propertyName}.Length < {rule.MinValue})");
-		sb.AppendLine($"{bodyIndent}  errors.Add(\"{EscapeString(message)}\");");
+		AppendAddError(sb, propertyName, message, bodyIndent);
 	}
 
 	private static void AppendMaxLengthValidation(StringBuilder sb, string propertyName, ValidationRule rule, string bodyIndent)
@@ -231,7 +248,7 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 		string message = rule.ErrorMessage ?? $"The field {propertyName} must be a string or collection with a maximum length of {rule.MaxValue}.";
 
 		sb.AppendLine($"{bodyIndent}if ({propertyName} != null && {propertyName}.Length > {rule.MaxValue})");
-		sb.AppendLine($"{bodyIndent}  errors.Add(\"{EscapeString(message)}\");");
+		AppendAddError(sb, propertyName, message, bodyIndent);
 	}
 
 	private static void AppendRegularExpressionValidation(StringBuilder sb, string propertyName, ValidationRule rule, string bodyIndent)
@@ -239,7 +256,16 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 		string message = rule.ErrorMessage ?? $"The field {propertyName} must match the regular expression '{EscapeString(rule.Pattern!)}'.";
 
 		sb.AppendLine($"{bodyIndent}if ({propertyName} != null && !Regex.IsMatch({propertyName}, @\"{EscapeVerbatimString(rule.Pattern!)}\"))");
-		sb.AppendLine($"{bodyIndent}  errors.Add(\"{EscapeString(message)}\");");
+		AppendAddError(sb, propertyName, message, bodyIndent);
+	}
+
+	private static void AppendAddError(StringBuilder sb, string propertyName, string message, string bodyIndent)
+	{
+		sb.AppendLine($"{bodyIndent}{{");
+		sb.AppendLine($"{bodyIndent}  if (!errors.ContainsKey(\"{propertyName}\"))");
+		sb.AppendLine($"{bodyIndent}    errors[\"{propertyName}\"] = new List<string>();");
+		sb.AppendLine($"{bodyIndent}  errors[\"{propertyName}\"].Add(\"{EscapeString(message)}\");");
+		sb.AppendLine($"{bodyIndent}}}");
 	}
 
 	private static ImmutableArray<PropertyValidationInfo> GetValidatedProperties(INamedTypeSymbol classSymbol)
@@ -461,7 +487,7 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 		RegularExpression
 	}
 
-	private sealed class ValidationRule(ValidatorGenerator.ValidationKind kind)
+	private sealed class ValidationRule(ValidationKind kind)
 	{
 		public ValidationKind Kind { get; } = kind;
 		public string? MinValue { get; set; }

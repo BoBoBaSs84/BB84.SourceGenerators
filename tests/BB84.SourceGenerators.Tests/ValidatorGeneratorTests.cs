@@ -13,7 +13,7 @@ namespace BB84.SourceGenerators.Tests;
 public sealed class ValidatorGeneratorTests
 {
 	[TestMethod]
-	public void ValidateShouldReturnEmptyListForValidInstance()
+	public void ValidateShouldReturnEmptyDictionaryForValidInstance()
 	{
 		ValidatorTestModel model = new()
 		{
@@ -24,7 +24,7 @@ public sealed class ValidatorGeneratorTests
 			Password = "abcdef"
 		};
 
-		List<string> errors = model.Validate();
+		Dictionary<string, List<string>> errors = model.Validate();
 
 		Assert.IsEmpty(errors);
 	}
@@ -41,10 +41,10 @@ public sealed class ValidatorGeneratorTests
 			Password = "abcdef"
 		};
 
-		List<string> errors = model.Validate();
+		Dictionary<string, List<string>> errors = model.Validate();
 
 		Assert.IsNotEmpty(errors);
-		Assert.IsTrue(errors.Exists(e => e.Contains("Name")));
+		Assert.IsTrue(errors.ContainsKey("Name"));
 	}
 
 	[TestMethod]
@@ -59,10 +59,10 @@ public sealed class ValidatorGeneratorTests
 			Password = "abcdef"
 		};
 
-		List<string> errors = model.Validate();
+		Dictionary<string, List<string>> errors = model.Validate();
 
 		Assert.IsNotEmpty(errors);
-		Assert.IsTrue(errors.Exists(e => e.Contains("Name")));
+		Assert.IsTrue(errors.ContainsKey("Name"));
 	}
 
 	[TestMethod]
@@ -77,10 +77,10 @@ public sealed class ValidatorGeneratorTests
 			Password = "abcdef"
 		};
 
-		List<string> errors = model.Validate();
+		Dictionary<string, List<string>> errors = model.Validate();
 
 		Assert.IsNotEmpty(errors);
-		Assert.IsTrue(errors.Exists(e => e.Contains("Age")));
+		Assert.IsTrue(errors.ContainsKey("Age"));
 	}
 
 	[TestMethod]
@@ -95,10 +95,10 @@ public sealed class ValidatorGeneratorTests
 			Password = "abcdef"
 		};
 
-		List<string> errors = model.Validate();
+		Dictionary<string, List<string>> errors = model.Validate();
 
 		Assert.IsNotEmpty(errors);
-		Assert.IsTrue(errors.Exists(e => e.Contains("Age")));
+		Assert.IsTrue(errors.ContainsKey("Age"));
 	}
 
 	[TestMethod]
@@ -113,10 +113,10 @@ public sealed class ValidatorGeneratorTests
 			Password = "abcdef"
 		};
 
-		List<string> errors = model.Validate();
+		Dictionary<string, List<string>> errors = model.Validate();
 
 		Assert.IsNotEmpty(errors);
-		Assert.IsTrue(errors.Exists(e => e.Contains("Bio")));
+		Assert.IsTrue(errors.ContainsKey("Bio"));
 	}
 
 	[TestMethod]
@@ -131,10 +131,10 @@ public sealed class ValidatorGeneratorTests
 			Password = "abcdef"
 		};
 
-		List<string> errors = model.Validate();
+		Dictionary<string, List<string>> errors = model.Validate();
 
 		Assert.IsNotEmpty(errors);
-		Assert.IsTrue(errors.Exists(e => e.Contains("Bio")));
+		Assert.IsTrue(errors.ContainsKey("Bio"));
 	}
 
 	[TestMethod]
@@ -149,7 +149,7 @@ public sealed class ValidatorGeneratorTests
 			Password = "ab"
 		};
 
-		List<string> errors = model.Validate();
+		List<string> errors = model.Validate("Password");
 
 		Assert.IsNotEmpty(errors);
 		Assert.IsTrue(errors.Exists(e => e.Contains("Password")));
@@ -167,7 +167,7 @@ public sealed class ValidatorGeneratorTests
 			Password = new string('x', 51)
 		};
 
-		List<string> errors = model.Validate();
+		List<string> errors = model.Validate("Password");
 
 		Assert.IsNotEmpty(errors);
 		Assert.IsTrue(errors.Exists(e => e.Contains("Password")));
@@ -185,10 +185,10 @@ public sealed class ValidatorGeneratorTests
 			Password = "abcdef"
 		};
 
-		List<string> errors = model.Validate();
+		Dictionary<string, List<string>> errors = model.Validate();
 
 		Assert.IsNotEmpty(errors);
-		Assert.IsTrue(errors.Exists(e => e.Contains("Email")));
+		Assert.IsTrue(errors.ContainsKey("Email"));
 	}
 
 	[TestMethod]
@@ -203,7 +203,7 @@ public sealed class ValidatorGeneratorTests
 			Password = "a"
 		};
 
-		List<string> errors = model.Validate();
+		Dictionary<string, List<string>> errors = model.Validate();
 
 		Assert.IsGreaterThanOrEqualTo(4, errors.Count);
 	}
@@ -216,10 +216,11 @@ public sealed class ValidatorGeneratorTests
 			Name = null
 		};
 
-		List<string> errors = model.Validate();
+		Dictionary<string, List<string>> errors = model.Validate();
 
 		Assert.IsNotEmpty(errors);
-		Assert.IsTrue(errors.Exists(e => e == "Please provide a name."));
+		Assert.IsTrue(errors.ContainsKey("Name"));
+		Assert.IsTrue(errors["Name"].Exists(e => e == "Please provide a name."));
 	}
 
 	[TestMethod]
@@ -234,20 +235,20 @@ public sealed class ValidatorGeneratorTests
 			Password = null
 		};
 
-		List<string> errors = model.Validate();
+		Dictionary<string, List<string>> errors = model.Validate();
 
 		Assert.IsEmpty(errors);
 	}
 
 	[TestMethod]
-	public void ValidateShouldReturnEmptyListForValidCollectionRange()
+	public void ValidateShouldReturnEmptyDictionaryForValidCollectionRange()
 	{
 		ValidatorCollectionRangeTestModel model = new()
 		{
 			Scores = [50, 75, 100]
 		};
 
-		List<string> errors = model.Validate();
+		Dictionary<string, List<string>> errors = model.Validate();
 
 		Assert.IsEmpty(errors);
 	}
@@ -260,10 +261,10 @@ public sealed class ValidatorGeneratorTests
 			Scores = []
 		};
 
-		List<string> errors = model.Validate();
+		Dictionary<string, List<string>> errors = model.Validate();
 
 		Assert.IsNotEmpty(errors);
-		Assert.IsTrue(errors.Exists(e => e.Contains("Scores")));
+		Assert.IsTrue(errors.ContainsKey("Scores"));
 	}
 
 	[TestMethod]
@@ -274,10 +275,10 @@ public sealed class ValidatorGeneratorTests
 			Scores = Enumerable.Range(1, 101).ToArray()
 		};
 
-		List<string> errors = model.Validate();
+		Dictionary<string, List<string>> errors = model.Validate();
 
 		Assert.IsNotEmpty(errors);
-		Assert.IsTrue(errors.Exists(e => e.Contains("Scores")));
+		Assert.IsTrue(errors.ContainsKey("Scores"));
 	}
 
 	[TestMethod]
@@ -288,33 +289,33 @@ public sealed class ValidatorGeneratorTests
 			Scores = null
 		};
 
-		List<string> errors = model.Validate();
+		Dictionary<string, List<string>> errors = model.Validate();
 
 		Assert.IsEmpty(errors);
 	}
 
 	[TestMethod]
-	public void ValidateShouldReturnEmptyListForEmptyCollectionWithZeroMinRange()
+	public void ValidateShouldReturnEmptyDictionaryForEmptyCollectionWithZeroMinRange()
 	{
 		ValidatorStringCollectionRangeTestModel model = new()
 		{
 			Tags = []
 		};
 
-		List<string> errors = model.Validate();
+		Dictionary<string, List<string>> errors = model.Validate();
 
 		Assert.IsEmpty(errors);
 	}
 
 	[TestMethod]
-	public void ValidateShouldReturnEmptyListForValidListRange()
+	public void ValidateShouldReturnEmptyDictionaryForValidListRange()
 	{
 		ValidatorListRangeTestModel model = new()
 		{
 			Values = [2, 5, 8]
 		};
 
-		List<string> errors = model.Validate();
+		Dictionary<string, List<string>> errors = model.Validate();
 
 		Assert.IsEmpty(errors);
 	}
@@ -327,21 +328,21 @@ public sealed class ValidatorGeneratorTests
 			Values = Enumerable.Range(1, 11).ToList()
 		};
 
-		List<string> errors = model.Validate();
+		Dictionary<string, List<string>> errors = model.Validate();
 
 		Assert.IsNotEmpty(errors);
-		Assert.IsTrue(errors.Exists(e => e.Contains("Values")));
+		Assert.IsTrue(errors.ContainsKey("Values"));
 	}
 
 	[TestMethod]
-	public void ValidateShouldReturnEmptyListForValidStringCollectionRange()
+	public void ValidateShouldReturnEmptyDictionaryForValidStringCollectionRange()
 	{
 		ValidatorStringCollectionRangeTestModel model = new()
 		{
 			Tags = ["a", "b", "c"]
 		};
 
-		List<string> errors = model.Validate();
+		Dictionary<string, List<string>> errors = model.Validate();
 
 		Assert.IsEmpty(errors);
 	}
@@ -354,10 +355,10 @@ public sealed class ValidatorGeneratorTests
 			Tags = Enumerable.Range(1, 11).Select(i => i.ToString(System.Globalization.CultureInfo.InvariantCulture)).ToArray()
 		};
 
-		List<string> errors = model.Validate();
+		Dictionary<string, List<string>> errors = model.Validate();
 
 		Assert.IsNotEmpty(errors);
-		Assert.IsTrue(errors.Exists(e => e.Contains("Tags")));
+		Assert.IsTrue(errors.ContainsKey("Tags"));
 	}
 
 	[TestMethod]
@@ -368,21 +369,73 @@ public sealed class ValidatorGeneratorTests
 			Id = 0
 		};
 
-		List<string> errors = model.Validate();
+		Dictionary<string, List<string>> errors = model.Validate();
 
 		Assert.IsNotEmpty(errors);
-		Assert.IsTrue(errors.Exists(e => e.Contains("Id")));
+		Assert.IsTrue(errors.ContainsKey("Id"));
 	}
 
 	[TestMethod]
-	public void ValidateShouldReturnEmptyListForValidNestedClass()
+	public void ValidateShouldReturnEmptyDictionaryForValidNestedClass()
 	{
 		ValidatorOuterTestModel.ValidatorNestedTestModel model = new()
 		{
 			Id = 5
 		};
 
-		List<string> errors = model.Validate();
+		Dictionary<string, List<string>> errors = model.Validate();
+
+		Assert.IsEmpty(errors);
+	}
+
+	[TestMethod]
+	public void ValidatePropertyShouldReturnErrorsForSpecificProperty()
+	{
+		ValidatorTestModel model = new()
+		{
+			Name = null,
+			Email = "john@example.com",
+			Age = 25,
+			Bio = "Hello",
+			Password = "abcdef"
+		};
+
+		List<string> errors = model.Validate("Name");
+
+		Assert.IsNotEmpty(errors);
+		Assert.IsTrue(errors.Exists(e => e.Contains("Name")));
+	}
+
+	[TestMethod]
+	public void ValidatePropertyShouldReturnEmptyListForValidProperty()
+	{
+		ValidatorTestModel model = new()
+		{
+			Name = "John",
+			Email = "john@example.com",
+			Age = 25,
+			Bio = "Hello",
+			Password = "abcdef"
+		};
+
+		List<string> errors = model.Validate("Name");
+
+		Assert.IsEmpty(errors);
+	}
+
+	[TestMethod]
+	public void ValidatePropertyShouldReturnEmptyListForUnknownProperty()
+	{
+		ValidatorTestModel model = new()
+		{
+			Name = "John",
+			Email = "john@example.com",
+			Age = 25,
+			Bio = "Hello",
+			Password = "abcdef"
+		};
+
+		List<string> errors = model.Validate("NonExistentProperty");
 
 		Assert.IsEmpty(errors);
 	}
