@@ -61,7 +61,7 @@
 	</PropertyGroup>
 
 	<ItemGroup Condition="!$(MSBuildProjectName.EndsWith('Tests'))">
-		<InternalsVisibleTo Include="$(AssemblyName).Tests" />
+		<!--<InternalsVisibleTo Include="$(AssemblyName).Tests" />-->
 		<None Include="..\..\LICENSE" Pack="True" PackagePath="\" />
 		<None Include="..\..\icon.png" Pack="True" PackagePath="\" />
 		<None Include="..\..\README.md" Pack="True" PackagePath="\" />

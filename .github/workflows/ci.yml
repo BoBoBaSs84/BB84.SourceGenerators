@@ -24,17 +24,15 @@ jobs:
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
-        with:
-          dotnet-version: 8.x
 
       - name: Restore dependencies
-        run: dotnet restore BB84.SourceGenerators.sln
+        run: dotnet restore BB84.SourceGenerators.slnx
 
       - name: Build solution
-        run: dotnet build BB84.SourceGenerators.sln --configuration Release --no-restore
+        run: dotnet build BB84.SourceGenerators.slnx --configuration Release --no-restore
 
       - name: Run tests
-        run: dotnet test BB84.SourceGenerators.sln --configuration Release --no-build --verbosity normal --logger "trx;LogFileName=test-results.trx"
+        run: dotnet test BB84.SourceGenerators.slnx --configuration Release --no-build --verbosity normal --logger "trx;LogFileName=test-results.trx"
 
       - name: Upload test results
         if: always()

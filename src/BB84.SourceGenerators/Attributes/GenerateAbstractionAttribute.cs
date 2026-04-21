@@ -18,7 +18,9 @@ internal sealed class GenerateAbstractionAttribute(Type targetType, Type abstrac
 	/// <summary>
 	/// Initializes a new instance of the <see cref="GenerateAbstractionAttribute"/> class.
 	/// </summary>
-	/// <inheritdoc cref="GenerateAbstractionAttribute(Type, Type, Type, string[])"/>
+	/// <param name="targetType">The type of the static class to generate an abstraction for.</param>
+	/// <param name="abstractionType">The type of the generated abstraction.</param>
+	/// <param name="implementationType">The type of the generated implementation.</param>
 	public GenerateAbstractionAttribute(Type targetType, Type abstractionType, Type implementationType) : this(targetType, abstractionType, implementationType, [])
 	{ }
 

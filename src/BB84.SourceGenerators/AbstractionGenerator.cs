@@ -259,8 +259,36 @@ public sealed class AbstractionGenerator : IIncrementalGenerator
 	/// </returns>
 	private static string CreateMethodComment(AbstractionRequest request, IMethodSymbol methodSymbol)
 	{
-		IEnumerable<string> parameters = methodSymbol.Parameters.Select(p => $"{GetParameterModifier(p)}{p.Type}".Replace('<', '{').Replace('>', '}'));
+		IEnumerable<string> parameters = methodSymbol.Parameters.Select(p => $"{GetCrefParameterModifier(p)}{GetCrefTypeName(p.Type)}");
 		return $"/// <inheritdoc cref=\"{request.TargetType}.{methodSymbol.Name}({string.Join(", ", parameters)})\"/>";
+	}
+
+	/// <summary>
+	/// Gets the type name suitable for use in XML cref attributes, stripping nullable annotations
+	/// and replacing angle brackets with curly braces.
+	/// </summary>
+	/// <param name="type">The type symbol.</param>
+	/// <returns>A cref-safe type name string.</returns>
+	private static string GetCrefTypeName(ITypeSymbol type)
+		=> type.WithNullableAnnotation(NullableAnnotation.NotAnnotated)
+			.ToDisplayString()
+			.Replace('<', '{')
+			.Replace('>', '}');
+
+	/// <summary>
+	/// Gets the C# keyword prefix for a parameter in an XML cref attribute.
+	/// Only <c>ref</c> and <c>out</c> are valid in cref attributes.
+	/// </summary>
+	/// <param name="parameter">The parameter symbol.</param>
+	/// <returns>The modifier keyword followed by a space, or an empty string if none applies.</returns>
+	private static string GetCrefParameterModifier(IParameterSymbol parameter)
+	{
+		return parameter.RefKind switch
+		{
+			RefKind.Out => "out ",
+			RefKind.Ref => "ref ",
+			_ => string.Empty
+		};
 	}
 
 	/// <summary>
@@ -270,16 +298,15 @@ public sealed class AbstractionGenerator : IIncrementalGenerator
 	/// <returns>The modifier keyword followed by a space, or an empty string if none applies.</returns>
 	private static string GetParameterModifier(IParameterSymbol parameter)
 	{
-		if (parameter.IsParams)
-			return "params ";
-
-		return parameter.RefKind switch
-		{
-			RefKind.Out => "out ",
-			RefKind.Ref => "ref ",
-			RefKind.In => "in ",
-			_ => string.Empty
-		};
+		return parameter.IsParams
+			? "params "
+			: parameter.RefKind switch
+			{
+				RefKind.Out => "out ",
+				RefKind.Ref => "ref ",
+				RefKind.In => "in ",
+				_ => string.Empty
+			};
 	}
 
 	/// <summary>
