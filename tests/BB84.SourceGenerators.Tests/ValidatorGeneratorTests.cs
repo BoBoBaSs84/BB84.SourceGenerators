@@ -272,7 +272,7 @@ public sealed class ValidatorGeneratorTests
 	{
 		ValidatorCollectionRangeTestModel model = new()
 		{
-			Scores = Enumerable.Range(1, 101).ToArray()
+			Scores = [.. Enumerable.Range(1, 101)]
 		};
 
 		Dictionary<string, List<string>> errors = model.Validate();
@@ -325,7 +325,7 @@ public sealed class ValidatorGeneratorTests
 	{
 		ValidatorListRangeTestModel model = new()
 		{
-			Values = Enumerable.Range(1, 11).ToList()
+			Values = [.. Enumerable.Range(1, 11)]
 		};
 
 		Dictionary<string, List<string>> errors = model.Validate();
@@ -352,7 +352,7 @@ public sealed class ValidatorGeneratorTests
 	{
 		ValidatorStringCollectionRangeTestModel model = new()
 		{
-			Tags = Enumerable.Range(1, 11).Select(i => i.ToString(System.Globalization.CultureInfo.InvariantCulture)).ToArray()
+			Tags = [.. Enumerable.Range(1, 11).Select(i => i.ToString(System.Globalization.CultureInfo.InvariantCulture))]
 		};
 
 		Dictionary<string, List<string>> errors = model.Validate();

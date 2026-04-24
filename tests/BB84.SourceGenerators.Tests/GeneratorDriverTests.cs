@@ -253,16 +253,70 @@ using BB84.SourceGenerators.Attributes;
 
 namespace TestNamespace
 {
-  [GenerateValidator]
-  public partial class EmptyValModel
-  {
-  }
+	[GenerateValidator]
+	public partial class EmptyValModel
+	{
+	}
 }";
 
 		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources) = RunGenerator<ValidatorGenerator>(source);
 
 		Assert.IsEmpty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
 		Assert.IsNotEmpty(generatedSources);
+	}
+
+	[TestMethod]
+	public void ValidatorGeneratorAbstractClassShouldReportDiagnostic()
+	{
+		string source = @"
+using System.ComponentModel.DataAnnotations;
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+	[GenerateValidator]
+	public abstract partial class AbstractModel
+	{
+		[Range(1, int.MaxValue)]
+		public int Id { get; set; }
+	}
+}";
+
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources) = RunGenerator<ValidatorGenerator>(source);
+
+		Assert.IsNotEmpty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error && d.Id == "BB84SG0001"));
+	}
+
+	[TestMethod]
+	public void ValidatorGeneratorShouldIncludeInheritedProperties()
+	{
+		string source = @"
+using System.ComponentModel.DataAnnotations;
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+	public abstract class AbstractModel
+	{
+		[Range(1, int.MaxValue)]
+		public int Id { get; set; }
+	}
+
+	[GenerateValidator]
+	public partial class ConcreteModel : AbstractModel
+	{
+		[Required]
+		public string Name { get; set; }
+	}
+}";
+
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources) = RunGenerator<ValidatorGenerator>(source);
+
+		Assert.IsEmpty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+		Assert.IsNotEmpty(generatedSources);
+		string generated = generatedSources.First(s => s.Contains("partial class ConcreteModel"));
+		Assert.Contains("Name", generated);
+		Assert.Contains("Id", generated);
 	}
 
 	[TestMethod]

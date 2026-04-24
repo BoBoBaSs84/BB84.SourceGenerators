@@ -6,6 +6,7 @@
 using System.Collections.Immutable;
 using System.Text;
 
+using BB84.SourceGenerators.Analyzers;
 using BB84.SourceGenerators.Attributes;
 using BB84.SourceGenerators.Extensions;
 
@@ -63,6 +64,13 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 		INamedTypeSymbol? classSymbol = semanticModel.GetDeclaredSymbol(classDeclaration);
 		if (classSymbol is null)
 			return;
+
+		if (classSymbol.IsAbstract)
+		{
+			Diagnostic diagnostic = Diagnostic.Create(DiagnosticDescriptors.AbstractClassDiagnostic, classDeclaration.Identifier.GetLocation(), classSymbol.Name);
+			context.ReportDiagnostic(diagnostic);
+			return;
+		}
 
 		string className = classSymbol.Name;
 		string namespaceName = classDeclaration.GetNamespace();
@@ -271,8 +279,21 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 	private static ImmutableArray<PropertyValidationInfo> GetValidatedProperties(INamedTypeSymbol classSymbol)
 	{
 		ImmutableArray<PropertyValidationInfo>.Builder builder = ImmutableArray.CreateBuilder<PropertyValidationInfo>();
+		HashSet<string> seen = [];
 
-		foreach (ISymbol member in classSymbol.GetMembers())
+		INamedTypeSymbol? currentType = classSymbol;
+		while (currentType is not null && currentType.SpecialType != SpecialType.System_Object)
+		{
+			CollectValidatedProperties(currentType, builder, seen);
+			currentType = currentType.BaseType;
+		}
+
+		return builder.ToImmutable();
+	}
+
+	private static void CollectValidatedProperties(INamedTypeSymbol typeSymbol, ImmutableArray<PropertyValidationInfo>.Builder builder, HashSet<string> seen)
+	{
+		foreach (ISymbol member in typeSymbol.GetMembers())
 		{
 			if (member is not IPropertySymbol propertySymbol)
 				continue;
@@ -281,6 +302,9 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 				continue;
 
 			if (propertySymbol.IsStatic || propertySymbol.GetMethod is null)
+				continue;
+
+			if (!seen.Add(propertySymbol.Name))
 				continue;
 
 			ImmutableArray<ValidationRule>.Builder rules = ImmutableArray.CreateBuilder<ValidationRule>();
@@ -315,8 +339,6 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 				builder.Add(new PropertyValidationInfo(propertySymbol.Name, typeName, isCollection, isArray, rules.ToImmutable()));
 			}
 		}
-
-		return builder.ToImmutable();
 	}
 
 	private static ValidationRule ParseRequiredAttribute(AttributeData attribute)

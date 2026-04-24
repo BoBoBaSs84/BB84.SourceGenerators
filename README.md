@@ -618,6 +618,11 @@ Generates a `Validate()` method for classes, scanning properties for data annota
 - `[MaxLength(length)]` - Validates maximum length of a string or collection
 - `[RegularExpression(pattern)]` - Validates that a string matches a regex pattern
 
+**Constraints:**
+
+- The attribute cannot be applied to abstract classes. A compile-time error (`BB84SG0001`) will be emitted if used on an abstract class.
+- When a class inherits from a base class, the generated validator includes validation for all public properties from the entire inheritance hierarchy.
+
 #### Example
 
 ```csharp

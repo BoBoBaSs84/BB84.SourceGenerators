@@ -9,7 +9,7 @@
 		<IncludeBuildOutput>False</IncludeBuildOutput>
 		<IsRoslynComponent>True</IsRoslynComponent>
 		<!-- Suppresses the expected warning about lib/ TFM without a matching dependency group (we intentionally suppress dependencies) -->
-		<NoWarn>$(NoWarn);NU5128</NoWarn>
+		<NoWarn>$(NoWarn);NU5128;RS2008</NoWarn>
 		<!-- Prevents Roslyn (Microsoft.CodeAnalysis.CSharp) and other dependencies from being added as NuGet dependencies — consumers don't need them -->
 		<SuppressDependenciesWhenPacking>True</SuppressDependenciesWhenPacking>
 		<TargetFramework>netstandard2.0</TargetFramework>
