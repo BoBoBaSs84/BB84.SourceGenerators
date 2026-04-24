@@ -58,10 +58,10 @@ using BB84.SourceGenerators.Attributes;
 
 namespace TestNamespace
 {
-  [GenerateToString]
-  public partial class EmptyModel
-  {
-  }
+	[GenerateToString]
+	public partial class EmptyModel
+	{
+	}
 }";
 
 		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources) = RunGenerator<ToStringGenerator>(source);
@@ -70,6 +70,35 @@ namespace TestNamespace
 		Assert.IsNotEmpty(generatedSources);
 		string generated = generatedSources.First(s => s.Contains("override string ToString()"));
 		Assert.Contains("EmptyModel", generated);
+	}
+
+	[TestMethod]
+	public void ToStringGeneratorShouldExcludeNameofProperties()
+	{
+		string source = @"
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+	[GenerateToString(""Secret"", nameof(ExcludeModel.Internal))]
+	public partial class ExcludeModel
+	{
+		public int Id { get; set; }
+		public string Name { get; set; }
+		public string Secret { get; set; }
+		public string Internal { get; set; }
+	}
+}";
+
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources) = RunGenerator<ToStringGenerator>(source);
+
+		Assert.IsEmpty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+		Assert.IsNotEmpty(generatedSources);
+		string generated = generatedSources.First(s => s.Contains("override string ToString()"));
+		Assert.Contains("Id", generated);
+		Assert.Contains("Name", generated);
+		Assert.DoesNotContain("Secret", generated);
+		Assert.DoesNotContain("Internal", generated);
 	}
 
 	[TestMethod]
@@ -115,6 +144,33 @@ namespace TestNamespace
 
 		Assert.IsEmpty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
 		Assert.IsNotEmpty(generatedSources);
+	}
+
+	[TestMethod]
+	public void EqualityGeneratorShouldExcludeNameofProperties()
+	{
+		string source = @"
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+	[GenerateEquality(nameof(EqExModel.Secret))]
+	public partial class EqExModel
+	{
+		public int Id { get; set; }
+		public string Name { get; set; }
+		public string Secret { get; set; }
+	}
+}";
+
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources) = RunGenerator<EqualityGenerator>(source);
+
+		Assert.IsEmpty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+		Assert.IsNotEmpty(generatedSources);
+		string generated = generatedSources.First(s => s.Contains("partial class EqExModel"));
+		Assert.Contains("Id", generated);
+		Assert.Contains("Name", generated);
+		Assert.DoesNotContain("Secret", generated);
 	}
 
 	[TestMethod]
@@ -231,6 +287,33 @@ namespace TestNamespace
 		string generated = generatedSources.First(s => s.Contains("DeepClone"));
 		Assert.Contains("Clone()", generated);
 		Assert.Contains("DeepClone()", generated);
+	}
+
+	[TestMethod]
+	public void CloneableGeneratorShouldExcludeNameofProperties()
+	{
+		string source = @"
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+	[GenerateCloneable(nameof(CloneExModel.Secret))]
+	public partial class CloneExModel
+	{
+		public int Id { get; set; }
+		public string Name { get; set; }
+		public string Secret { get; set; }
+	}
+}";
+
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources) = RunGenerator<CloneableGenerator>(source);
+
+		Assert.IsEmpty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+		Assert.IsNotEmpty(generatedSources);
+		string generated = generatedSources.First(s => s.Contains("partial class CloneExModel"));
+		Assert.Contains("Id", generated);
+		Assert.Contains("Name", generated);
+		Assert.DoesNotContain("Secret", generated);
 	}
 
 	[TestMethod]

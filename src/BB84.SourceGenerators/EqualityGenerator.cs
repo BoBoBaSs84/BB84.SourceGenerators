@@ -60,7 +60,7 @@ public sealed class EqualityGenerator : IIncrementalGenerator
 		string namespaceName = classDeclaration.GetNamespace();
 		string accessibility = GetAccessibility(classDeclaration);
 
-		HashSet<string> excludedProperties = GetExcludedProperties(classDeclaration);
+		HashSet<string> excludedProperties = GetExcludedProperties(classDeclaration, semanticModel);
 		ImmutableArray<PropertyInfo> properties = GetPublicProperties(classSymbol, excludedProperties);
 
 		StringBuilder sb = new();
@@ -216,7 +216,7 @@ public sealed class EqualityGenerator : IIncrementalGenerator
 		return builder.ToImmutable();
 	}
 
-	private static HashSet<string> GetExcludedProperties(ClassDeclarationSyntax classDeclaration)
+	private static HashSet<string> GetExcludedProperties(ClassDeclarationSyntax classDeclaration, SemanticModel semanticModel)
 	{
 		HashSet<string> excluded = new(StringComparer.Ordinal);
 
@@ -234,8 +234,10 @@ public sealed class EqualityGenerator : IIncrementalGenerator
 
 				foreach (AttributeArgumentSyntax argument in attribute.ArgumentList.Arguments)
 				{
-					string value = argument.Expression.ToString().Trim('"');
-					excluded.Add(value);
+					Optional<object?> constantValue = semanticModel.GetConstantValue(argument.Expression);
+
+					if (constantValue.HasValue && constantValue.Value is string value)
+						excluded.Add(value);
 				}
 			}
 		}

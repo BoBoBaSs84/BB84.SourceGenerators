@@ -166,7 +166,7 @@ public partial class EqualityTestModel
 	public bool IsActive { get; set; }
 }
 
-[GenerateEquality("Secret")]
+[GenerateEquality(nameof(Secret))]
 public partial class EqualityExcludeTestModel
 {
 	public int Id { get; set; }

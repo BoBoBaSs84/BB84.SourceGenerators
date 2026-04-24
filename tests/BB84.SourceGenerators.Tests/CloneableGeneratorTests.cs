@@ -171,7 +171,7 @@ public partial class CloneableNestedModel
 	public string? Value { get; set; }
 }
 
-[GenerateCloneable("Secret")]
+[GenerateCloneable(nameof(Secret))]
 public partial class CloneableExcludeTestModel
 {
 	public int Id { get; set; }

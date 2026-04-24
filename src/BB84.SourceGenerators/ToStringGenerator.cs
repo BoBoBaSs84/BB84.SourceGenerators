@@ -58,7 +58,7 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 		string namespaceName = classDeclaration.GetNamespace();
 		string accessibility = GetAccessibility(classDeclaration);
 
-		HashSet<string> excludedProperties = GetExcludedProperties(classDeclaration);
+		HashSet<string> excludedProperties = GetExcludedProperties(classDeclaration, semanticModel);
 		ImmutableArray<string> properties = GetPublicProperties(classSymbol, excludedProperties);
 
 		List<(string Accessibility, string Name)> outerClasses = GetOuterClasses(classDeclaration);
@@ -158,7 +158,7 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 		return builder.ToImmutable();
 	}
 
-	private static HashSet<string> GetExcludedProperties(ClassDeclarationSyntax classDeclaration)
+	private static HashSet<string> GetExcludedProperties(ClassDeclarationSyntax classDeclaration, SemanticModel semanticModel)
 	{
 		HashSet<string> excluded = new(StringComparer.Ordinal);
 
@@ -176,8 +176,10 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 
 				foreach (AttributeArgumentSyntax argument in attribute.ArgumentList.Arguments)
 				{
-					string value = argument.Expression.ToString().Trim('"');
-					excluded.Add(value);
+					Optional<object?> constantValue = semanticModel.GetConstantValue(argument.Expression);
+
+					if (constantValue.HasValue && constantValue.Value is string value)
+						excluded.Add(value);
 				}
 			}
 		}

@@ -135,7 +135,7 @@ public partial class ToStringTestModel
 	public bool IsActive { get; set; }
 }
 
-[GenerateToString("Secret", "Internal")]
+[GenerateToString("Secret", nameof(Internal))]
 public partial class ToStringExcludeTestModel
 {
 	public int Id { get; set; }
