@@ -30,4 +30,16 @@ internal static class DiagnosticDescriptors
 		category: "BB84.SourceGenerators",
 		defaultSeverity: DiagnosticSeverity.Error,
 		isEnabledByDefault: true);
+
+	/// <summary>
+	/// Represents a diagnostic error indicating that the [GenerateDecorator] attribute has been applied to
+	/// a class that does not implement any interface.
+	/// </summary>
+	internal static readonly DiagnosticDescriptor DecoratorRequiresInterfaceDiagnostic = new(
+		id: "BB84SG0003",
+		title: "GenerateDecorator requires at least one interface",
+		messageFormat: "The [GenerateDecorator] attribute cannot be applied to class '{0}' because it does not implement any interface",
+		category: "BB84.SourceGenerators",
+		defaultSeverity: DiagnosticSeverity.Error,
+		isEnabledByDefault: true);
 }

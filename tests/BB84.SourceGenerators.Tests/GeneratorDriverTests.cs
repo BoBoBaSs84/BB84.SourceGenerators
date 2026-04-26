@@ -561,6 +561,90 @@ namespace TestNamespace
 		Assert.IsNotEmpty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error && d.Id == "BB84SG0002"));
 	}
 
+	[TestMethod]
+	public void DecoratorGeneratorShouldGenerateSource()
+	{
+		string source = @"
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+	public interface IMyService
+	{
+		string GetValue();
+		string Name { get; set; }
+	}
+
+	[GenerateDecorator]
+	public partial class MyServiceDecorator : IMyService
+	{
+	}
+}";
+
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources) = RunGenerator<DecoratorGenerator>(source);
+
+		Assert.IsEmpty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+		Assert.IsNotEmpty(generatedSources);
+		string generated = generatedSources.First(s => s.Contains("partial class MyServiceDecorator"));
+		Assert.Contains("_inner", generated);
+		Assert.Contains("virtual", generated);
+		Assert.Contains("GetValue()", generated);
+		Assert.Contains("Name", generated);
+		Assert.Contains("MyServiceDecorator(IMyService inner)", generated);
+	}
+
+	[TestMethod]
+	public void DecoratorGeneratorShouldReportDiagnosticForNoInterface()
+	{
+		string source = @"
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+	[GenerateDecorator]
+	public partial class BadDecorator
+	{
+	}
+}";
+
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources) = RunGenerator<DecoratorGenerator>(source);
+
+		Assert.IsNotEmpty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error && d.Id == "BB84SG0003"));
+	}
+
+	[TestMethod]
+	public void DecoratorGeneratorShouldHandleMultipleInterfaces()
+	{
+		string source = @"
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+	public interface IFirst
+	{
+		void DoFirst();
+	}
+
+	public interface ISecond
+	{
+		int DoSecond();
+	}
+
+	[GenerateDecorator]
+	public partial class MultiDecorator : IFirst, ISecond
+	{
+	}
+}";
+
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources) = RunGenerator<DecoratorGenerator>(source);
+
+		Assert.IsEmpty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+		Assert.IsNotEmpty(generatedSources);
+		string generated = generatedSources.First(s => s.Contains("partial class MultiDecorator"));
+		Assert.Contains("DoFirst()", generated);
+		Assert.Contains("DoSecond()", generated);
+	}
+
 	private static (ImmutableArray<Diagnostic> Diagnostics, string[] GeneratedSources) RunGenerator<TGenerator>(string source)
 		where TGenerator : IIncrementalGenerator, new()
 	{

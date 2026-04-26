@@ -18,7 +18,7 @@ A collection of C# source generators that automatically generate boilerplate cod
 
 ## Features
 
-This package provides eleven powerful source generators:
+This package provides twelve powerful source generators:
 
 - **Enumerator Extensions Generator** - Fast, allocation-free extension methods for enums
 - **Notification Properties Generator** - Automatic INotifyPropertyChanged/INotifyPropertyChanging implementation
@@ -31,6 +31,7 @@ This package provides eleven powerful source generators:
 - **Cloneable Generator** - Compile-time `Clone()` and `DeepClone()` method generation
 - **Assembly Information Generator** - Compile-time assembly metadata constants without reflection
 - **Singleton Generator** - Thread-safe singleton pattern generation with lazy or eager initialization
+- **Decorator Generator** - Compile-time decorator pattern generation with full interface delegation
 
 ## Installation
 
@@ -1006,6 +1007,88 @@ public partial class MyCache
 }
 ```
 
+### 11. Singleton Generator
+
+Generates the singleton pattern for classes, providing a static `Instance` property and a private constructor. Supports thread-safe lazy initialization via `Lazy<T>` (default) or simple static field initialization. When the class implements an interface, the `Instance` property is typed as the interface.
+
+#### Attribute
+
+```csharp
+[GenerateSingleton(bool useLazy = true)]
+```
+
+**Parameters:**
+
+- `useLazy` - When `true` (default), the singleton is backed by `Lazy<T>` for thread-safe lazy initialization. When `false`, a simple static readonly field is used instead.
+
+**Constraints:**
+
+- The attribute cannot be applied to classes with `required` fields or properties. A compile-time error (`BB84SG0002`) will be emitted if the class contains any required members that prevent parameterless initialization.
+
+#### Example
+
+```csharp
+using BB84.SourceGenerators.Attributes;
+
+// Lazy singleton (default)
+[GenerateSingleton]
+public partial class MyService { }
+
+// Non-lazy singleton
+[GenerateSingleton(useLazy: false)]
+public partial class MyCache { }
+
+// Singleton with interface
+[GenerateSingleton]
+internal partial class MyService : IMyService { }
+```
+
+#### Generated Code (Lazy, no interface)
+
+```csharp
+public partial class MyService
+{
+    private static readonly Lazy<MyService> _lazyInstance = new Lazy<MyService>(() => new MyService());
+
+    /// <summary>
+    /// Gets the singleton instance of <see cref="MyService"/>.
+    /// </summary>
+    public static MyService Instance => _lazyInstance.Value;
+
+    private MyService() { }
+}
+```
+
+#### Generated Code (Lazy, with interface)
+
+```csharp
+internal partial class MyService
+{
+    private static readonly Lazy<MyService> _lazyInstance = new Lazy<MyService>(() => new MyService());
+
+    /// <summary>
+    /// Gets the singleton instance of <see cref="MyService"/> as <see cref="IMyService"/>.
+    /// </summary>
+    public static IMyService Instance => _lazyInstance.Value;
+
+    private MyService() { }
+}
+```
+
+#### Generated Code (Non-lazy, no interface)
+
+```csharp
+public partial class MyCache
+{
+    /// <summary>
+    /// Gets the singleton instance of <see cref="MyCache"/>.
+    /// </summary>
+    public static MyCache Instance { get; } = new MyCache();
+
+    private MyCache() { }
+}
+```
+
 #### Usage Example
 
 ```csharp
@@ -1019,6 +1102,84 @@ IMyService service = MyService.Instance;
 MyService a = MyService.Instance;
 MyService b = MyService.Instance;
 // a and b are the same reference
+```
+
+### 12. Decorator Generator
+
+Generates a decorator class that wraps an inner instance, delegates all interface members to it, and exposes them as virtual methods and properties for selective overriding. This replaces runtime proxy generation (e.g., `DispatchProxy`, Castle.Core `DynamicProxy`) with zero-overhead compile-time code.
+
+#### Attribute
+
+```csharp
+[GenerateDecorator]
+```
+
+#### Example
+
+```csharp
+using BB84.SourceGenerators.Attributes;
+
+public interface IMyService
+{
+    string? Name { get; set; }
+    int Count { get; }
+    string GetMessage(string input);
+    void DoWork();
+}
+
+[GenerateDecorator]
+public partial class MyServiceDecorator : IMyService
+{ }
+```
+
+#### Generated Code
+
+The generator creates the following members on the partial class:
+
+- A constructor accepting the interface type and storing it as a protected field (`_inner`)
+- Virtual property implementations that delegate to the inner instance
+- Virtual method implementations that delegate to the inner instance
+- Null check on the constructor parameter
+
+#### Usage Example
+
+```csharp
+// Basic delegation - all calls forwarded to inner instance
+var inner = new MyService();
+var decorator = new MyServiceDecorator(inner);
+
+decorator.DoWork();           // delegates to inner.DoWork()
+string msg = decorator.GetMessage("Hi"); // delegates to inner.GetMessage("Hi")
+
+// Override specific behavior by inheriting from the decorator
+public class LoggingDecorator(IMyService inner) : MyServiceDecorator(inner)
+{
+    public override string GetMessage(string input)
+    {
+        Console.WriteLine($"GetMessage called with: {input}");
+        return base.GetMessage(input);
+    }
+
+    public override string? Name
+    {
+        get => base.Name?.ToUpperInvariant();
+        set => base.Name = value;
+    }
+}
+
+// Multiple interfaces are supported
+public interface ICalculator
+{
+    int Calculate(int a, int b);
+}
+
+[GenerateDecorator]
+public partial class MultiDecorator : IMyService, ICalculator
+{ }
+
+// In your DI container
+services.AddSingleton<IMyService>(sp =>
+    new LoggingDecorator(sp.GetRequiredService<MyService>()));
 ```
 
 ## Requirements
@@ -1100,6 +1261,15 @@ The generated enum extension methods provide significant performance improvement
 - Automatically types `Instance` as the implemented interface when present
 - Compile-time validation prevents usage on classes with `required` members
 - Replaces manual singleton implementations that are tedious and error-prone
+
+### Decorator
+
+- Generates full interface delegation at compile time with zero runtime overhead
+- Replaces `DispatchProxy`, Castle.Core `DynamicProxy`, and manual decorator implementations
+- All generated members are virtual, enabling selective behavior overriding
+- Supports multiple interfaces on a single decorator class
+- Automatically stays in sync with interface changes — no manual maintenance required
+- Constructor injection of the inner instance with null checking
 
 ## How It Works
 

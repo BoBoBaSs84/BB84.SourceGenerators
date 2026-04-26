@@ -95,5 +95,5 @@ public partial class NonLazyInterfaceSingletonModel : ISingletonService
 { }
 
 [GenerateSingleton]
-internal partial class InternalSingletonModel
+internal sealed partial class InternalSingletonModel
 { }

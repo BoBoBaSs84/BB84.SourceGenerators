@@ -33,6 +33,9 @@ public sealed class AttributeSourceGenerator : IIncrementalGenerator
 	private static readonly string GenerateCloneableAttributeSource =
 		AttributeSourceRewriter.ReadAndTransform("GenerateCloneableAttribute.cs");
 
+	private static readonly string GenerateDecoratorAttributeSource =
+		AttributeSourceRewriter.ReadAndTransform("GenerateDecoratorAttribute.cs");
+
 	private static readonly string GenerateEqualityAttributeSource =
 		AttributeSourceRewriter.ReadAndTransform("GenerateEqualityAttribute.cs");
 
@@ -69,6 +72,7 @@ public sealed class AttributeSourceGenerator : IIncrementalGenerator
 			ctx.AddSource("GenerateAssemblyInformationAttribute.g.cs", GenerateAssemblyInformationAttributeSource);
 			ctx.AddSource("GenerateBuilderAttribute.g.cs", GenerateBuilderAttributeSource);
 			ctx.AddSource("GenerateCloneableAttribute.g.cs", GenerateCloneableAttributeSource);
+			ctx.AddSource("GenerateDecoratorAttribute.g.cs", GenerateDecoratorAttributeSource);
 			ctx.AddSource("GenerateEqualityAttribute.g.cs", GenerateEqualityAttributeSource);
 			ctx.AddSource("GenerateEnumeratorExtensionsAttribute.g.cs", GenerateEnumeratorExtensionsAttributeSource);
 			ctx.AddSource("GenerateIniFileAttribute.g.cs", GenerateIniFileAttributeSource);

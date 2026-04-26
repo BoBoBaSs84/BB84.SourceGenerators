@@ -35,6 +35,7 @@
 		<EmbeddedResource Include="Attributes\GenerateAssemblyInformationAttribute.cs" LogicalName="GenerateAssemblyInformationAttribute.cs" />
 		<EmbeddedResource Include="Attributes\GenerateBuilderAttribute.cs" LogicalName="GenerateBuilderAttribute.cs" />
 		<EmbeddedResource Include="Attributes\GenerateCloneableAttribute.cs" LogicalName="GenerateCloneableAttribute.cs" />
+		<EmbeddedResource Include="Attributes\GenerateDecoratorAttribute.cs" LogicalName="GenerateDecoratorAttribute.cs" />
 		<EmbeddedResource Include="Attributes\GenerateEqualityAttribute.cs" LogicalName="GenerateEqualityAttribute.cs" />
 		<EmbeddedResource Include="Attributes\GenerateEnumeratorExtensionsAttribute.cs" LogicalName="GenerateEnumeratorExtensionsAttribute.cs" />
 		<EmbeddedResource Include="Attributes\GenerateIniFileAttribute.cs" LogicalName="GenerateIniFileAttribute.cs" />
