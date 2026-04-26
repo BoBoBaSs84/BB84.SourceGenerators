@@ -51,6 +51,9 @@ public sealed class AttributeSourceGenerator : IIncrementalGenerator
 	private static readonly string GenerateNotificationsAttributeSource =
 		AttributeSourceRewriter.ReadAndTransform("GenerateNotificationsAttribute.cs");
 
+	private static readonly string GenerateSingletonAttributeSource =
+		AttributeSourceRewriter.ReadAndTransform("GenerateSingletonAttribute.cs");
+
 	private static readonly string GenerateToStringAttributeSource =
 		AttributeSourceRewriter.ReadAndTransform("GenerateToStringAttribute.cs");
 
@@ -72,6 +75,7 @@ public sealed class AttributeSourceGenerator : IIncrementalGenerator
 			ctx.AddSource("GenerateIniFileSectionAttribute.g.cs", GenerateIniFileSectionAttributeSource);
 			ctx.AddSource("GenerateIniFileValueAttribute.g.cs", GenerateIniFileValueAttributeSource);
 			ctx.AddSource("GenerateNotificationsAttribute.g.cs", GenerateNotificationsAttributeSource);
+			ctx.AddSource("GenerateSingletonAttribute.g.cs", GenerateSingletonAttributeSource);
 			ctx.AddSource("GenerateToStringAttribute.g.cs", GenerateToStringAttributeSource);
 			ctx.AddSource("GenerateValidatorAttribute.g.cs", GenerateValidatorAttributeSource);
 		});

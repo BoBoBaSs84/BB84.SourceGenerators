@@ -469,6 +469,98 @@ namespace TestNamespace
 		Assert.Contains("const string InformationalVersion", generated);
 	}
 
+	[TestMethod]
+	public void SingletonGeneratorShouldGenerateLazySource()
+	{
+		string source = @"
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+	[GenerateSingleton]
+	public partial class MySingleton
+	{
+	}
+}";
+
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources) = RunGenerator<SingletonGenerator>(source);
+
+		Assert.IsEmpty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+		Assert.IsNotEmpty(generatedSources);
+		string generated = generatedSources.First(s => s.Contains("partial class MySingleton"));
+		Assert.Contains("Lazy<MySingleton>", generated);
+		Assert.Contains("Instance", generated);
+		Assert.Contains("private MySingleton()", generated);
+	}
+
+	[TestMethod]
+	public void SingletonGeneratorShouldGenerateNonLazySource()
+	{
+		string source = @"
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+	[GenerateSingleton(false)]
+	public partial class MyNonLazySingleton
+	{
+	}
+}";
+
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources) = RunGenerator<SingletonGenerator>(source);
+
+		Assert.IsEmpty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+		Assert.IsNotEmpty(generatedSources);
+		string generated = generatedSources.First(s => s.Contains("partial class MyNonLazySingleton"));
+		Assert.DoesNotContain("System.Lazy<", generated);
+		Assert.Contains("Instance { get; } = new MyNonLazySingleton();", generated);
+		Assert.Contains("private MyNonLazySingleton()", generated);
+	}
+
+	[TestMethod]
+	public void SingletonGeneratorShouldUseInterfaceType()
+	{
+		string source = @"
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+	public interface IMyService { }
+
+	[GenerateSingleton]
+	public partial class MyService : IMyService
+	{
+	}
+}";
+
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources) = RunGenerator<SingletonGenerator>(source);
+
+		Assert.IsEmpty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+		Assert.IsNotEmpty(generatedSources);
+		string generated = generatedSources.First(s => s.Contains("partial class MyService"));
+		Assert.Contains("IMyService Instance", generated);
+	}
+
+	[TestMethod]
+	public void SingletonGeneratorShouldReportDiagnosticForRequiredProperty()
+	{
+		string source = @"
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+	[GenerateSingleton]
+	public partial class BadSingleton
+	{
+		public required string Name { get; set; }
+	}
+}";
+
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources) = RunGenerator<SingletonGenerator>(source);
+
+		Assert.IsNotEmpty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error && d.Id == "BB84SG0002"));
+	}
+
 	private static (ImmutableArray<Diagnostic> Diagnostics, string[] GeneratedSources) RunGenerator<TGenerator>(string source)
 		where TGenerator : IIncrementalGenerator, new()
 	{

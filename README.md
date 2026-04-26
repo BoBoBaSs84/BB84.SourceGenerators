@@ -18,7 +18,7 @@ A collection of C# source generators that automatically generate boilerplate cod
 
 ## Features
 
-This package provides ten powerful source generators:
+This package provides eleven powerful source generators:
 
 - **Enumerator Extensions Generator** - Fast, allocation-free extension methods for enums
 - **Notification Properties Generator** - Automatic INotifyPropertyChanged/INotifyPropertyChanging implementation
@@ -30,6 +30,7 @@ This package provides ten powerful source generators:
 - **Equality Generator** - Compile-time `Equals`, `GetHashCode`, and operator generation
 - **Cloneable Generator** - Compile-time `Clone()` and `DeepClone()` method generation
 - **Assembly Information Generator** - Compile-time assembly metadata constants without reflection
+- **Singleton Generator** - Thread-safe singleton pattern generation with lazy or eager initialization
 
 ## Installation
 
@@ -923,6 +924,103 @@ Console.WriteLine(AppInfo.Copyright);            // "Copyright © 2025"
 Console.WriteLine(AppInfo.InformationalVersion); // "1.0.0+abc123"
 ```
 
+### 11. Singleton Generator
+
+Generates the singleton pattern for classes, providing a static `Instance` property and a private constructor. Supports thread-safe lazy initialization via `Lazy<T>` (default) or simple static field initialization. When the class implements an interface, the `Instance` property is typed as the interface.
+
+#### Attribute
+
+```csharp
+[GenerateSingleton(bool useLazy = true)]
+```
+
+**Parameters:**
+
+- `useLazy` - When `true` (default), the singleton is backed by `Lazy<T>` for thread-safe lazy initialization. When `false`, a simple static readonly field is used instead.
+
+**Constraints:**
+
+- The attribute cannot be applied to classes with `required` fields or properties. A compile-time error (`BB84SG0002`) will be emitted if the class contains any required members that prevent parameterless initialization.
+
+#### Example
+
+```csharp
+using BB84.SourceGenerators.Attributes;
+
+// Lazy singleton (default)
+[GenerateSingleton]
+public partial class MyService { }
+
+// Non-lazy singleton
+[GenerateSingleton(useLazy: false)]
+public partial class MyCache { }
+
+// Singleton with interface
+[GenerateSingleton]
+internal partial class MyService : IMyService { }
+```
+
+#### Generated Code (Lazy, no interface)
+
+```csharp
+public partial class MyService
+{
+    private static readonly Lazy<MyService> _lazyInstance = new Lazy<MyService>(() => new MyService());
+
+    /// <summary>
+    /// Gets the singleton instance of <see cref="MyService"/>.
+    /// </summary>
+    public static MyService Instance => _lazyInstance.Value;
+
+    private MyService() { }
+}
+```
+
+#### Generated Code (Lazy, with interface)
+
+```csharp
+internal partial class MyService
+{
+    private static readonly Lazy<MyService> _lazyInstance = new Lazy<MyService>(() => new MyService());
+
+    /// <summary>
+    /// Gets the singleton instance of <see cref="MyService"/> as <see cref="IMyService"/>.
+    /// </summary>
+    public static IMyService Instance => _lazyInstance.Value;
+
+    private MyService() { }
+}
+```
+
+#### Generated Code (Non-lazy, no interface)
+
+```csharp
+public partial class MyCache
+{
+    /// <summary>
+    /// Gets the singleton instance of <see cref="MyCache"/>.
+    /// </summary>
+    public static MyCache Instance { get; } = new MyCache();
+
+    private MyCache() { }
+}
+```
+
+#### Usage Example
+
+```csharp
+// Access the singleton instance
+MyService service = MyService.Instance;
+
+// With interface typing
+IMyService service = MyService.Instance;
+
+// Thread-safe - always returns the same instance
+MyService a = MyService.Instance;
+MyService b = MyService.Instance;
+// a and b are the same reference
+```
+
 ## Requirements
 
 - .NET Standard 2.0 or higher
@@ -994,6 +1092,14 @@ The generated enum extension methods provide significant performance improvement
 - Eliminates runtime reflection via `Assembly.GetCustomAttribute<T>()`
 - Constants can be used in attribute arguments, switch expressions, and other compile-time contexts
 - Automatically stays in sync with project file properties (`<AssemblyTitle>`, `<Version>`, etc.)
+
+### Singleton
+
+- Generates thread-safe singleton pattern at compile time with zero boilerplate
+- Supports both `Lazy<T>`-backed (default) and simple static field initialization
+- Automatically types `Instance` as the implemented interface when present
+- Compile-time validation prevents usage on classes with `required` members
+- Replaces manual singleton implementations that are tedious and error-prone
 
 ## How It Works
 

@@ -39,6 +39,7 @@
 		<EmbeddedResource Include="Attributes\GenerateEnumeratorExtensionsAttribute.cs" LogicalName="GenerateEnumeratorExtensionsAttribute.cs" />
 		<EmbeddedResource Include="Attributes\GenerateIniFileAttribute.cs" LogicalName="GenerateIniFileAttribute.cs" />
 		<EmbeddedResource Include="Attributes\GenerateNotificationsAttribute.cs" LogicalName="GenerateNotificationsAttribute.cs" />
+		<EmbeddedResource Include="Attributes\GenerateSingletonAttribute.cs" LogicalName="GenerateSingletonAttribute.cs" />
 		<EmbeddedResource Include="Attributes\GenerateIniFileSectionAttribute.cs" LogicalName="GenerateIniFileSectionAttribute.cs" />
 		<EmbeddedResource Include="Attributes\GenerateIniFileValueAttribute.cs" LogicalName="GenerateIniFileValueAttribute.cs" />
 		<EmbeddedResource Include="Attributes\GenerateToStringAttribute.cs" LogicalName="GenerateToStringAttribute.cs" />
