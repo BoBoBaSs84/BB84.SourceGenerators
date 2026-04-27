@@ -435,7 +435,7 @@ namespace TestNamespace
   }
 }";
 
-		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources) = RunGenerator<NotificationPropertiesGenerator>(source);
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources) = RunGenerator<NotificationsGenerator>(source);
 
 		Assert.IsEmpty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
 		Assert.IsNotEmpty(generatedSources);

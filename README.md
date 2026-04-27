@@ -29,7 +29,7 @@ This package provides thirteen powerful source generators:
 - **Equality Generator** - Compile-time `Equals`, `GetHashCode`, and operator generation
 - **Factory Generator** - Compile-time factory pattern generation with automatic implementation discovery
 - **INI File Generator** - Compile-time INI file serialization and deserialization
-- **Notification Properties Generator** - Automatic INotifyPropertyChanged/INotifyPropertyChanging implementation
+- **Notification Properties Generator** - Configurable INotifyPropertyChanged/INotifyPropertyChanging implementation
 - **Singleton Generator** - Thread-safe singleton pattern generation with lazy or eager initialization
 - **ToString Generator** - Compile-time `ToString()` override generation
 - **Validator Generator** - Compile-time data annotation validation
@@ -110,24 +110,26 @@ IEnumerable<Status> values = status.GetValuesFast();
 
 ### 2. Notification Properties Generator
 
-Automatically generates properties with `INotifyPropertyChanged` and `INotifyPropertyChanging` support for private fields in a class.
+Automatically generates properties with `INotifyPropertyChanged` and/or `INotifyPropertyChanging` support for private fields in a class. Both interfaces are independently configurable.
 
 #### Attribute
 
 ```csharp
-[GenerateNotifications(bool isChanged = false)]
+[GenerateNotifications(bool propertyChanged = true, bool propertyChanging = true, bool hasChanged = false)]
 ```
 
 **Parameters:**
 
-- `isChanged` - When `true`, generates an additional `IsChanged` boolean property that is set to `true` when any property changes
+- `propertyChanged` - When `true` (default), implements `INotifyPropertyChanged` and generates `PropertyChanged` event and `RaisePropertyChanged()` method
+- `propertyChanging` - When `true` (default), implements `INotifyPropertyChanging` and generates `PropertyChanging` event and `RaisePropertyChanging()` method
+- `hasChanged` - When `true`, generates an additional `HasChanged` boolean property that is set to `true` when any property changes
 
 #### Example
 
 ```csharp
 using BB84.SourceGenerators.Attributes;
 
-[GenerateNotifications(isChanged: true)]
+[GenerateNotifications(hasChanged: true)]
 public partial class Person
 {
     private int _id;
@@ -151,10 +153,11 @@ public partial class Person
 The generator creates:
 
 - Public properties for each private field with change notification
-- Implementation of `INotifyPropertyChanged` and `INotifyPropertyChanging` interfaces
-- `PropertyChanged` and `PropertyChanging` events
-- `RaisePropertyChanged()` and `RaisePropertyChanging()` protected virtual methods
-- Optional `IsChanged` property (when `isChanged` parameter is `true`)
+- Implementation of `INotifyPropertyChanged` and/or `INotifyPropertyChanging` interfaces (configurable)
+- `PropertyChanged` and/or `PropertyChanging` events
+- `RaisePropertyChanged()` and/or `RaisePropertyChanging()` methods (`protected virtual` for non-sealed classes, `private` for sealed classes)
+- Optional `HasChanged` property (when `hasChanged` parameter is `true`)
+- Correct accessibility modifier matching the user's class declaration
 
 #### Usage Example
 
@@ -169,10 +172,24 @@ person.PropertyChanged += (s, e) => Console.WriteLine($"Property {e.PropertyName
 person.Name = "Jane Doe";
 person.Email = "jane@example.com";
 
-// Check if object has been modified (when isChanged: true)
-if (person.IsChanged)
+// Check if object has been modified (when hasChanged: true)
+if (person.HasChanged)
 {
     Console.WriteLine("Person has been modified");
+}
+
+// Only INotifyPropertyChanged (no PropertyChanging events)
+[GenerateNotifications(propertyChanging: false)]
+public partial class LightweightModel
+{
+    private string _name;
+}
+
+// Works correctly with sealed classes
+[GenerateNotifications]
+public sealed partial class SealedModel
+{
+    private int _value;
 }
 ```
 
