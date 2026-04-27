@@ -18,13 +18,14 @@ A collection of C# source generators that automatically generate boilerplate cod
 
 ## Features
 
-This package provides thirteen powerful source generators:
+This package provides fourteen powerful source generators:
 
 - **Abstraction Generator** - Interface and implementation generation for static classes
 - **Assembly Information Generator** - Compile-time assembly metadata constants without reflection
 - **Builder Generator** - Fluent builder pattern generation for classes
 - **Cloneable Generator** - Compile-time `Clone()` and `DeepClone()` method generation
 - **Decorator Generator** - Compile-time decorator pattern generation with full interface delegation
+- **Disposable Generator** - Compile-time `IDisposable` / `IAsyncDisposable` pattern generation with ordered resource cleanup
 - **Enumerator Extensions Generator** - Fast, allocation-free extension methods for enums
 - **Equality Generator** - Compile-time `Equals`, `GetHashCode`, and operator generation
 - **Factory Generator** - Compile-time factory pattern generation with automatic implementation discovery
@@ -1225,6 +1226,116 @@ IVehicle vehicle = VehicleFactory.Create("sedan");
 Console.WriteLine(vehicle.Type); // "Car"
 ```
 
+### 14. Disposable Generator
+
+Generates the complete dispose pattern for classes, implementing `IDisposable` and optionally `IAsyncDisposable`. Fields marked with `[DisposeResource]` are automatically disposed with configurable ordering.
+
+#### Attributes
+
+```csharp
+[GenerateDisposable(bool generateFinalizer = false, bool async = false)]
+[DisposeResource(int order = 0)]
+```
+
+**Parameters:**
+
+- `GenerateDisposable`:
+  - `generateFinalizer` - When `true`, generates a finalizer that calls `Dispose(false)`
+  - `async` - When `true`, additionally implements `IAsyncDisposable` with `DisposeAsync()` and `DisposeAsyncCore()`
+- `DisposeResource`:
+  - `order` - Disposal order. Non-zero values are disposed first (ascending), then zero-order fields in source declaration order
+
+**Constraints:**
+
+- `GenerateDisposable` can only be applied to classes.
+- `DisposeResource` can only be applied to fields.
+- `IAsyncDisposable` is only implemented when `async: true` is specified. A compile-time error (`BB84SG0003`) will be emitted if the framework does not support `IAsyncDisposable` and `async: true` is used.
+
+#### Example
+
+```csharp
+using BB84.SourceGenerators.Attributes;
+
+[GenerateDisposable]
+public partial class ConnectionManager
+{
+    [DisposeResource]
+    private Stream _stream;
+
+    [DisposeResource(order: 1)]
+    private DbConnection _connection;
+
+    private string _name; // not disposed (no attribute)
+
+    public ConnectionManager(Stream stream, DbConnection connection)
+    {
+        _stream = stream;
+        _connection = connection;
+    }
+}
+```
+
+#### Generated Code
+
+The generator creates:
+
+- `private bool _disposed` guard field
+- `Dispose(bool disposing)` method (`protected virtual` for non-sealed, `private` for sealed classes)
+- `Dispose()` implementing `IDisposable`
+- `ThrowIfDisposed()` guard method
+- Optional finalizer (when `generateFinalizer: true`)
+- Optional `DisposeAsync()` and `DisposeAsyncCore()` (when `async: true`)
+- Correct accessibility modifier matching the user's class declaration
+
+#### Usage Example
+
+```csharp
+// Basic usage
+var manager = new ConnectionManager(stream, connection);
+// ... use resources ...
+manager.Dispose(); // _connection disposed first (order 1), then _stream (order 0)
+
+// With finalizer for unmanaged resources
+[GenerateDisposable(generateFinalizer: true)]
+public partial class NativeResourceWrapper
+{
+    [DisposeResource]
+    private SafeHandle _handle;
+}
+
+// With async disposal
+[GenerateDisposable(async: true)]
+public partial class AsyncService
+{
+    [DisposeResource]
+    private HttpClient _client;
+
+    [DisposeResource(order: 1)]
+    private DbConnection _connection;
+}
+
+await using var service = new AsyncService(client, connection);
+
+// Sealed classes work correctly (private methods instead of protected virtual)
+[GenerateDisposable]
+public sealed partial class SealedResource
+{
+    [DisposeResource]
+    private Stream _stream;
+}
+
+// Ordered disposal - dispose writer before underlying stream
+[GenerateDisposable]
+public partial class FileProcessor
+{
+    [DisposeResource(order: 2)]
+    private Stream _stream;
+
+    [DisposeResource(order: 1)]
+    private StreamWriter _writer;
+}
+```
+
 ## Requirements
 
 - .NET Standard 2.0 or higher
@@ -1322,6 +1433,15 @@ The generated enum extension methods provide significant performance improvement
 - Supports custom keys via `[GenerateFactoryKey]` attribute
 - Compile-time detection of duplicate keys prevents runtime surprises
 - Automatically stays in sync as implementations are added or removed
+
+### Disposable
+
+- Generates the complete dispose pattern at compile time with zero boilerplate
+- Replaces error-prone manual `IDisposable` implementations (missed fields, wrong guard logic, missing `GC.SuppressFinalize`)
+- Supports configurable disposal ordering via `[DisposeResource(order)]` for expressing resource dependencies
+- Optionally generates `IAsyncDisposable` with `DisposeAsync()` and `DisposeAsyncCore()`
+- Sealed class support with correct method visibility (`private` vs `protected virtual`)
+- Optional finalizer generation for classes with unmanaged resources
 
 ## How It Works
 

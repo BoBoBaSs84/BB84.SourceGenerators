@@ -66,4 +66,16 @@ internal static class DiagnosticDescriptors
 		category: "BB84.SourceGenerators",
 		defaultSeverity: DiagnosticSeverity.Error,
 		isEnabledByDefault: true);
+
+	/// <summary>
+	/// Represents a diagnostic warning indicating that the [GenerateDisposable] attribute was applied
+	/// with <c>async: true</c> but the target framework does not support <c>IAsyncDisposable</c>.
+	/// </summary>
+	internal static readonly DiagnosticDescriptor AsyncDisposableNotSupportedDiagnostic = new(
+		id: "BB84SG0006",
+		title: "IAsyncDisposable is not available in the target framework",
+		messageFormat: "The [GenerateDisposable] attribute on class '{0}' requested async disposal, but 'IAsyncDisposable' is not available in the target framework. Async disposal code will not be generated.",
+		category: "BB84.SourceGenerators",
+		defaultSeverity: DiagnosticSeverity.Warning,
+		isEnabledByDefault: true);
 }

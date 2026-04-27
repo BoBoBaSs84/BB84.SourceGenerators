@@ -112,7 +112,7 @@ public sealed partial class SealedNotificationModel
 }
 
 [GenerateNotifications]
-internal partial class InternalNotificationModel
+internal sealed partial class InternalNotificationModel
 {
 	private string? _name;
 }
