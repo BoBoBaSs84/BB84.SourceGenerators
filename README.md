@@ -258,7 +258,7 @@ mockFileProvider.Setup(x => x.ReadAllText(It.IsAny<string>())).Returns("test con
 
 ### 4. INI File Generator
 
-Generates static `Read` and `Write` methods for classes, enabling compile-time INI file serialization and deserialization based on decorated properties.
+Generates static `Read` and `Write` methods and an instance `Load` method for classes, enabling compile-time INI file serialization, deserialization, and instance-to-instance value copying based on decorated properties.
 
 #### Attributes
 
@@ -319,10 +319,11 @@ public class DatabaseSection
 
 #### Generated Methods
 
-The generator creates the following static methods on the decorated class:
+The generator creates the following methods on the decorated class:
 
-- `Read(string content)` - Parses an INI file string and returns a deserialized instance
-- `Write(TClass instance)` - Serializes an instance into an INI file string
+- `Read(string content)` - Static method that parses an INI file string and returns a deserialized instance
+- `Write(TClass instance)` - Static method that serializes an instance into an INI file string
+- `Load(TClass other)` - Instance method that copies all section/value properties from another instance into this instance (null-safe per section)
 
 #### Usage Example
 
@@ -340,6 +341,11 @@ config.Database.Timeout = 60.0;
 
 string output = AppConfig.Write(config);
 File.WriteAllText("config.ini", output);
+
+// Loading values from another instance
+string fileContent = File.ReadAllText("updated.ini");
+AppConfig newConfig = AppConfig.Read(fileContent);
+config.Load(newConfig); // copies all section values from newConfig into config
 ```
 
 **Output:**

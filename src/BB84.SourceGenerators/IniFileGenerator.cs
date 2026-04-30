@@ -75,6 +75,7 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 
 		AppendReadMethod(sb, className, accessibility, sections, stringComparison);
 		AppendWriteMethod(sb, className, sections, serializeComments);
+		AppendLoadMethod(sb, className, sections);
 
 		sb.AppendLine("  }");
 		sb.AppendLine("}");
@@ -195,6 +196,30 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 
 		sb.AppendLine();
 		sb.AppendLine("      return sb.ToString();");
+		sb.AppendLine("    }");
+	}
+
+	private static void AppendLoadMethod(StringBuilder sb, string className, List<SectionInfo> sections)
+	{
+		sb.AppendLine();
+		sb.AppendLine("    /// <summary>");
+		sb.AppendLine($"    /// Loads values from the specified <paramref name=\"other\"/> instance into this instance.");
+		sb.AppendLine("    /// </summary>");
+		sb.AppendLine($"    /// <param name=\"other\">The source <see cref=\"{className}\"/> instance to copy values from.</param>");
+		sb.AppendLine($"    public void Load({className} other)");
+		sb.AppendLine("    {");
+
+		foreach (SectionInfo section in sections)
+		{
+			sb.AppendLine($"      if ({section.PropertyPath} != null && other.{section.PropertyPath} != null)");
+			sb.AppendLine("      {");
+
+			foreach (ValueInfo value in section.Values)
+				sb.AppendLine($"        {section.PropertyPath}.{value.PropertyName} = other.{section.PropertyPath}.{value.PropertyName};");
+
+			sb.AppendLine("      }");
+		}
+
 		sb.AppendLine("    }");
 	}
 

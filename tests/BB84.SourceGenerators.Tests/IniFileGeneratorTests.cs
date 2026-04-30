@@ -666,6 +666,56 @@ public sealed class IniFileGeneratorTests
 		Assert.AreEqual("TestApp", deserialized.General.AppName);
 		Assert.AreEqual(5, deserialized.General.Version);
 	}
+
+	[TestMethod]
+	public void LoadShouldCopyValuesFromOtherInstance()
+	{
+		TestIniFile target = new()
+		{
+			General = new TestGeneralSection { AppName = "Old", Version = 1, Enabled = false },
+			Database = new TestDatabaseSection { Host = "old-host", Port = 1234, Timeout = 10.0 }
+		};
+
+		TestIniFile source = new()
+		{
+			General = new TestGeneralSection { AppName = "New", Version = 2, Enabled = true },
+			Database = new TestDatabaseSection { Host = "new-host", Port = 5678, Timeout = 30.0 }
+		};
+
+		target.Load(source);
+
+		Assert.AreEqual("New", target.General.AppName);
+		Assert.AreEqual(2, target.General.Version);
+		Assert.IsTrue(target.General.Enabled);
+		Assert.AreEqual("new-host", target.Database.Host);
+		Assert.AreEqual(5678, target.Database.Port);
+		Assert.AreEqual(30.0, target.Database.Timeout);
+	}
+
+	[TestMethod]
+	public void LoadShouldSkipNullSections()
+	{
+		TestIniFile target = new()
+		{
+			General = new TestGeneralSection { AppName = "Keep", Version = 1, Enabled = true },
+			Database = null
+		};
+
+		TestIniFile source = new()
+		{
+			General = new TestGeneralSection { AppName = "New", Version = 5, Enabled = false },
+			Database = new TestDatabaseSection { Host = "host", Port = 9999, Timeout = 99.0 }
+		};
+
+		target.Load(source);
+
+		// General should be updated
+		Assert.AreEqual("New", target.General.AppName);
+		Assert.AreEqual(5, target.General.Version);
+
+		// Database should remain null (target section is null)
+		Assert.IsNull(target.Database);
+	}
 }
 
 #region Test Types
