@@ -211,7 +211,9 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 
 		foreach (SectionInfo section in sections)
 		{
-			sb.AppendLine($"      if ({section.PropertyPath} != null && other.{section.PropertyPath} != null)");
+      string targetNullCheck = BuildNullCheck($"this.{section.PropertyPath}");
+			string sourceNullCheck = BuildNullCheck($"other.{section.PropertyPath}");
+			sb.AppendLine($"      if ({targetNullCheck} && {sourceNullCheck})");
 			sb.AppendLine("      {");
 
 			foreach (ValueInfo value in section.Values)
@@ -266,11 +268,19 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 
 			List<ValueInfo> values = GetValues(sectionType, serializeComments);
 
+			string sectionTypeName = sectionType
+				.WithNullableAnnotation(NullableAnnotation.NotAnnotated)
+				.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
+				.Replace("global::", string.Empty);
+
+			if (sectionTypeName.EndsWith("?", StringComparison.Ordinal))
+				sectionTypeName = sectionTypeName[..^1];
+
 			sections.Add(new SectionInfo(
 				PropertyName: propertySymbol.Name,
 				PropertyPath: propertyPath,
 				SectionName: sectionName,
-				TypeName: sectionType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+        TypeName: sectionTypeName,
 				NeedsInitialization: needsInit,
 				Values: values,
 				Comment: comment
@@ -322,11 +332,19 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 
 			List<ValueInfo> values = GetValues(sectionType, serializeComments);
 
+     string sectionTypeName = sectionType
+				.WithNullableAnnotation(NullableAnnotation.NotAnnotated)
+				.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
+				.Replace("global::", string.Empty);
+
+			if (sectionTypeName.EndsWith("?", StringComparison.Ordinal))
+				sectionTypeName = sectionTypeName[..^1];
+
 			sections.Add(new SectionInfo(
 				PropertyName: propertySymbol.Name,
 				PropertyPath: propertyPath,
 				SectionName: fullSectionName,
-				TypeName: sectionType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+        TypeName: sectionTypeName,
 				NeedsInitialization: false,
 				Values: values,
 				Comment: comment

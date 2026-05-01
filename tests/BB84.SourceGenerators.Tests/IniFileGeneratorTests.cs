@@ -716,6 +716,38 @@ public sealed class IniFileGeneratorTests
 		// Database should remain null (target section is null)
 		Assert.IsNull(target.Database);
 	}
+
+	[TestMethod]
+	public void LoadShouldCopyNestedSectionValues()
+	{
+		TestIniFileWithNestedSection target = new() { Section = new() };
+		target.Section.Domain = "old-domain";
+		target.Section.SubSection.Foo = "old-foo";
+
+		TestIniFileWithNestedSection source = new() { Section = new() };
+		source.Section.Domain = "new-domain";
+		source.Section.SubSection.Foo = "new-foo";
+
+		target.Load(source);
+
+		Assert.AreEqual("new-domain", target.Section.Domain);
+		Assert.AreEqual("new-foo", target.Section.SubSection.Foo);
+	}
+
+	[TestMethod]
+	public void LoadShouldNotThrowWhenNestedParentIsNull()
+	{
+		TestIniFileWithNestedSection target = new();
+		TestIniFileWithNestedSection source = new() { Section = new() };
+
+		target.Section = null!;
+		source.Section.Domain = "new-domain";
+		source.Section.SubSection.Foo = "new-foo";
+
+		target.Load(source);
+
+		Assert.IsNull(target.Section);
+	}
 }
 
 #region Test Types
@@ -834,7 +866,7 @@ internal sealed partial class TestIniFileCaseSensitive
 internal sealed partial class TestIniFileWithNestedSection
 {
 	[GenerateIniFileSection]
-	public TestSection Section { get; set; } = new TestSection();
+	public TestSection? Section { get; set; }
 }
 
 public class TestSection
