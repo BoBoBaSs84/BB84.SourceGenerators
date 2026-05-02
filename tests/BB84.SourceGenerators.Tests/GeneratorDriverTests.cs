@@ -26,6 +26,40 @@ public sealed class GeneratorDriverTests
 	];
 
 	[TestMethod]
+	public void EnumeratorExtensionsGeneratorShouldDetectDescriptionAttributeWhenUnqualified()
+	{
+		string source = @"
+using System.ComponentModel;
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+	[GenerateEnumeratorExtensions]
+	public enum MyEnum
+	{
+		[Description(""No value"")]
+		None = 0,
+		[DescriptionAttribute(""One value"")]
+		One = 1,
+		[System.ComponentModel.Description(""Two value"")]
+		Two = 2,
+		Three = 3
+	}
+}";
+
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources) = RunGenerator<EnumeratorExtensionsGenerator>(source);
+
+		Assert.IsEmpty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+		Assert.IsNotEmpty(generatedSources);
+
+		string generated = generatedSources.First(s => s.Contains("GetDescriptionFast(this MyEnum value)"));
+		Assert.Contains("MyEnum.None => \"No value\"", generated);
+		Assert.Contains("MyEnum.One => \"One value\"", generated);
+		Assert.Contains("MyEnum.Two => \"Two value\"", generated);
+		Assert.Contains("MyEnum.Three => nameof(MyEnum.Three)", generated);
+	}
+
+	[TestMethod]
 	public void ToStringGeneratorShouldGenerateSource()
 	{
 		string source = @"

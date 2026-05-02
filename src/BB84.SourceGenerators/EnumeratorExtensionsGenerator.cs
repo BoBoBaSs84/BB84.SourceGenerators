@@ -27,21 +27,19 @@ public sealed class EnumeratorExtensionsGenerator : IIncrementalGenerator
 	/// <inheritdoc/>
 	public void Initialize(IncrementalGeneratorInitializationContext context)
 	{
-		IncrementalValuesProvider<SyntaxNode> provider = context.SyntaxProvider
-			.ForAttributeWithMetadataName(
-				fullyQualifiedMetadataName: GeneratorAttributeName,
-				predicate: (node, _) => Predicate(node),
-				transform: (context, _) => Transform(context.TargetNode))
-			.Where(node => node is not null);
+		IncrementalValuesProvider<(EnumDeclarationSyntax EnumDeclaration, SemanticModel SemanticModel)> provider = context.SyntaxProvider
+			 .ForAttributeWithMetadataName(
+				 fullyQualifiedMetadataName: GeneratorAttributeName,
+				 predicate: (node, _) => Predicate(node),
+				transform: (context, _) => Transform(context));
 
 		context.RegisterSourceOutput(provider, Execute);
 	}
 
 	/// <inheritdoc/>
-	private void Execute(SourceProductionContext context, SyntaxNode syntaxNode)
+	private void Execute(SourceProductionContext context, (EnumDeclarationSyntax EnumDeclaration, SemanticModel SemanticModel) data)
 	{
-		if (syntaxNode is not EnumDeclarationSyntax enumDeclaration)
-			return;
+		EnumDeclarationSyntax enumDeclaration = data.EnumDeclaration;
 
 		ImmutableArray<EnumMemberDeclarationSyntax> members = [.. enumDeclaration.Members
 				.OfType<EnumMemberDeclarationSyntax>()
@@ -62,7 +60,7 @@ public sealed class EnumeratorExtensionsGenerator : IIncrementalGenerator
 
 		AppendToStringFast(sourceBuilder, enumName, members);
 		AppendIsDefinedFast(sourceBuilder, enumName, members);
-		AppendGetDescriptionFast(sourceBuilder, enumName, members);
+		AppendGetDescriptionFast(sourceBuilder, enumName, members, data.SemanticModel);
 		AppendGetNamesFast(sourceBuilder, enumName, members);
 		AppendGetValuesFast(sourceBuilder, enumName, members);
 
@@ -73,8 +71,8 @@ public sealed class EnumeratorExtensionsGenerator : IIncrementalGenerator
 	}
 
 	/// <inheritdoc/>
-	private static SyntaxNode Transform(SyntaxNode targetNode)
-		=> (EnumDeclarationSyntax)targetNode;
+	private static (EnumDeclarationSyntax EnumDeclaration, SemanticModel SemanticModel) Transform(GeneratorAttributeSyntaxContext context)
+		=> ((EnumDeclarationSyntax)context.TargetNode, context.SemanticModel);
 
 	/// <inheritdoc/>
 	private static bool Predicate(SyntaxNode node)
@@ -218,7 +216,7 @@ public sealed class EnumeratorExtensionsGenerator : IIncrementalGenerator
 		builder.AppendLine();
 	}
 
-	private static void AppendGetDescriptionFast(StringBuilder builder, string enumName, ImmutableArray<EnumMemberDeclarationSyntax> members)
+	private static void AppendGetDescriptionFast(StringBuilder builder, string enumName, ImmutableArray<EnumMemberDeclarationSyntax> members, SemanticModel semanticModel)
 	{
 		builder.AppendLine("    /// <summary>");
 		builder.AppendLine($"    /// Returns the description of the <see cref=\"{enumName}\"/> enumeration if the");
@@ -234,7 +232,7 @@ public sealed class EnumeratorExtensionsGenerator : IIncrementalGenerator
 		foreach (EnumMemberDeclarationSyntax member in members)
 		{
 			string memberName = member.Identifier.Text;
-			string? description = GetDescriptionFromAttributes(member);
+			string? description = GetDescriptionFromAttributes(member, semanticModel);
 
 			if (description is not null)
 				builder.AppendLine($"        {enumName}.{memberName} => \"{description}\",");
@@ -247,19 +245,33 @@ public sealed class EnumeratorExtensionsGenerator : IIncrementalGenerator
 		builder.AppendLine();
 	}
 
-	private static string? GetDescriptionFromAttributes(EnumMemberDeclarationSyntax member)
+	private static string? GetDescriptionFromAttributes(EnumMemberDeclarationSyntax member, SemanticModel semanticModel)
 	{
+		INamedTypeSymbol? descriptionAttributeSymbol = semanticModel.Compilation.GetTypeByMetadataName("System.ComponentModel.DescriptionAttribute");
+
+		if (descriptionAttributeSymbol is null)
+			return null;
+
 		foreach (AttributeListSyntax attributeList in member.AttributeLists)
 		{
 			foreach (AttributeSyntax attribute in attributeList.Attributes)
 			{
-				if (attribute.Name.ToString() == "System.ComponentModel.Description")
+				SymbolInfo symbolInfo = semanticModel.GetSymbolInfo(attribute);
+				if (symbolInfo.Symbol is not IMethodSymbol attributeConstructor)
+					continue;
+
+				if (!SymbolEqualityComparer.Default.Equals(attributeConstructor.ContainingType, descriptionAttributeSymbol))
+					continue;
+
+				if (attribute.ArgumentList?.Arguments.Count > 0)
 				{
-					if (attribute.ArgumentList?.Arguments.Count > 0)
-					{
-						AttributeArgumentSyntax argument = attribute.ArgumentList.Arguments[0];
-						return argument.ToString().Trim('"'); // Remove quotes around the string
-					}
+					AttributeArgumentSyntax argument = attribute.ArgumentList.Arguments[0];
+					Optional<object?> descriptionValue = semanticModel.GetConstantValue(argument.Expression);
+
+					if (descriptionValue.HasValue && descriptionValue.Value is string description)
+						return description;
+
+					return argument.ToString().Trim('"');
 				}
 			}
 		}

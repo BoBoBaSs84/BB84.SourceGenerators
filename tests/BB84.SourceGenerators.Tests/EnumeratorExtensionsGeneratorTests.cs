@@ -5,6 +5,8 @@
 // LICENSE file in the root directory of this source tree.
 using BB84.SourceGenerators.Attributes;
 
+using DescriptionAttribute = System.ComponentModel.DescriptionAttribute;
+
 namespace BB84.SourceGenerators.Tests;
 
 [TestClass]
@@ -78,8 +80,8 @@ public sealed class EnumeratorExtensionsGeneratorTests
 	public void GetDescriptionFastShouldReturnCorrectDescriptions()
 	{
 		Assert.AreEqual("No value", GeneratorTestType.None.GetDescriptionFast());
-		Assert.AreEqual(nameof(GeneratorTestType.One), GeneratorTestType.One.GetDescriptionFast());
-		Assert.AreEqual(nameof(GeneratorTestType.Two), GeneratorTestType.Two.GetDescriptionFast());
+		Assert.AreEqual("One value", GeneratorTestType.One.GetDescriptionFast());
+		Assert.AreEqual("Two value", GeneratorTestType.Two.GetDescriptionFast());
 		Assert.AreEqual(nameof(GeneratorTestType.Three), GeneratorTestType.Three.GetDescriptionFast());
 	}
 }
@@ -89,7 +91,9 @@ public enum GeneratorTestType
 {
 	[System.ComponentModel.Description("No value")]
 	None = 0,
+	[DescriptionAttribute("One value")]
 	One = 1,
+	[Description("Two value")]
 	Two = 2,
 	Three = 3
 }
