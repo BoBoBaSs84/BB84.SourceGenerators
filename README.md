@@ -49,6 +49,20 @@ Or via Package Manager Console:
 Install-Package BB84.SourceGenerators
 ```
 
+In the project where you want to use the generators, add a reference to the package and include the appropriate `using` directive for the attributes:
+
+```csharp
+using BB84.SourceGenerators.Attributes;
+```
+
+If the attributes are not recognized, make shure that the `EmitCompilerGeneratedFiles` property is set to `true` in the project file:
+
+```xml
+<PropertyGroup>
+  <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+</PropertyGroup>
+```
+
 ## Usage
 
 ### 1. Enumerator Extensions Generator
