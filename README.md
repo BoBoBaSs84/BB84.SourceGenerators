@@ -18,9 +18,10 @@ A collection of C# source generators that automatically generate boilerplate cod
 
 ## Features
 
-This package provides fourteen powerful source generators:
+This package provides fifteen powerful source generators:
 
 - **Abstraction Generator** - Interface and implementation generation for static classes
+- **AutoMapper Generator** - Compile-time property-to-property mapping method generation
 - **Assembly Information Generator** - Compile-time assembly metadata constants without reflection
 - **Builder Generator** - Fluent builder pattern generation for classes
 - **Cloneable Generator** - Compile-time `Clone()` and `DeepClone()` method generation
@@ -1356,6 +1357,104 @@ public partial class FileProcessor
 }
 ```
 
+### 15. AutoMapper Generator
+
+Generates property-to-property mapping implementations for partial methods at compile time. Decorated methods automatically map matching properties from the source parameter type to the return type, eliminating manual mapping boilerplate and runtime reflection.
+
+#### Attributes
+
+```csharp
+[GenerateAutoMapper]
+[PropertyMapping(string sourceProperty, string targetProperty)]
+```
+
+**Parameters:**
+
+- `GenerateAutoMapper` - Marks a partial method for automatic mapping code generation. The method must have exactly one parameter (source) and a non-void return type (target).
+- `PropertyMapping` - Specifies a custom property name mapping between source and target types. Can be applied multiple times for multiple custom mappings.
+
+**Constraints:**
+
+- The method must be `partial` and defined in a `partial class`
+- The method must have exactly one parameter (the source type)
+- The method must have a non-void return type (the target type)
+- Unmapped target properties (no matching source property) produce a compile-time warning
+- Type-mismatched properties (incompatible types) produce a compile-time warning
+
+#### Example
+
+```csharp
+using BB84.SourceGenerators.Attributes;
+
+public class UserEntity
+{
+    public int Id { get; set; }
+    public string Name { get; set; }
+    public string Email { get; set; }
+    public DateTime CreatedAt { get; set; }
+}
+
+public class UserDto
+{
+    public int Id { get; set; }
+    public string Name { get; set; }
+    public string Email { get; set; }
+    public string DisplayName { get; set; }
+}
+
+public static partial class UserMapper
+{
+    [GenerateAutoMapper]
+    [PropertyMapping("Name", "DisplayName")]
+    public static partial UserDto ToDto(UserEntity entity);
+}
+```
+
+#### Generated Code
+
+The generator creates a mapping implementation that:
+
+- Maps all properties with matching names and compatible types automatically
+- Applies custom property mappings specified via `[PropertyMapping]`
+- Handles nullable source parameters with `ArgumentNullException` guards
+- Uses null-forgiving operators where needed (nullable source to non-nullable target properties)
+- Reports compile-time diagnostics for unmapped or type-mismatched properties
+
+#### Usage Example
+
+```csharp
+var entity = new UserEntity
+{
+    Id = 1,
+    Name = "John Doe",
+    Email = "john@example.com",
+    CreatedAt = DateTime.UtcNow
+};
+
+// Generated method maps properties automatically
+UserDto dto = UserMapper.ToDto(entity);
+
+Console.WriteLine(dto.Id);          // 1
+Console.WriteLine(dto.Name);        // "John Doe"
+Console.WriteLine(dto.Email);       // "john@example.com"
+Console.WriteLine(dto.DisplayName); // "John Doe" (mapped from Name)
+
+// Works with instance methods too
+public partial class OrderMapper
+{
+    [GenerateAutoMapper]
+    public partial OrderDto MapOrder(OrderEntity order);
+}
+
+// Nullable source parameter generates null check
+public static partial class SafeMapper
+{
+    [GenerateAutoMapper]
+    public static partial UserDto ToDto(UserEntity? entity);
+    // Throws ArgumentNullException if entity is null
+}
+```
+
 ## Requirements
 
 - .NET Standard 2.0 or higher
@@ -1462,6 +1561,15 @@ The generated enum extension methods provide significant performance improvement
 - Optionally generates `IAsyncDisposable` with `DisposeAsync()` and `DisposeAsyncCore()`
 - Sealed class support with correct method visibility (`private` vs `protected virtual`)
 - Optional finalizer generation for classes with unmanaged resources
+
+### AutoMapper
+
+- Generates property-to-property mapping code at compile time with zero runtime overhead
+- Replaces manual mapping boilerplate and runtime reflection-based mapping libraries
+- Automatically matches properties by name and validates type compatibility at compile time
+- Supports custom property name mappings via `[PropertyMapping]` attribute
+- Compile-time diagnostics for unmapped and type-mismatched properties
+- Handles nullable source parameters with automatic null guards
 
 ## How It Works
 
