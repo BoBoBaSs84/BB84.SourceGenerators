@@ -322,7 +322,7 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 
 			if (rules.Count > 0)
 			{
-				string typeName = propertySymbol.Type.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
+				string typeName = propertySymbol.Type.ToMinimalDisplayString();
 				bool isCollection = IsCollectionType(propertySymbol.Type);
 				bool isArray = propertySymbol.Type.TypeKind == TypeKind.Array;
 				builder.Add(new PropertyValidationInfo(propertySymbol.Name, typeName, isCollection, isArray, rules.ToImmutable()));

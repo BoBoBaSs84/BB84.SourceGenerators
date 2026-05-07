@@ -3,7 +3,7 @@
     <File Path=".editorconfig" />
     <File Path=".gitattributes" />
     <File Path=".gitignore" />
-    <File Path="BB84.SourceGenerators.sln.licenseheader" />
+    <File Path="BB84.SourceGenerators.slnx.licenseheader" />
     <File Path="CODEOWNERS" />
     <File Path="CODE_OF_CONDUCT.md" />
     <File Path="Directory.Build.props" />

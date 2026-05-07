@@ -14,6 +14,11 @@ namespace BB84.SourceGenerators.Helpers;
 /// </summary>
 internal static class GeneratorHelpers
 {
+	private const string PublicKeyword = "public";
+	private const string InternalKeyword = "internal";
+	private const string ProtectedKeyword = "protected";
+	private const string PrivateKeyword = "private";
+
 	/// <summary>
 	/// Gets the accessibility keyword for a class declaration.
 	/// </summary>
@@ -24,17 +29,33 @@ internal static class GeneratorHelpers
 		foreach (SyntaxToken modifier in classDeclaration.Modifiers)
 		{
 			if (modifier.IsKind(SyntaxKind.PublicKeyword))
-				return "public";
+				return PublicKeyword;
 			if (modifier.IsKind(SyntaxKind.InternalKeyword))
-				return "internal";
+				return InternalKeyword;
 			if (modifier.IsKind(SyntaxKind.ProtectedKeyword))
-				return "protected";
+				return ProtectedKeyword;
 			if (modifier.IsKind(SyntaxKind.PrivateKeyword))
-				return "private";
+				return PrivateKeyword;
 		}
 
-		return "internal";
+		return InternalKeyword;
 	}
+
+	/// <summary>
+	/// Gets the accessibility keyword string for a given <see cref="Accessibility"/> value.
+	/// </summary>
+	/// <param name="accessibility">The accessibility value.</param>
+	/// <returns>The accessibility keyword string.</returns>
+	internal static string GetAccessibilityKeyword(Accessibility accessibility) => accessibility switch
+	{
+		Accessibility.Public => PublicKeyword,
+		Accessibility.Internal => InternalKeyword,
+		Accessibility.Protected => ProtectedKeyword,
+		Accessibility.ProtectedOrInternal => $"{ProtectedKeyword} {InternalKeyword}",
+		Accessibility.ProtectedAndInternal => $"{PrivateKeyword} {ProtectedKeyword}",
+		Accessibility.Private => PrivateKeyword,
+		_ => PublicKeyword
+	};
 
 	/// <summary>
 	/// Gets the list of outer (nesting) classes for a given class declaration.

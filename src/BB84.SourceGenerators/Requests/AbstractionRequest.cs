@@ -16,9 +16,9 @@ namespace BB84.SourceGenerators.Requests;
 /// <param name="ExcludeMethods">The methods to exclude from the abstraction.</param>
 /// <param name="ExcludeProperties">The properties to exclude from the abstraction.</param>
 internal sealed record AbstractionRequest(
-		INamedTypeSymbol TargetType,
-		INamedTypeSymbol AbstractionType,
-		INamedTypeSymbol ImplementationType,
-		string[] ExcludeMethods,
-		string[] ExcludeProperties
+	INamedTypeSymbol TargetType,
+	INamedTypeSymbol AbstractionType,
+	INamedTypeSymbol ImplementationType,
+	string[] ExcludeMethods,
+	string[] ExcludeProperties
 	);

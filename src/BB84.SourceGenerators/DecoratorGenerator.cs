@@ -92,7 +92,7 @@ public sealed class DecoratorGenerator : IIncrementalGenerator
 	{
 		// Use the first direct interface as the inner field type
 		INamedTypeSymbol primaryInterface = directInterfaces[0];
-		string innerTypeName = primaryInterface.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
+		string innerTypeName = primaryInterface.ToMinimalDisplayString();
 
 		sb.AppendLine($"  {accessibility} partial class {className}");
 		sb.AppendLine("  {");
@@ -126,7 +126,7 @@ public sealed class DecoratorGenerator : IIncrementalGenerator
 			// Determine the inner accessor expression - cast if the interface is not covered by the primary interface type
 			string innerAccess = primaryCovers.Contains(info.InterfaceSymbol.ToDisplayString())
 				? "_inner"
-				: $"(({info.InterfaceSymbol.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat)})_inner)";
+				: $"(({info.InterfaceSymbol.ToMinimalDisplayString()})_inner)";
 
 			foreach (IMethodSymbol method in info.Methods)
 			{
@@ -152,7 +152,7 @@ public sealed class DecoratorGenerator : IIncrementalGenerator
 
 	private static void AppendMethodDelegation(StringBuilder sb, IMethodSymbol method, string innerAccess)
 	{
-		string returnType = method.ReturnType.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
+		string returnType = method.ReturnType.ToMinimalDisplayString();
 		string methodName = method.Name;
 		string parameters = GetParameterList(method);
 		string arguments = GetArgumentList(method);
@@ -164,7 +164,7 @@ public sealed class DecoratorGenerator : IIncrementalGenerator
 
 	private static void AppendPropertyDelegation(StringBuilder sb, IPropertySymbol property, string innerAccess)
 	{
-		string propertyType = property.Type.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
+		string propertyType = property.Type.ToMinimalDisplayString();
 		string propertyName = property.Name;
 
 		bool hasGetter = property.GetMethod is not null && property.GetMethod.DeclaredAccessibility == Accessibility.Public;
@@ -196,7 +196,7 @@ public sealed class DecoratorGenerator : IIncrementalGenerator
 
 	private static void AppendEventDelegation(StringBuilder sb, IEventSymbol evt, string innerAccess)
 	{
-		string eventType = evt.Type.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
+		string eventType = evt.Type.ToMinimalDisplayString();
 		string eventName = evt.Name;
 
 		sb.AppendLine("    /// <inheritdoc/>");
@@ -221,7 +221,7 @@ public sealed class DecoratorGenerator : IIncrementalGenerator
 				_ => string.Empty
 			};
 
-			string typeName = param.Type.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
+			string typeName = param.Type.ToMinimalDisplayString();
 			parts.Add($"{modifier}{typeName} {param.Name}");
 		}
 

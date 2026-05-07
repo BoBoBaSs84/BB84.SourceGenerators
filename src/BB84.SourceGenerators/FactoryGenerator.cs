@@ -111,8 +111,8 @@ public sealed class FactoryGenerator : IIncrementalGenerator
 		string className = classSymbol.Name;
 		string namespaceName = classDeclaration.GetNamespace();
 		string accessibility = GeneratorHelpers.GetAccessibility(classDeclaration);
-		string interfaceName = interfaceSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-		string interfaceShortName = interfaceSymbol.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
+		string interfaceName = interfaceSymbol.ToFullyQualifiedDisplayString();
+		string interfaceShortName = interfaceSymbol.ToMinimalDisplayString();
 
 		StringBuilder sb = new();
 
@@ -154,7 +154,7 @@ public sealed class FactoryGenerator : IIncrementalGenerator
 
 		foreach ((INamedTypeSymbol type, string key) in implementations)
 		{
-			string fullTypeName = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+			string fullTypeName = type.ToFullyQualifiedDisplayString();
 			sb.AppendLine($"        \"{GeneratorHelpers.EscapeString(key)}\" => new {fullTypeName}(),");
 		}
 

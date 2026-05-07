@@ -7,6 +7,7 @@ using System.Text;
 
 using BB84.SourceGenerators.Attributes;
 using BB84.SourceGenerators.Extensions;
+using BB84.SourceGenerators.Helpers;
 using BB84.SourceGenerators.Requests;
 
 using Microsoft.CodeAnalysis;
@@ -65,7 +66,7 @@ public sealed class AbstractionGenerator : IIncrementalGenerator
 		sb.AppendLine("#nullable enable");
 		sb.AppendLine($"namespace {abstractionNamespace}");
 		sb.AppendLine("{");
-		sb.AppendLine($"  {GetAccessibilityKeyword(request.AbstractionType.DeclaredAccessibility)} partial interface {request.AbstractionType.Name}");
+		sb.AppendLine($"  {GeneratorHelpers.GetAccessibilityKeyword(request.AbstractionType.DeclaredAccessibility)} partial interface {request.AbstractionType.Name}");
 		sb.AppendLine("  {");
 		foreach (IPropertySymbol propertySymbol in propertySymbols)
 		{
@@ -103,7 +104,7 @@ public sealed class AbstractionGenerator : IIncrementalGenerator
 		}
 		sb.AppendLine($"namespace {implementationNamespace}");
 		sb.AppendLine("{");
-		sb.AppendLine($"  {GetAccessibilityKeyword(request.ImplementationType.DeclaredAccessibility)} partial class {request.ImplementationType.Name} : {request.AbstractionType.Name}");
+		sb.AppendLine($"  {GeneratorHelpers.GetAccessibilityKeyword(request.ImplementationType.DeclaredAccessibility)} partial class {request.ImplementationType.Name} : {request.AbstractionType.Name}");
 		sb.AppendLine("  {");
 		foreach (IPropertySymbol propertySymbol in propertySymbols)
 		{
@@ -418,20 +419,4 @@ public sealed class AbstractionGenerator : IIncrementalGenerator
 	/// </returns>
 	private static bool IsCandidateClassNode(SyntaxNode node)
 		=> node is ClassDeclarationSyntax classDeclaration && classDeclaration.AttributeLists.Count > 0;
-
-	/// <summary>
-	/// Converts an <see cref="Accessibility"/> value to its corresponding C# keyword.
-	/// </summary>
-	/// <param name="accessibility">The accessibility to convert.</param>
-	/// <returns>The C# keyword string for the given accessibility.</returns>
-	private static string GetAccessibilityKeyword(Accessibility accessibility) => accessibility switch
-	{
-		Accessibility.Public => "public",
-		Accessibility.Internal => "internal",
-		Accessibility.Protected => "protected",
-		Accessibility.ProtectedOrInternal => "protected internal",
-		Accessibility.ProtectedAndInternal => "private protected",
-		Accessibility.Private => "private",
-		_ => "public"
-	};
 }
