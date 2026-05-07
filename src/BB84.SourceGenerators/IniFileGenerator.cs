@@ -211,7 +211,7 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 
 		foreach (SectionInfo section in sections)
 		{
-      string targetNullCheck = BuildNullCheck($"this.{section.PropertyPath}");
+			string targetNullCheck = BuildNullCheck($"this.{section.PropertyPath}");
 			string sourceNullCheck = BuildNullCheck($"other.{section.PropertyPath}");
 			sb.AppendLine($"      if ({targetNullCheck} && {sourceNullCheck})");
 			sb.AppendLine("      {");
@@ -270,8 +270,7 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 
 			string sectionTypeName = sectionType
 				.WithNullableAnnotation(NullableAnnotation.NotAnnotated)
-				.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
-				.Replace("global::", string.Empty);
+				.ToFullyQualifiedDisplayString();
 
 			if (sectionTypeName.EndsWith("?", StringComparison.Ordinal))
 				sectionTypeName = sectionTypeName[..^1];
@@ -280,7 +279,7 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 				PropertyName: propertySymbol.Name,
 				PropertyPath: propertyPath,
 				SectionName: sectionName,
-        TypeName: sectionTypeName,
+				TypeName: sectionTypeName,
 				NeedsInitialization: needsInit,
 				Values: values,
 				Comment: comment
@@ -332,10 +331,9 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 
 			List<ValueInfo> values = GetValues(sectionType, serializeComments);
 
-     string sectionTypeName = sectionType
-				.WithNullableAnnotation(NullableAnnotation.NotAnnotated)
-				.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
-				.Replace("global::", string.Empty);
+			string sectionTypeName = sectionType
+				 .WithNullableAnnotation(NullableAnnotation.NotAnnotated)
+				 .ToFullyQualifiedDisplayString();
 
 			if (sectionTypeName.EndsWith("?", StringComparison.Ordinal))
 				sectionTypeName = sectionTypeName[..^1];
@@ -344,7 +342,7 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 				PropertyName: propertySymbol.Name,
 				PropertyPath: propertyPath,
 				SectionName: fullSectionName,
-        TypeName: sectionTypeName,
+				TypeName: sectionTypeName,
 				NeedsInitialization: false,
 				Values: values,
 				Comment: comment
@@ -403,7 +401,7 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 
 			if (isEnum)
 			{
-				enumFullName = propertySymbol.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+				enumFullName = propertySymbol.Type.ToFullyQualifiedDisplayString();
 				isFlagsEnum = propertySymbol.Type.GetAttributes()
 					.Any(a => a.AttributeClass?.ToDisplayString() == "System.FlagsAttribute");
 			}

@@ -2,13 +2,9 @@ name: Continuous Integration
 
 on:
   push:
-    branches:
-      - '**'
-    tags-ignore:
-      - 'v*'
+    branches: [ "main" ]
   pull_request:
-    branches:
-      - main
+    branches: [ "main" ]
 
 permissions:
   contents: read

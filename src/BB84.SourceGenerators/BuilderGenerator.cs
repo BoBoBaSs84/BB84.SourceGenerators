@@ -159,7 +159,7 @@ public sealed class BuilderGenerator : IIncrementalGenerator
 			bool isReferenceType = propertySymbol.Type.IsReferenceType;
 			bool isNullable = propertySymbol.NullableAnnotation == NullableAnnotation.Annotated;
 
-			builder.Add(new PropertyInfo(propertySymbol.Name, propertySymbol.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat), isReferenceType, isNullable));
+			builder.Add(new PropertyInfo(propertySymbol.Name, propertySymbol.Type.ToFullyQualifiedDisplayString(), isReferenceType, isNullable));
 		}
 
 		return builder.ToImmutable();

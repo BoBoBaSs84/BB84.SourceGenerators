@@ -75,6 +75,12 @@ public sealed class AttributeSourceGenerator : IIncrementalGenerator
 	private static readonly string GenerateValidatorAttributeSource =
 		AttributeSourceRewriter.ReadAndTransform("GenerateValidatorAttribute.cs");
 
+	private static readonly string GenerateAutoMapperAttributeSource =
+		AttributeSourceRewriter.ReadAndTransform("GenerateAutoMapperAttribute.cs");
+
+	private static readonly string PropertyMappingAttributeSource =
+		AttributeSourceRewriter.ReadAndTransform("PropertyMappingAttribute.cs");
+
 	/// <inheritdoc />
 	public void Initialize(IncrementalGeneratorInitializationContext context)
 	{
@@ -98,6 +104,8 @@ public sealed class AttributeSourceGenerator : IIncrementalGenerator
 			ctx.AddSource("GenerateSingletonAttribute.g.cs", GenerateSingletonAttributeSource);
 			ctx.AddSource("GenerateToStringAttribute.g.cs", GenerateToStringAttributeSource);
 			ctx.AddSource("GenerateValidatorAttribute.g.cs", GenerateValidatorAttributeSource);
+			ctx.AddSource("GenerateAutoMapperAttribute.g.cs", GenerateAutoMapperAttributeSource);
+			ctx.AddSource("PropertyMappingAttribute.g.cs", PropertyMappingAttributeSource);
 		});
 	}
 }
