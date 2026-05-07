@@ -806,6 +806,267 @@ namespace TestNamespace
 		Assert.IsNotEmpty(generatedSources);
 	}
 
+	[TestMethod]
+	public void AutoMapperGeneratorShouldGenerateBasicMapping()
+	{
+		string source = @"
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+	public class SourceDto
+	{
+		public int Id { get; set; }
+		public string Name { get; set; }
+	}
+
+	public class TargetModel
+	{
+		public int Id { get; set; }
+		public string Name { get; set; }
+	}
+
+	public partial class OrderMapper
+	{
+		[GenerateAutoMapper]
+		public partial TargetModel Map(SourceDto source);
+	}
+}";
+
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources) = RunGenerator<AutoMapperGenerator>(source);
+
+		Assert.IsEmpty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+		Assert.IsNotEmpty(generatedSources);
+
+		string generated = generatedSources.First(s => s.Contains("partial TargetModel Map("));
+		Assert.Contains("Id = source.Id", generated);
+		Assert.Contains("Name = source.Name", generated);
+	}
+
+	[TestMethod]
+	public void AutoMapperGeneratorShouldSupportPropertyMappingAttribute()
+	{
+		string source = @"
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+	public class SourceDto
+	{
+		public int Id { get; set; }
+		public string CustomerName { get; set; }
+	}
+
+	public class TargetModel
+	{
+		public int Id { get; set; }
+		public string Name { get; set; }
+	}
+
+	public partial class OrderMapper
+	{
+		[GenerateAutoMapper]
+		[PropertyMapping(""CustomerName"", ""Name"")]
+		public partial TargetModel Map(SourceDto source);
+	}
+}";
+
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources) = RunGenerator<AutoMapperGenerator>(source);
+
+		Assert.IsEmpty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+		Assert.IsNotEmpty(generatedSources);
+
+		string generated = generatedSources.First(s => s.Contains("partial TargetModel Map("));
+		Assert.Contains("Name = source.CustomerName", generated);
+	}
+
+	[TestMethod]
+	public void AutoMapperGeneratorShouldReportUnmappedPropertyDiagnostic()
+	{
+		string source = @"
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+	public class SourceDto
+	{
+		public int Id { get; set; }
+	}
+
+	public class TargetModel
+	{
+		public int Id { get; set; }
+		public string Name { get; set; }
+	}
+
+	public partial class OrderMapper
+	{
+		[GenerateAutoMapper]
+		public partial TargetModel Map(SourceDto source);
+	}
+}";
+
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources) = RunGenerator<AutoMapperGenerator>(source);
+
+		Assert.IsNotEmpty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Warning && d.Id == "BB84SG0007"));
+	}
+
+	[TestMethod]
+	public void AutoMapperGeneratorShouldHandleNullableSourceParameter()
+	{
+		string source = @"
+#nullable enable
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+	public class SourceDto
+	{
+		public int Id { get; set; }
+	}
+
+	public class TargetModel
+	{
+		public int Id { get; set; }
+	}
+
+	public partial class OrderMapper
+	{
+		[GenerateAutoMapper]
+		public partial TargetModel Map(SourceDto? source);
+	}
+}";
+
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources) = RunGenerator<AutoMapperGenerator>(source);
+
+		Assert.IsEmpty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+		Assert.IsNotEmpty(generatedSources);
+
+		string generated = generatedSources.First(s => s.Contains("partial TargetModel Map("));
+		Assert.Contains("if (source is null)", generated);
+		Assert.Contains("throw new System.ArgumentNullException(nameof(source))", generated);
+	}
+
+	[TestMethod]
+	public void AutoMapperGeneratorShouldReportTypeMismatchDiagnostic()
+	{
+		string source = @"
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+	public class SourceDto
+	{
+		public string Id { get; set; }
+	}
+
+	public class TargetModel
+	{
+		public int Id { get; set; }
+	}
+
+	public partial class OrderMapper
+	{
+		[GenerateAutoMapper]
+		public partial TargetModel Map(SourceDto source);
+	}
+}";
+
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources) = RunGenerator<AutoMapperGenerator>(source);
+
+		Assert.IsNotEmpty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error && d.Id == "BB84SG0008"));
+	}
+
+	[TestMethod]
+	public void AutoMapperGeneratorShouldMapInheritedProperties()
+	{
+		string source = @"
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+	public class BaseDto
+	{
+		public int Id { get; set; }
+	}
+
+	public class SourceDto : BaseDto
+	{
+		public string Name { get; set; }
+	}
+
+	public class TargetModel
+	{
+		public int Id { get; set; }
+		public string Name { get; set; }
+	}
+
+	public partial class OrderMapper
+	{
+		[GenerateAutoMapper]
+		public partial TargetModel Map(SourceDto source);
+	}
+}";
+
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources) = RunGenerator<AutoMapperGenerator>(source);
+
+		Assert.IsEmpty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+		Assert.IsNotEmpty(generatedSources);
+
+		string generated = generatedSources.First(s => s.Contains("partial TargetModel Map("));
+		Assert.Contains("Id = source.Id", generated);
+		Assert.Contains("Name = source.Name", generated);
+	}
+
+	[TestMethod]
+	public void AutoMapperGeneratorGeneratedCodeShouldCompileSuccessfully()
+	{
+		string source = @"
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+	public class SourceDto
+	{
+		public int Id { get; set; }
+		public string Name { get; set; }
+		public double Price { get; set; }
+	}
+
+	public class TargetModel
+	{
+		public int Id { get; set; }
+		public string Name { get; set; }
+		public double Price { get; set; }
+	}
+
+	public partial class OrderMapper
+	{
+		[GenerateAutoMapper]
+		[PropertyMapping(""Name"", ""Name"")]
+		public partial TargetModel Map(SourceDto source);
+	}
+}";
+
+		SyntaxTree syntaxTree = CSharpSyntaxTree.ParseText(source);
+		CSharpCompilation compilation = CSharpCompilation.Create(
+			assemblyName: "IntegrationTestAssembly",
+			syntaxTrees: [syntaxTree],
+			references: References,
+			options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+
+		IIncrementalGenerator[] generators = [new AttributeSourceGenerator(), new AutoMapperGenerator()];
+		GeneratorDriver driver = CSharpGeneratorDriver.Create(generators);
+		driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out Compilation outputCompilation, out ImmutableArray<Diagnostic> diagnostics);
+
+		// The output compilation should have no errors in the AutoMapper-generated source
+		ImmutableArray<Diagnostic> compilationDiagnostics = outputCompilation.GetDiagnostics();
+		ImmutableArray<Diagnostic> autoMapperErrors = [.. compilationDiagnostics.Where(d =>
+			d.Severity == DiagnosticSeverity.Error &&
+			d.Location.GetLineSpan().Path.Contains("AutoMapper"))];
+		Assert.IsEmpty(autoMapperErrors, string.Join("\n", autoMapperErrors.Select(e => e.ToString())));
+	}
+
 	private static (ImmutableArray<Diagnostic> Diagnostics, string[] GeneratedSources) RunGenerator<TGenerator>(string source)
 		where TGenerator : IIncrementalGenerator, new()
 	{
