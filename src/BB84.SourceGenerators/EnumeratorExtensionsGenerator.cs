@@ -268,10 +268,9 @@ public sealed class EnumeratorExtensionsGenerator : IIncrementalGenerator
 					AttributeArgumentSyntax argument = attribute.ArgumentList.Arguments[0];
 					Optional<object?> descriptionValue = semanticModel.GetConstantValue(argument.Expression);
 
-					if (descriptionValue.HasValue && descriptionValue.Value is string description)
-						return description;
-
-					return argument.ToString().Trim('"');
+					return descriptionValue.HasValue && descriptionValue.Value is string description
+						? description
+						: argument.ToString().Trim('"');
 				}
 			}
 		}
