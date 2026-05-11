@@ -3,6 +3,11 @@
 //
 // This source code is licensed under the MIT license found in the
 // LICENSE file in the root directory of this source tree.
+using System.Collections.Immutable;
+
+using BB84.SourceGenerators.Extensions;
+using BB84.SourceGenerators.Models;
+
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -85,7 +90,11 @@ internal static class GeneratorHelpers
 	/// <param name="attributeShortName">The short name of the attribute (e.g., "GenerateToString").</param>
 	/// <param name="attributeFullName">The full name of the attribute (e.g., "GenerateToStringAttribute").</param>
 	/// <returns>A set of excluded property names.</returns>
-	internal static HashSet<string> GetExcludedProperties(ClassDeclarationSyntax classDeclaration, SemanticModel semanticModel, string attributeShortName, string attributeFullName)
+	internal static HashSet<string> GetExcludedProperties(
+		ClassDeclarationSyntax classDeclaration,
+		SemanticModel semanticModel,
+		string attributeShortName,
+		string attributeFullName)
 	{
 		HashSet<string> excluded = new(StringComparer.Ordinal);
 
@@ -137,4 +146,71 @@ internal static class GeneratorHelpers
 	/// <returns>A tuple of class declaration syntax and semantic model, or null if the target node is not a class declaration.</returns>
 	internal static (ClassDeclarationSyntax ClassSyntax, SemanticModel SemanticModel)? TransformClassSyntax(GeneratorAttributeSyntaxContext context)
 		=> context.TargetNode is not ClassDeclarationSyntax classSyntax ? null : ((ClassDeclarationSyntax ClassSyntax, SemanticModel SemanticModel)?)(classSyntax, context.SemanticModel);
+
+	/// <summary>
+	/// Gets all public readable properties from the given class symbol, optionally excluding specific properties.
+	/// Properties must be public, non-static, and have a getter.
+	/// </summary>
+	/// <param name="classSymbol">The class symbol to inspect.</param>
+	/// <param name="excludedProperties">Optional set of property names to exclude.</param>
+	/// <param name="requireSetter">When <see langword="true"/>, only includes properties that also have a public setter.</param>
+	/// <param name="cloneableAttributeName">
+	/// When not <see langword="null"/>, checks whether the property type is decorated with the specified attribute
+	/// and sets <see cref="PropertyDescriptor.IsCloneable"/> accordingly.
+	/// </param>
+	/// <returns>An immutable array of <see cref="PropertyDescriptor"/> instances.</returns>
+	internal static ImmutableArray<PropertyDescriptor> GetPropertyDescriptors(
+		INamedTypeSymbol classSymbol,
+		HashSet<string>? excludedProperties = null,
+		bool requireSetter = false,
+		string? cloneableAttributeName = null)
+	{
+		ImmutableArray<PropertyDescriptor>.Builder builder = ImmutableArray.CreateBuilder<PropertyDescriptor>();
+
+		foreach (ISymbol member in classSymbol.GetMembers())
+		{
+			if (member is not IPropertySymbol propertySymbol)
+				continue;
+
+			if (propertySymbol.DeclaredAccessibility != Accessibility.Public)
+				continue;
+
+			if (propertySymbol.IsStatic || propertySymbol.IsWriteOnly || propertySymbol.GetMethod is null)
+				continue;
+
+			if (requireSetter)
+			{
+				if (propertySymbol.IsReadOnly || propertySymbol.SetMethod is null)
+					continue;
+
+				if (propertySymbol.SetMethod.DeclaredAccessibility != Accessibility.Public)
+					continue;
+			}
+
+			if (excludedProperties is not null && excludedProperties.Contains(propertySymbol.Name))
+				continue;
+
+			bool isValueType = propertySymbol.Type.IsValueType
+				&& propertySymbol.Type.OriginalDefinition.SpecialType != SpecialType.System_Nullable_T;
+			bool isNullable = propertySymbol.NullableAnnotation == NullableAnnotation.Annotated;
+			string typeName = propertySymbol.Type.ToFullyQualifiedDisplayString();
+
+			bool isCloneable = false;
+			if (cloneableAttributeName is not null)
+			{
+				foreach (AttributeData attributeData in propertySymbol.Type.GetAttributes())
+				{
+					if (attributeData.AttributeClass?.ToDisplayString() == cloneableAttributeName)
+					{
+						isCloneable = true;
+						break;
+					}
+				}
+			}
+
+			builder.Add(new PropertyDescriptor(propertySymbol.Name, typeName, isValueType, isNullable, isCloneable));
+		}
+
+		return builder.ToImmutable();
+	}
 }

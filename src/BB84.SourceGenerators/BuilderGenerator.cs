@@ -9,6 +9,7 @@ using System.Text;
 using BB84.SourceGenerators.Attributes;
 using BB84.SourceGenerators.Extensions;
 using BB84.SourceGenerators.Helpers;
+using BB84.SourceGenerators.Models;
 
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -57,7 +58,7 @@ public sealed class BuilderGenerator : IIncrementalGenerator
 		string accessibility = GeneratorHelpers.GetAccessibility(classDeclaration);
 		string builderClassName = $"{className}Builder";
 
-		ImmutableArray<PropertyInfo> properties = GetSettableProperties(classSymbol);
+		ImmutableArray<PropertyDescriptor> properties = GeneratorHelpers.GetPropertyDescriptors(classSymbol, requireSetter: true);
 
 		if (properties.Length == 0)
 			return;
@@ -99,7 +100,7 @@ public sealed class BuilderGenerator : IIncrementalGenerator
 		context.AddSource(hintName, sb.ToString());
 	}
 
-	private static void AppendBuilderClass(StringBuilder sb, string className, string builderClassName, string accessibility, ImmutableArray<PropertyInfo> properties, int indentLevel = 1)
+	private static void AppendBuilderClass(StringBuilder sb, string className, string builderClassName, string accessibility, ImmutableArray<PropertyDescriptor> properties, int indentLevel = 1)
 	{
 		string indent = new(' ', indentLevel * 2);
 		string innerIndent = new(' ', (indentLevel + 1) * 2);
@@ -112,7 +113,7 @@ public sealed class BuilderGenerator : IIncrementalGenerator
 		sb.AppendLine($"{indent}{{");
 
 		// Fields
-		foreach (PropertyInfo prop in properties)
+		foreach (PropertyDescriptor prop in properties)
 		{
 			string fieldName = $"_{char.ToLowerInvariant(prop.Name[0])}{prop.Name.Substring(1)}";
 			string typeName = prop.IsReferenceType && prop.IsNullable ? $"{prop.TypeName}?" : prop.TypeName;
@@ -123,7 +124,7 @@ public sealed class BuilderGenerator : IIncrementalGenerator
 		sb.AppendLine();
 
 		// With methods
-		foreach (PropertyInfo prop in properties)
+		foreach (PropertyDescriptor prop in properties)
 		{
 			string fieldName = $"_{char.ToLowerInvariant(prop.Name[0])}{prop.Name.Substring(1)}";
 			string typeName = prop.IsReferenceType && prop.IsNullable ? $"{prop.TypeName}?" : prop.TypeName;
@@ -153,7 +154,7 @@ public sealed class BuilderGenerator : IIncrementalGenerator
 		string deepIndent = new(' ', (indentLevel + 3) * 2);
 		for (int i = 0; i < properties.Length; i++)
 		{
-			PropertyInfo prop = properties[i];
+			PropertyDescriptor prop = properties[i];
 			string fieldName = $"_{char.ToLowerInvariant(prop.Name[0])}{prop.Name.Substring(1)}";
 			string separator = i < properties.Length - 1 ? "," : string.Empty;
 			sb.AppendLine($"{deepIndent}{prop.Name} = {fieldName}{separator}");
@@ -163,40 +164,5 @@ public sealed class BuilderGenerator : IIncrementalGenerator
 		sb.AppendLine($"{innerIndent}}}");
 
 		sb.AppendLine($"{indent}}}");
-	}
-
-	private static ImmutableArray<PropertyInfo> GetSettableProperties(INamedTypeSymbol classSymbol)
-	{
-		ImmutableArray<PropertyInfo>.Builder builder = ImmutableArray.CreateBuilder<PropertyInfo>();
-
-		foreach (ISymbol member in classSymbol.GetMembers())
-		{
-			if (member is not IPropertySymbol propertySymbol)
-				continue;
-
-			if (propertySymbol.DeclaredAccessibility != Accessibility.Public)
-				continue;
-
-			if (propertySymbol.IsReadOnly || propertySymbol.IsStatic || propertySymbol.SetMethod is null)
-				continue;
-
-			if (propertySymbol.SetMethod.DeclaredAccessibility != Accessibility.Public)
-				continue;
-
-			bool isReferenceType = propertySymbol.Type.IsReferenceType;
-			bool isNullable = propertySymbol.NullableAnnotation == NullableAnnotation.Annotated;
-
-			builder.Add(new PropertyInfo(propertySymbol.Name, propertySymbol.Type.ToFullyQualifiedDisplayString(), isReferenceType, isNullable));
-		}
-
-		return builder.ToImmutable();
-	}
-
-	private readonly struct PropertyInfo(string name, string typeName, bool isReferenceType, bool isNullable)
-	{
-		public string Name { get; } = name;
-		public string TypeName { get; } = typeName;
-		public bool IsReferenceType { get; } = isReferenceType;
-		public bool IsNullable { get; } = isNullable;
 	}
 }

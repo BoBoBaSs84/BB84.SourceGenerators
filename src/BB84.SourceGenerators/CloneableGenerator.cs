@@ -9,6 +9,7 @@ using System.Text;
 using BB84.SourceGenerators.Attributes;
 using BB84.SourceGenerators.Extensions;
 using BB84.SourceGenerators.Helpers;
+using BB84.SourceGenerators.Models;
 
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -60,7 +61,7 @@ public sealed class CloneableGenerator : IIncrementalGenerator
 		string accessibility = GeneratorHelpers.GetAccessibility(classDeclaration);
 
 		HashSet<string> excludedProperties = GeneratorHelpers.GetExcludedProperties(classDeclaration, semanticModel, "GenerateCloneable", "GenerateCloneableAttribute");
-		ImmutableArray<PropertyInfo> properties = GetPublicProperties(classSymbol, excludedProperties);
+		ImmutableArray<PropertyDescriptor> properties = GeneratorHelpers.GetPropertyDescriptors(classSymbol, excludedProperties, requireSetter: true, cloneableAttributeName: GeneratorAttributeName);
 
 		List<(string Accessibility, string Name)> outerClasses = GeneratorHelpers.GetOuterClasses(classDeclaration);
 
@@ -100,7 +101,7 @@ public sealed class CloneableGenerator : IIncrementalGenerator
 		context.AddSource(hintName, sb.ToString());
 	}
 
-	private static void AppendPartialClass(StringBuilder sb, string className, string accessibility, ImmutableArray<PropertyInfo> properties, int indentLevel = 1)
+	private static void AppendPartialClass(StringBuilder sb, string className, string accessibility, ImmutableArray<PropertyDescriptor> properties, int indentLevel = 1)
 	{
 		string indent = new(' ', indentLevel * 2);
 
@@ -116,7 +117,7 @@ public sealed class CloneableGenerator : IIncrementalGenerator
 		sb.AppendLine($"{indent}}}");
 	}
 
-	private static void AppendCloneMethod(StringBuilder sb, string className, ImmutableArray<PropertyInfo> properties, int indentLevel)
+	private static void AppendCloneMethod(StringBuilder sb, string className, ImmutableArray<PropertyDescriptor> properties, int indentLevel)
 	{
 		string indent = new(' ', indentLevel * 2);
 		string bodyIndent = new(' ', (indentLevel + 1) * 2);
@@ -129,14 +130,14 @@ public sealed class CloneableGenerator : IIncrementalGenerator
 		sb.AppendLine($"{indent}{{");
 		sb.AppendLine($"{bodyIndent}{className} clone = new {className}();");
 
-		foreach (PropertyInfo property in properties)
+		foreach (PropertyDescriptor property in properties)
 			sb.AppendLine($"{bodyIndent}clone.{property.Name} = this.{property.Name};");
 
 		sb.AppendLine($"{bodyIndent}return clone;");
 		sb.AppendLine($"{indent}}}");
 	}
 
-	private static void AppendDeepCloneMethod(StringBuilder sb, string className, ImmutableArray<PropertyInfo> properties, int indentLevel)
+	private static void AppendDeepCloneMethod(StringBuilder sb, string className, ImmutableArray<PropertyDescriptor> properties, int indentLevel)
 	{
 		string indent = new(' ', indentLevel * 2);
 		string bodyIndent = new(' ', (indentLevel + 1) * 2);
@@ -150,7 +151,7 @@ public sealed class CloneableGenerator : IIncrementalGenerator
 		sb.AppendLine($"{indent}{{");
 		sb.AppendLine($"{bodyIndent}{className} clone = new {className}();");
 
-		foreach (PropertyInfo property in properties)
+		foreach (PropertyDescriptor property in properties)
 		{
 			if (property.IsCloneable)
 			{
@@ -174,49 +175,5 @@ public sealed class CloneableGenerator : IIncrementalGenerator
 		sb.AppendLine($"{indent}/// <inheritdoc/>");
 		sb.AppendLine($"{indent}object ICloneable.Clone()");
 		sb.AppendLine($"{bodyIndent}=> DeepClone();");
-	}
-
-	private static ImmutableArray<PropertyInfo> GetPublicProperties(INamedTypeSymbol classSymbol, HashSet<string> excludedProperties)
-	{
-		ImmutableArray<PropertyInfo>.Builder builder = ImmutableArray.CreateBuilder<PropertyInfo>();
-
-		foreach (ISymbol member in classSymbol.GetMembers())
-		{
-			if (member is not IPropertySymbol propertySymbol)
-				continue;
-
-			if (propertySymbol.DeclaredAccessibility != Accessibility.Public)
-				continue;
-
-			if (propertySymbol.IsStatic || propertySymbol.IsReadOnly || propertySymbol.IsWriteOnly)
-				continue;
-
-			if (propertySymbol.GetMethod is null || propertySymbol.SetMethod is null)
-				continue;
-
-			if (excludedProperties.Contains(propertySymbol.Name))
-				continue;
-
-			bool isCloneable = HasGenerateCloneableAttribute(propertySymbol.Type);
-
-			builder.Add(new PropertyInfo(propertySymbol.Name, isCloneable));
-		}
-
-		return builder.ToImmutable();
-	}
-
-	private static bool HasGenerateCloneableAttribute(ITypeSymbol typeSymbol)
-	{
-		foreach (AttributeData attributeData in typeSymbol.GetAttributes())
-			if (attributeData.AttributeClass?.ToDisplayString() == GeneratorAttributeName)
-				return true;
-
-		return false;
-	}
-
-	private readonly struct PropertyInfo(string name, bool isCloneable)
-	{
-		public string Name { get; } = name;
-		public bool IsCloneable { get; } = isCloneable;
 	}
 }

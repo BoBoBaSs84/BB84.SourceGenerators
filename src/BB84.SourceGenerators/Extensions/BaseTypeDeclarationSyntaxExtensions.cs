@@ -30,9 +30,9 @@ internal static class BaseTypeDeclarationSyntaxExtensions
 		SyntaxNode? potentialNamespaceParent = syntax.Parent;
 		// Keep moving "out" of nested classes etc until we get to a namespace
 		// or until we run out of parents
-		while (potentialNamespaceParent != null
-			&& potentialNamespaceParent is not NamespaceDeclarationSyntax
-			&& potentialNamespaceParent is not FileScopedNamespaceDeclarationSyntax)
+		while (potentialNamespaceParent is not null
+			and not NamespaceDeclarationSyntax
+			and not FileScopedNamespaceDeclarationSyntax)
 		{
 			potentialNamespaceParent = potentialNamespaceParent.Parent;
 		}

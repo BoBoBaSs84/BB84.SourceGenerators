@@ -9,6 +9,7 @@ using System.Text;
 using BB84.SourceGenerators.Attributes;
 using BB84.SourceGenerators.Extensions;
 using BB84.SourceGenerators.Helpers;
+using BB84.SourceGenerators.Models;
 
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -57,7 +58,7 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 		string accessibility = GeneratorHelpers.GetAccessibility(classDeclaration);
 
 		HashSet<string> excludedProperties = GeneratorHelpers.GetExcludedProperties(classDeclaration, semanticModel, "GenerateToString", "GenerateToStringAttribute");
-		ImmutableArray<string> properties = GetPublicProperties(classSymbol, excludedProperties);
+		ImmutableArray<PropertyDescriptor> properties = GeneratorHelpers.GetPropertyDescriptors(classSymbol, excludedProperties);
 
 		List<(string Accessibility, string Name)> outerClasses = GeneratorHelpers.GetOuterClasses(classDeclaration);
 
@@ -96,7 +97,7 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 		context.AddSource(hintName, sb.ToString());
 	}
 
-	private static void AppendPartialClass(StringBuilder sb, string className, string accessibility, ImmutableArray<string> properties, int indentLevel = 1)
+	private static void AppendPartialClass(StringBuilder sb, string className, string accessibility, ImmutableArray<PropertyDescriptor> properties, int indentLevel = 1)
 	{
 		string indent = new(' ', indentLevel * 2);
 		string innerIndent = new(' ', (indentLevel + 1) * 2);
@@ -117,7 +118,7 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 		sb.AppendLine($"{indent}}}");
 	}
 
-	private static string BuildFormatString(ImmutableArray<string> properties)
+	private static string BuildFormatString(ImmutableArray<PropertyDescriptor> properties)
 	{
 		StringBuilder format = new();
 
@@ -126,33 +127,9 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 			if (i > 0)
 				format.Append(", ");
 
-			format.Append($"{properties[i]} = {{{properties[i]}}}");
+			format.Append($"{properties[i].Name} = {{{properties[i].Name}}}");
 		}
 
 		return format.ToString();
-	}
-
-	private static ImmutableArray<string> GetPublicProperties(INamedTypeSymbol classSymbol, HashSet<string> excludedProperties)
-	{
-		ImmutableArray<string>.Builder builder = ImmutableArray.CreateBuilder<string>();
-
-		foreach (ISymbol member in classSymbol.GetMembers())
-		{
-			if (member is not IPropertySymbol propertySymbol)
-				continue;
-
-			if (propertySymbol.DeclaredAccessibility != Accessibility.Public)
-				continue;
-
-			if (propertySymbol.IsStatic || propertySymbol.IsWriteOnly || propertySymbol.GetMethod is null)
-				continue;
-
-			if (excludedProperties.Contains(propertySymbol.Name))
-				continue;
-
-			builder.Add(propertySymbol.Name);
-		}
-
-		return builder.ToImmutable();
 	}
 }
