@@ -1,0 +1,44 @@
+// Copyright: 2026 Robert Peter Meyer
+// License: MIT
+//
+// This source code is licensed under the MIT license found in the
+// LICENSE file in the root directory of this source tree.
+namespace BB84.SourceGenerators.Models;
+
+/// <summary>
+/// Describes a property discovered during source generation, carrying metadata
+/// needed by multiple generators (Equality, Cloneable, Builder, ToString).
+/// </summary>
+internal sealed record PropertyDescriptor(string Name, string TypeName, bool IsValueType, bool IsNullable, bool IsCloneable)
+{
+	/// <summary>
+	/// Gets the name of the property.
+	/// </summary>
+	public string Name { get; } = Name;
+
+	/// <summary>
+	/// Gets the fully qualified type name of the property.
+	/// </summary>
+	public string TypeName { get; } = TypeName;
+
+	/// <summary>
+	/// Gets a value indicating whether the property type is a value type.
+	/// </summary>
+	public bool IsValueType { get; } = IsValueType;
+
+	/// <summary>
+	/// Gets a value indicating whether the property type is a reference type.
+	/// </summary>
+	public bool IsReferenceType => !IsValueType;
+
+	/// <summary>
+	/// Gets a value indicating whether the property is nullable.
+	/// </summary>
+	public bool IsNullable { get; } = IsNullable;
+
+	/// <summary>
+	/// Gets a value indicating whether the property type is marked with
+	/// <c>[GenerateCloneable]</c> and supports deep cloning.
+	/// </summary>
+	public bool IsCloneable { get; } = IsCloneable;
+}

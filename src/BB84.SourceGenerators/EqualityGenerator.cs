@@ -9,6 +9,7 @@ using System.Text;
 using BB84.SourceGenerators.Attributes;
 using BB84.SourceGenerators.Extensions;
 using BB84.SourceGenerators.Helpers;
+using BB84.SourceGenerators.Models;
 
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -59,7 +60,7 @@ public sealed class EqualityGenerator : IIncrementalGenerator
 		string accessibility = GeneratorHelpers.GetAccessibility(classDeclaration);
 
 		HashSet<string> excludedProperties = GeneratorHelpers.GetExcludedProperties(classDeclaration, semanticModel, "GenerateEquality", "GenerateEqualityAttribute");
-		ImmutableArray<PropertyInfo> properties = GetPublicProperties(classSymbol, excludedProperties);
+		ImmutableArray<PropertyDescriptor> properties = GeneratorHelpers.GetPropertyDescriptors(classSymbol, excludedProperties);
 
 		List<(string Accessibility, string Name)> outerClasses = GeneratorHelpers.GetOuterClasses(classDeclaration);
 
@@ -99,7 +100,7 @@ public sealed class EqualityGenerator : IIncrementalGenerator
 		context.AddSource(hintName, sb.ToString());
 	}
 
-	private static void AppendPartialClass(StringBuilder sb, string className, string accessibility, ImmutableArray<PropertyInfo> properties, int indentLevel = 1)
+	private static void AppendPartialClass(StringBuilder sb, string className, string accessibility, ImmutableArray<PropertyDescriptor> properties, int indentLevel = 1)
 	{
 		string indent = new(' ', indentLevel * 2);
 
@@ -129,7 +130,7 @@ public sealed class EqualityGenerator : IIncrementalGenerator
 		sb.AppendLine($"{bodyIndent}=> Equals(obj as {className});");
 	}
 
-	private static void AppendEqualsT(StringBuilder sb, string className, ImmutableArray<PropertyInfo> properties, int indentLevel)
+	private static void AppendEqualsT(StringBuilder sb, string className, ImmutableArray<PropertyDescriptor> properties, int indentLevel)
 	{
 		string indent = new(' ', indentLevel * 2);
 		string bodyIndent = new(' ', (indentLevel + 1) * 2);
@@ -171,7 +172,7 @@ public sealed class EqualityGenerator : IIncrementalGenerator
 		sb.AppendLine($"{indent}}}");
 	}
 
-	private static void AppendGetHashCode(StringBuilder sb, ImmutableArray<PropertyInfo> properties, int indentLevel)
+	private static void AppendGetHashCode(StringBuilder sb, ImmutableArray<PropertyDescriptor> properties, int indentLevel)
 	{
 		string indent = new(' ', indentLevel * 2);
 		string bodyIndent = new(' ', (indentLevel + 1) * 2);
@@ -191,7 +192,7 @@ public sealed class EqualityGenerator : IIncrementalGenerator
 			sb.AppendLine($"{bodyIndent}{{");
 			sb.AppendLine($"{deepIndent}int hash = 17;");
 
-			foreach (PropertyInfo property in properties)
+			foreach (PropertyDescriptor property in properties)
 			{
 				if (property.IsValueType)
 					sb.AppendLine($"{deepIndent}hash = hash * 31 + {property.Name}.GetHashCode();");
@@ -228,37 +229,5 @@ public sealed class EqualityGenerator : IIncrementalGenerator
 		sb.AppendLine($"{indent}/// </summary>");
 		sb.AppendLine($"{indent}public static bool operator !=({className}? left, {className}? right)");
 		sb.AppendLine($"{bodyIndent}=> !Equals(left, right);");
-	}
-
-	private static ImmutableArray<PropertyInfo> GetPublicProperties(INamedTypeSymbol classSymbol, HashSet<string> excludedProperties)
-	{
-		ImmutableArray<PropertyInfo>.Builder builder = ImmutableArray.CreateBuilder<PropertyInfo>();
-
-		foreach (ISymbol member in classSymbol.GetMembers())
-		{
-			if (member is not IPropertySymbol propertySymbol)
-				continue;
-
-			if (propertySymbol.DeclaredAccessibility != Accessibility.Public)
-				continue;
-
-			if (propertySymbol.IsStatic || propertySymbol.IsWriteOnly || propertySymbol.GetMethod is null)
-				continue;
-
-			if (excludedProperties.Contains(propertySymbol.Name))
-				continue;
-
-			bool isValueType = propertySymbol.Type.IsValueType
-				&& propertySymbol.Type.OriginalDefinition.SpecialType != SpecialType.System_Nullable_T;
-			builder.Add(new PropertyInfo(propertySymbol.Name, isValueType));
-		}
-
-		return builder.ToImmutable();
-	}
-
-	private readonly struct PropertyInfo(string name, bool isValueType)
-	{
-		public string Name { get; } = name;
-		public bool IsValueType { get; } = isValueType;
 	}
 }
