@@ -12,7 +12,6 @@ using BB84.SourceGenerators.Helpers;
 using BB84.SourceGenerators.Models;
 
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace BB84.SourceGenerators;
@@ -46,24 +45,11 @@ public sealed class CloneableGenerator : IIncrementalGenerator
 
 	private void Execute(SourceProductionContext context, (ClassDeclarationSyntax ClassSyntax, SemanticModel SemanticModel)? input)
 	{
-		if (input is null)
+		if (!GeneratorHelpers.TryCreateContext(input, out GeneratorContext ctx))
 			return;
 
-		ClassDeclarationSyntax classDeclaration = input.Value.ClassSyntax;
-		SemanticModel semanticModel = input.Value.SemanticModel;
-
-		INamedTypeSymbol? classSymbol = semanticModel.GetDeclaredSymbol(classDeclaration);
-		if (classSymbol is null)
-			return;
-
-		string className = classSymbol.Name;
-		string namespaceName = classDeclaration.GetNamespace();
-		string accessibility = GeneratorHelpers.GetAccessibility(classDeclaration);
-
-		HashSet<string> excludedProperties = GeneratorHelpers.GetExcludedProperties(classDeclaration, semanticModel, "GenerateCloneable", "GenerateCloneableAttribute");
-		ImmutableArray<PropertyDescriptor> properties = GeneratorHelpers.GetPropertyDescriptors(classSymbol, excludedProperties, requireSetter: true, cloneableAttributeName: GeneratorAttributeName);
-
-		List<(string Accessibility, string Name)> outerClasses = GeneratorHelpers.GetOuterClasses(classDeclaration);
+		HashSet<string> excludedProperties = GeneratorHelpers.GetExcludedProperties(ctx.ClassDeclaration, ctx.SemanticModel, "GenerateCloneable", "GenerateCloneableAttribute");
+		ImmutableArray<PropertyDescriptor> properties = GeneratorHelpers.GetPropertyDescriptors(ctx.ClassSymbol, excludedProperties, requireSetter: true, cloneableAttributeName: GeneratorAttributeName);
 
 		StringBuilder sb = new();
 
@@ -71,11 +57,11 @@ public sealed class CloneableGenerator : IIncrementalGenerator
 		sb.AppendLine("#nullable enable");
 		sb.AppendLine("using System;");
 		sb.AppendLine();
-		sb.AppendLine($"namespace {namespaceName}");
+		sb.AppendLine($"namespace {ctx.NamespaceName}");
 		sb.AppendLine("{");
 
 		int baseIndent = 1;
-		foreach ((string outerAccessibility, string outerName) in outerClasses)
+		foreach ((string outerAccessibility, string outerName) in ctx.OuterClasses)
 		{
 			string indent = new(' ', baseIndent * 2);
 			sb.AppendLine($"{indent}{outerAccessibility} partial class {outerName}");
@@ -83,9 +69,9 @@ public sealed class CloneableGenerator : IIncrementalGenerator
 			baseIndent++;
 		}
 
-		AppendPartialClass(sb, className, accessibility, properties, baseIndent);
+		AppendPartialClass(sb, ctx.ClassName, ctx.Accessibility, properties, baseIndent);
 
-		for (int i = outerClasses.Count - 1; i >= 0; i--)
+		for (int i = ctx.OuterClasses.Count - 1; i >= 0; i--)
 		{
 			baseIndent--;
 			string indent = new(' ', baseIndent * 2);
@@ -94,9 +80,9 @@ public sealed class CloneableGenerator : IIncrementalGenerator
 
 		sb.AppendLine("}");
 
-		string hintName = outerClasses.Count > 0
-			? $"{string.Join(".", outerClasses.Select(o => o.Name))}.{className}.Cloneable.g.cs"
-			: $"{className}.Cloneable.g.cs";
+		string hintName = ctx.OuterClasses.Count > 0
+			? $"{string.Join(".", ctx.OuterClasses.Select(o => o.Name))}.{ctx.ClassName}.Cloneable.g.cs"
+			: $"{ctx.ClassName}.Cloneable.g.cs";
 
 		context.AddSource(hintName, sb.ToString());
 	}

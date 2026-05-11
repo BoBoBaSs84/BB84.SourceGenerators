@@ -10,9 +10,9 @@ using BB84.SourceGenerators.Analyzers;
 using BB84.SourceGenerators.Attributes;
 using BB84.SourceGenerators.Extensions;
 using BB84.SourceGenerators.Helpers;
+using BB84.SourceGenerators.Models;
 
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace BB84.SourceGenerators;
@@ -44,30 +44,17 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 
 	private void Execute(SourceProductionContext context, (ClassDeclarationSyntax ClassSyntax, SemanticModel SemanticModel)? input)
 	{
-		if (input is null)
+		if (!GeneratorHelpers.TryCreateContext(input, out GeneratorContext ctx))
 			return;
 
-		ClassDeclarationSyntax classDeclaration = input.Value.ClassSyntax;
-		SemanticModel semanticModel = input.Value.SemanticModel;
-
-		INamedTypeSymbol? classSymbol = semanticModel.GetDeclaredSymbol(classDeclaration);
-		if (classSymbol is null)
-			return;
-
-		if (classSymbol.IsAbstract)
+		if (ctx.ClassSymbol.IsAbstract)
 		{
-			Diagnostic diagnostic = Diagnostic.Create(DiagnosticDescriptors.AbstractClassDiagnostic, classDeclaration.Identifier.GetLocation(), classSymbol.Name);
+			Diagnostic diagnostic = Diagnostic.Create(DiagnosticDescriptors.AbstractClassDiagnostic, ctx.ClassDeclaration.Identifier.GetLocation(), ctx.ClassName);
 			context.ReportDiagnostic(diagnostic);
 			return;
 		}
 
-		string className = classSymbol.Name;
-		string namespaceName = classDeclaration.GetNamespace();
-		string accessibility = GeneratorHelpers.GetAccessibility(classDeclaration);
-
-		ImmutableArray<PropertyValidationInfo> validatedProperties = GetValidatedProperties(classSymbol);
-
-		List<(string Accessibility, string Name)> outerClasses = GeneratorHelpers.GetOuterClasses(classDeclaration);
+		ImmutableArray<PropertyValidationInfo> validatedProperties = GetValidatedProperties(ctx.ClassSymbol);
 
 		StringBuilder sb = new();
 
@@ -76,11 +63,11 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 		sb.AppendLine("using System.Collections.Generic;");
 		sb.AppendLine("using System.Text.RegularExpressions;");
 		sb.AppendLine();
-		sb.AppendLine($"namespace {namespaceName}");
+		sb.AppendLine($"namespace {ctx.NamespaceName}");
 		sb.AppendLine("{");
 
 		int baseIndent = 1;
-		foreach ((string outerAccessibility, string outerName) in outerClasses)
+		foreach ((string outerAccessibility, string outerName) in ctx.OuterClasses)
 		{
 			string indent = new(' ', baseIndent * 2);
 			sb.AppendLine($"{indent}{outerAccessibility} partial class {outerName}");
@@ -88,9 +75,9 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 			baseIndent++;
 		}
 
-		AppendPartialClass(sb, className, accessibility, validatedProperties, baseIndent);
+		AppendPartialClass(sb, ctx.ClassName, ctx.Accessibility, validatedProperties, baseIndent);
 
-		for (int i = outerClasses.Count - 1; i >= 0; i--)
+		for (int i = ctx.OuterClasses.Count - 1; i >= 0; i--)
 		{
 			baseIndent--;
 			string indent = new(' ', baseIndent * 2);
@@ -99,9 +86,9 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 
 		sb.AppendLine("}");
 
-		string hintName = outerClasses.Count > 0
-			? $"{string.Join(".", outerClasses.Select(o => o.Name))}.{className}.Validator.g.cs"
-			: $"{className}.Validator.g.cs";
+		string hintName = ctx.OuterClasses.Count > 0
+			? $"{string.Join(".", ctx.OuterClasses.Select(o => o.Name))}.{ctx.ClassName}.Validator.g.cs"
+			: $"{ctx.ClassName}.Validator.g.cs";
 
 		context.AddSource(hintName, sb.ToString());
 	}
