@@ -8,6 +8,7 @@ using System.Text;
 using BB84.SourceGenerators.Attributes;
 using BB84.SourceGenerators.Extensions;
 using BB84.SourceGenerators.Helpers;
+using BB84.SourceGenerators.Models;
 
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -46,22 +47,14 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 
 	private void Execute(SourceProductionContext context, (ClassDeclarationSyntax ClassSyntax, SemanticModel SemanticModel)? input)
 	{
-		if (input is null)
+		if (!GeneratorHelpers.TryCreateContext(input, out GeneratorContext ctx))
 			return;
 
-		ClassDeclarationSyntax classDeclaration = input.Value.ClassSyntax;
-		SemanticModel semanticModel = input.Value.SemanticModel;
+		string stringComparison = GetStringComparison(ctx.ClassDeclaration, ctx.SemanticModel);
+		string sectionDelimiter = GetSectionDelimiter(ctx.ClassDeclaration, ctx.SemanticModel);
+		bool serializeComments = GetSerializeComments(ctx.ClassDeclaration);
 
-		string className = classDeclaration.Identifier.Text;
-		string namespaceName = classDeclaration.GetNamespace();
-		string accessibility = GeneratorHelpers.GetAccessibility(classDeclaration);
-		string stringComparison = GetStringComparison(classDeclaration, semanticModel);
-		string sectionDelimiter = GetSectionDelimiter(classDeclaration, semanticModel);
-		bool serializeComments = GetSerializeComments(classDeclaration);
-
-		List<SectionInfo> sections = GetSections(classDeclaration, semanticModel, sectionDelimiter, serializeComments);
-
-		List<(string Accessibility, string Name)> outerClasses = GeneratorHelpers.GetOuterClasses(classDeclaration);
+		List<SectionInfo> sections = GetSections(ctx.ClassDeclaration, ctx.SemanticModel, sectionDelimiter, serializeComments);
 
 		StringBuilder sb = new();
 
@@ -72,11 +65,11 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 		sb.AppendLine("using System.Linq;");
 		sb.AppendLine("using System.Text;");
 		sb.AppendLine();
-		sb.AppendLine($"namespace {namespaceName}");
+		sb.AppendLine($"namespace {ctx.NamespaceName}");
 		sb.AppendLine("{");
 
 		int baseIndent = 1;
-		foreach ((string outerAccessibility, string outerName) in outerClasses)
+		foreach ((string outerAccessibility, string outerName) in ctx.OuterClasses)
 		{
 			string ind = new(' ', baseIndent * 2);
 			sb.AppendLine($"{ind}{outerAccessibility} partial class {outerName}");
@@ -84,14 +77,14 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 			baseIndent++;
 		}
 
-		AppendReadMethod(sb, className, accessibility, sections, stringComparison, baseIndent);
-		AppendWriteMethod(sb, className, sections, serializeComments, baseIndent + 1);
-		AppendLoadMethod(sb, className, sections, baseIndent + 1);
+		AppendReadMethod(sb, ctx.ClassName, ctx.Accessibility, sections, stringComparison, baseIndent);
+		AppendWriteMethod(sb, ctx.ClassName, sections, serializeComments, baseIndent + 1);
+		AppendLoadMethod(sb, ctx.ClassName, sections, baseIndent + 1);
 
 		string classIndent = new(' ', baseIndent * 2);
 		sb.AppendLine($"{classIndent}}}");
 
-		for (int i = outerClasses.Count - 1; i >= 0; i--)
+		for (int i = ctx.OuterClasses.Count - 1; i >= 0; i--)
 		{
 			baseIndent--;
 			string ind = new(' ', baseIndent * 2);
@@ -100,9 +93,9 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 
 		sb.AppendLine("}");
 
-		string hintName = outerClasses.Count > 0
-			? $"{string.Join(".", outerClasses.Select(o => o.Name))}.{className}.g.cs"
-			: $"{className}.g.cs";
+		string hintName = ctx.OuterClasses.Count > 0
+			? $"{string.Join(".", ctx.OuterClasses.Select(o => o.Name))}.{ctx.ClassName}.g.cs"
+			: $"{ctx.ClassName}.g.cs";
 
 		context.AddSource(hintName, sb.ToString());
 	}

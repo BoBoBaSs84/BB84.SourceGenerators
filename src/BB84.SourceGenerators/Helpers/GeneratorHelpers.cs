@@ -148,6 +148,38 @@ internal static class GeneratorHelpers
 		=> context.TargetNode is not ClassDeclarationSyntax classSyntax ? null : ((ClassDeclarationSyntax ClassSyntax, SemanticModel SemanticModel)?)(classSyntax, context.SemanticModel);
 
 	/// <summary>
+	/// Attempts to create a <see cref="GeneratorContext"/> from the given input tuple.
+	/// Resolves the class symbol, extracts name, namespace, accessibility, and outer classes.
+	/// </summary>
+	/// <param name="input">The input tuple from the incremental pipeline, or <see langword="null"/>.</param>
+	/// <param name="context">When this method returns <see langword="true"/>, contains the created context.</param>
+	/// <returns><see langword="true"/> if the context was created successfully; otherwise, <see langword="false"/>.</returns>
+	internal static bool TryCreateContext(
+		(ClassDeclarationSyntax ClassSyntax, SemanticModel SemanticModel)? input,
+		out GeneratorContext context)
+	{
+		context = null!;
+
+		if (input is null)
+			return false;
+
+		ClassDeclarationSyntax classDeclaration = input.Value.ClassSyntax;
+		SemanticModel semanticModel = input.Value.SemanticModel;
+
+		INamedTypeSymbol? classSymbol = semanticModel.GetDeclaredSymbol(classDeclaration);
+		if (classSymbol is null)
+			return false;
+
+		string className = classSymbol.Name;
+		string namespaceName = classDeclaration.GetNamespace();
+		string accessibility = GetAccessibility(classDeclaration);
+		List<(string Accessibility, string Name)> outerClasses = GetOuterClasses(classDeclaration);
+
+		context = new GeneratorContext(classDeclaration, semanticModel, classSymbol, className, namespaceName, accessibility, outerClasses);
+		return true;
+	}
+
+	/// <summary>
 	/// Gets all public readable properties from the given class symbol, optionally excluding specific properties.
 	/// Properties must be public, non-static, and have a getter.
 	/// </summary>
