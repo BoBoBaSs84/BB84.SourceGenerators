@@ -47,7 +47,7 @@ public sealed class EqualityGenerator : IIncrementalGenerator
 		if (!GeneratorHelpers.TryCreateContext(input, out GeneratorContext ctx))
 			return;
 
-		HashSet<string> excludedProperties = GeneratorHelpers.GetExcludedProperties(ctx.ClassDeclaration, ctx.SemanticModel, "GenerateEquality", "GenerateEqualityAttribute");
+		HashSet<string> excludedProperties = GeneratorHelpers.GetExcludedProperties(ctx.ClassDeclaration, ctx.SemanticModel, nameof(GenerateEqualityAttribute));
 		ImmutableArray<PropertyDescriptor> properties = GeneratorHelpers.GetPropertyDescriptors(ctx.ClassSymbol, excludedProperties);
 
 		StringBuilder sb = new();

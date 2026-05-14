@@ -27,10 +27,10 @@ public sealed class DisposableGenerator : IIncrementalGenerator
 {
 	private static readonly string GeneratorName = typeof(DisposableGenerator).FullName;
 	private static readonly string GeneratorAttributeName = typeof(GenerateDisposableAttribute).FullName;
-	private const string AttributeShortName = "GenerateDisposable";
-	private const string AttributeFullName = "GenerateDisposableAttribute";
-	private const string DisposeResourceShortName = "DisposeResource";
-	private const string DisposeResourceFullName = "DisposeResourceAttribute";
+	private const string AttributeFullName = nameof(GenerateDisposableAttribute);
+	private static readonly string AttributeShortName = GeneratorHelpers.StripAttributeSuffix(AttributeFullName);
+	private const string DisposeResourceFullName = nameof(DisposeResourceAttribute);
+	private static readonly string DisposeResourceShortName = GeneratorHelpers.StripAttributeSuffix(DisposeResourceFullName);
 
 	/// <inheritdoc/>
 	public void Initialize(IncrementalGeneratorInitializationContext context)
@@ -136,7 +136,7 @@ public sealed class DisposableGenerator : IIncrementalGenerator
 			{
 				string name = attribute.Name.ToString();
 
-				if (name is not AttributeShortName and not AttributeFullName)
+				if (name != AttributeShortName && name != AttributeFullName)
 					continue;
 
 				if (attribute.ArgumentList is null || attribute.ArgumentList.Arguments.Count == 0)
@@ -222,7 +222,7 @@ public sealed class DisposableGenerator : IIncrementalGenerator
 			{
 				string name = attribute.Name.ToString();
 
-				if (name is not DisposeResourceShortName and not DisposeResourceFullName)
+				if (name != DisposeResourceShortName && name != DisposeResourceFullName)
 					continue;
 
 				if (attribute.ArgumentList is null || attribute.ArgumentList.Arguments.Count == 0)

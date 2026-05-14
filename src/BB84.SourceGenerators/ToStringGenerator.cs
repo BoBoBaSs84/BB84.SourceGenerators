@@ -45,7 +45,7 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 		if (!GeneratorHelpers.TryCreateContext(input, out GeneratorContext ctx))
 			return;
 
-		HashSet<string> excludedProperties = GeneratorHelpers.GetExcludedProperties(ctx.ClassDeclaration, ctx.SemanticModel, "GenerateToString", "GenerateToStringAttribute");
+		HashSet<string> excludedProperties = GeneratorHelpers.GetExcludedProperties(ctx.ClassDeclaration, ctx.SemanticModel, nameof(GenerateToStringAttribute));
 		ImmutableArray<PropertyDescriptor> properties = GeneratorHelpers.GetPropertyDescriptors(ctx.ClassSymbol, excludedProperties);
 
 		StringBuilder sb = new();

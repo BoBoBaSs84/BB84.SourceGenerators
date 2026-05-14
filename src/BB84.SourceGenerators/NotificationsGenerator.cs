@@ -24,8 +24,8 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 {
 	private static readonly string GeneratorName = typeof(NotificationsGenerator).FullName;
 	private static readonly string GeneratorAttributeName = typeof(GenerateNotificationsAttribute).FullName;
-	private const string AttributeShortName = "GenerateNotifications";
-	private const string AttributeFullName = "GenerateNotificationsAttribute";
+	private const string AttributeFullName = nameof(GenerateNotificationsAttribute);
+	private static readonly string AttributeShortName = GeneratorHelpers.StripAttributeSuffix(AttributeFullName);
 
 	/// <inheritdoc/>
 	public void Initialize(IncrementalGeneratorInitializationContext context)
@@ -118,7 +118,7 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 			{
 				string name = attribute.Name.ToString();
 
-				if (name is not AttributeShortName and not AttributeFullName)
+				if (name != AttributeShortName && name != AttributeFullName)
 					continue;
 
 				if (attribute.ArgumentList is null || attribute.ArgumentList.Arguments.Count == 0)

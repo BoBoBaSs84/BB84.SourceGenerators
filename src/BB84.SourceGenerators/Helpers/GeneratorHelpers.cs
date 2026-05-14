@@ -19,6 +19,7 @@ namespace BB84.SourceGenerators.Helpers;
 /// </summary>
 internal static class GeneratorHelpers
 {
+	private const string AttributeKeyword = "Attribute";
 	private const string PublicKeyword = "public";
 	private const string InternalKeyword = "internal";
 	private const string ProtectedKeyword = "protected";
@@ -87,15 +88,14 @@ internal static class GeneratorHelpers
 	/// </summary>
 	/// <param name="classDeclaration">The class declaration syntax.</param>
 	/// <param name="semanticModel">The semantic model.</param>
-	/// <param name="attributeShortName">The short name of the attribute (e.g., "GenerateToString").</param>
 	/// <param name="attributeFullName">The full name of the attribute (e.g., "GenerateToStringAttribute").</param>
 	/// <returns>A set of excluded property names.</returns>
 	internal static HashSet<string> GetExcludedProperties(
 		ClassDeclarationSyntax classDeclaration,
 		SemanticModel semanticModel,
-		string attributeShortName,
 		string attributeFullName)
 	{
+		string attributeShortName = StripAttributeSuffix(attributeFullName);
 		HashSet<string> excluded = new(StringComparer.Ordinal);
 
 		foreach (AttributeListSyntax attributeList in classDeclaration.AttributeLists)
@@ -122,6 +122,16 @@ internal static class GeneratorHelpers
 
 		return excluded;
 	}
+
+	/// <summary>
+	/// Strips the "Attribute" suffix from an attribute type name.
+	/// </summary>
+	/// <param name="attributeName">The full attribute name (e.g., "GenerateToStringAttribute").</param>
+	/// <returns>The attribute name without the "Attribute" suffix (e.g., "GenerateToString").</returns>
+	internal static string StripAttributeSuffix(string attributeName)
+		=> attributeName.EndsWith(AttributeKeyword, StringComparison.Ordinal)
+			? attributeName[..^AttributeKeyword.Length]
+			: attributeName;
 
 	/// <summary>
 	/// Escapes a string for use in a regular string literal.
