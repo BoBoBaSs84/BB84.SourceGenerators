@@ -23,8 +23,8 @@ namespace BB84.SourceGenerators;
 [Generator(LanguageNames.CSharp)]
 public sealed class SingletonGenerator : IIncrementalGenerator
 {
-	private const string AttributeShortName = "GenerateSingleton";
-	private const string AttributeFullName = "GenerateSingletonAttribute";
+	private const string AttributeFullName = nameof(GenerateSingletonAttribute);
+	private static readonly string AttributeShortName = GeneratorHelpers.StripAttributeSuffix(AttributeFullName);
 	private static readonly string GeneratorName = typeof(SingletonGenerator).FullName;
 	private static readonly string GeneratorAttributeName = typeof(GenerateSingletonAttribute).FullName;
 
@@ -155,7 +155,7 @@ public sealed class SingletonGenerator : IIncrementalGenerator
 			{
 				string name = attribute.Name.ToString();
 
-				if (name is not AttributeShortName and not AttributeFullName)
+				if (name != AttributeShortName && name != AttributeFullName)
 					continue;
 
 				if (attribute.ArgumentList is null || attribute.ArgumentList.Arguments.Count == 0)

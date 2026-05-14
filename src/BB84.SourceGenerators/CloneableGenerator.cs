@@ -48,7 +48,7 @@ public sealed class CloneableGenerator : IIncrementalGenerator
 		if (!GeneratorHelpers.TryCreateContext(input, out GeneratorContext ctx))
 			return;
 
-		HashSet<string> excludedProperties = GeneratorHelpers.GetExcludedProperties(ctx.ClassDeclaration, ctx.SemanticModel, "GenerateCloneable", "GenerateCloneableAttribute");
+		HashSet<string> excludedProperties = GeneratorHelpers.GetExcludedProperties(ctx.ClassDeclaration, ctx.SemanticModel, nameof(GenerateCloneableAttribute));
 		ImmutableArray<PropertyDescriptor> properties = GeneratorHelpers.GetPropertyDescriptors(ctx.ClassSymbol, excludedProperties, requireSetter: true, cloneableAttributeName: GeneratorAttributeName);
 
 		StringBuilder sb = new();

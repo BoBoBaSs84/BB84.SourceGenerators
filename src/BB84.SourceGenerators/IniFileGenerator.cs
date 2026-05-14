@@ -29,6 +29,8 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 	private static readonly string GeneratorAttributeName = typeof(GenerateIniFileAttribute).FullName;
 	private static readonly string SectionAttributeName = typeof(GenerateIniFileSectionAttribute).FullName;
 	private static readonly string ValueAttributeName = typeof(GenerateIniFileValueAttribute).FullName;
+	private const string AttributeFullName = nameof(GenerateIniFileAttribute);
+	private static readonly string AttributeShortName = GeneratorHelpers.StripAttributeSuffix(AttributeFullName);
 	private static readonly string[] LineBreakSeparators = ["\r\n", "\n"];
 
 	/// <inheritdoc/>
@@ -564,7 +566,7 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 			{
 				string name = attribute.Name.ToString();
 
-				if (name is not "GenerateIniFile" and not "GenerateIniFileAttribute")
+				if (name != AttributeShortName && name != AttributeFullName)
 					continue;
 
 				if (attribute.ArgumentList is null)
