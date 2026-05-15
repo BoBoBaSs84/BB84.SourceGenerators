@@ -209,25 +209,10 @@ internal static class GeneratorHelpers
 	{
 		ImmutableArray<PropertyDescriptor>.Builder builder = ImmutableArray.CreateBuilder<PropertyDescriptor>();
 
-		foreach (ISymbol member in classSymbol.GetMembers())
+		foreach (IPropertySymbol propertySymbol in GetPublicPropertySymbols(classSymbol, requireGetter: true, requireSetter: requireSetter))
 		{
-			if (member is not IPropertySymbol propertySymbol)
+			if (propertySymbol.IsWriteOnly)
 				continue;
-
-			if (propertySymbol.DeclaredAccessibility != Accessibility.Public)
-				continue;
-
-			if (propertySymbol.IsStatic || propertySymbol.IsWriteOnly || propertySymbol.GetMethod is null)
-				continue;
-
-			if (requireSetter)
-			{
-				if (propertySymbol.IsReadOnly || propertySymbol.SetMethod is null)
-					continue;
-
-				if (propertySymbol.SetMethod.DeclaredAccessibility != Accessibility.Public)
-					continue;
-			}
 
 			if (excludedProperties is not null && excludedProperties.Contains(propertySymbol.Name))
 				continue;
@@ -254,5 +239,49 @@ internal static class GeneratorHelpers
 		}
 
 		return builder.ToImmutable();
+	}
+
+	/// <summary>
+	/// Enumerates public, non-static, non-indexer property symbols from the given type,
+	/// optionally walking the inheritance hierarchy.
+	/// </summary>
+	/// <param name="typeSymbol">The type symbol to inspect.</param>
+	/// <param name="includeInherited">When <see langword="true"/>, also includes properties from base types (excluding <see cref="object"/>).</param>
+	/// <param name="requireGetter">When <see langword="true"/>, only includes properties with a getter.</param>
+	/// <param name="requireSetter">When <see langword="true"/>, only includes properties with a public setter.</param>
+	/// <returns>An enumerable of matching <see cref="IPropertySymbol"/> instances.</returns>
+	internal static IEnumerable<IPropertySymbol> GetPublicPropertySymbols(
+		ITypeSymbol typeSymbol,
+		bool includeInherited = false,
+		bool requireGetter = true,
+		bool requireSetter = false)
+	{
+		ITypeSymbol? current = typeSymbol;
+
+		do
+		{
+			foreach (ISymbol member in current.GetMembers())
+			{
+				if (member is not IPropertySymbol propertySymbol)
+					continue;
+
+				if (propertySymbol.DeclaredAccessibility != Accessibility.Public)
+					continue;
+
+				if (propertySymbol.IsStatic || propertySymbol.IsIndexer)
+					continue;
+
+				if (requireGetter && propertySymbol.GetMethod is null)
+					continue;
+
+				if (requireSetter && (propertySymbol.SetMethod is null || propertySymbol.SetMethod.DeclaredAccessibility != Accessibility.Public))
+					continue;
+
+				yield return propertySymbol;
+			}
+
+			current = includeInherited ? current.BaseType : null;
+		}
+		while (current is not null && current.SpecialType != SpecialType.System_Object);
 	}
 }
