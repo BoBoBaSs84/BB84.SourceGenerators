@@ -200,7 +200,7 @@ public sealed class AbstractionGenerator : IIncrementalGenerator
 	private static string CreateAbstractionPropertySignature(IPropertySymbol propertySymbol)
 	{
 		string accessors = GetPropertyAccessors(propertySymbol);
-		return $"{propertySymbol.Type} {propertySymbol.Name} {{ {accessors} }}";
+		return $"{propertySymbol.Type} {propertySymbol.Name} {{{accessors}}}";
 	}
 
 	/// <summary>
@@ -215,9 +215,9 @@ public sealed class AbstractionGenerator : IIncrementalGenerator
 			? $"get => {request.TargetType}.{propertySymbol.Name};"
 			: string.Empty;
 		string setter = propertySymbol.SetMethod != null && propertySymbol.SetMethod.DeclaredAccessibility == Accessibility.Public
-			? $"set => {request.TargetType}.{propertySymbol.Name} = value;"
+			? $" set => {request.TargetType}.{propertySymbol.Name} = value;"
 			: string.Empty;
-		return $"public {propertySymbol.Type} {propertySymbol.Name} {{{getter}{setter}}}";
+		return $"public {propertySymbol.Type} {propertySymbol.Name} {{ {getter}{setter} }}";
 	}
 
 	/// <summary>
@@ -228,12 +228,12 @@ public sealed class AbstractionGenerator : IIncrementalGenerator
 	private static string GetPropertyAccessors(IPropertySymbol propertySymbol)
 	{
 		string getter = propertySymbol.GetMethod != null && propertySymbol.GetMethod.DeclaredAccessibility == Accessibility.Public
-			? "get; "
+			? "get;"
 			: string.Empty;
 		string setter = propertySymbol.SetMethod != null && propertySymbol.SetMethod.DeclaredAccessibility == Accessibility.Public
-			? "set; "
+			? " set;"
 			: string.Empty;
-		return $" {getter}{setter}";
+		return $" {getter}{setter} ";
 	}
 
 	/// <summary>

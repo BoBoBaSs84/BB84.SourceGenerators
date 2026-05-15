@@ -4,7 +4,6 @@
 // This source code is licensed under the MIT license found in the
 // LICENSE file in the root directory of this source tree.
 using BB84.SourceGenerators.Attributes;
-using BB84.SourceGenerators.Extensions;
 using BB84.SourceGenerators.Helpers;
 using BB84.SourceGenerators.Models;
 
@@ -28,17 +27,7 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 
 	/// <inheritdoc/>
 	public void Initialize(IncrementalGeneratorInitializationContext context)
-	{
-		IncrementalValuesProvider<(ClassDeclarationSyntax ClassSyntax, SemanticModel SemanticModel)?> provider =
-			context.SyntaxProvider
-				.ForAttributeWithMetadataName(
-					fullyQualifiedMetadataName: GeneratorAttributeName,
-					predicate: static (node, _) => node is ClassDeclarationSyntax,
-					transform: static (ctx, _) => GeneratorHelpers.TransformClassSyntax(ctx))
-				.Where(static result => result is not null);
-
-		context.RegisterSourceOutput(provider, Execute);
-	}
+		=> GeneratorHelpers.RegisterClassGenerator(context, GeneratorAttributeName, Execute);
 
 	private void Execute(SourceProductionContext context, (ClassDeclarationSyntax ClassSyntax, SemanticModel SemanticModel)? input)
 	{

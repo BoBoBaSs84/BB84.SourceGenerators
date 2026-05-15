@@ -158,6 +158,30 @@ internal static class GeneratorHelpers
 		=> context.TargetNode is not ClassDeclarationSyntax classSyntax ? null : ((ClassDeclarationSyntax ClassSyntax, SemanticModel SemanticModel)?)(classSyntax, context.SemanticModel);
 
 	/// <summary>
+	/// Registers a class-based incremental source generator pipeline that filters for classes
+	/// decorated with the specified attribute, transforms them via <see cref="TransformClassSyntax"/>,
+	/// and invokes the provided <paramref name="execute"/> callback.
+	/// </summary>
+	/// <param name="context">The generator initialization context.</param>
+	/// <param name="attributeMetadataName">The fully qualified metadata name of the trigger attribute.</param>
+	/// <param name="execute">The callback to execute for each matched class.</param>
+	internal static void RegisterClassGenerator(
+		IncrementalGeneratorInitializationContext context,
+		string attributeMetadataName,
+		Action<SourceProductionContext, (ClassDeclarationSyntax ClassSyntax, SemanticModel SemanticModel)?> execute)
+	{
+		IncrementalValuesProvider<(ClassDeclarationSyntax ClassSyntax, SemanticModel SemanticModel)?> provider =
+			context.SyntaxProvider
+				.ForAttributeWithMetadataName(
+					fullyQualifiedMetadataName: attributeMetadataName,
+					predicate: static (node, _) => node is ClassDeclarationSyntax,
+					transform: static (ctx, _) => TransformClassSyntax(ctx))
+				.Where(static result => result is not null);
+
+		context.RegisterSourceOutput(provider, execute);
+	}
+
+	/// <summary>
 	/// Attempts to create a <see cref="GeneratorContext"/> from the given input tuple.
 	/// Resolves the class symbol, extracts name, namespace, accessibility, and outer classes.
 	/// </summary>
