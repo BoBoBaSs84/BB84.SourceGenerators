@@ -1,15 +1,13 @@
 <Project>
-
 	<PropertyGroup Label="Versioning">
 		<VersionMajor>1</VersionMajor>
-		<VersionMinor>9</VersionMinor>
+		<VersionMinor>11</VersionMinor>
 		<VersionPatch>$([System.DateTime]::UtcNow.ToString("MMdd"))</VersionPatch>
 		<VersionRevision>$([System.DateTime]::UtcNow.TimeOfDay.TotalMinutes.ToString("0"))</VersionRevision>
 		<VersionPrefix>$(VersionMajor).$(VersionMinor).$(VersionPatch).$(VersionRevision)</VersionPrefix>
 		<VersionSuffix Condition="$(Configuration.Equals('Debug'))">Development</VersionSuffix>
 		<FileVersion>$(VersionMajor).$(VersionMinor).$(VersionPatch)</FileVersion>
 	</PropertyGroup>
-
 	<PropertyGroup Label="Technical">
 		<AllowUnsafeBlocks>False</AllowUnsafeBlocks>
 		<AnalysisLevel>latest</AnalysisLevel>
@@ -26,12 +24,10 @@
 		<NeutralLanguage>en-US</NeutralLanguage>
 		<Nullable>enable</Nullable>
 	</PropertyGroup>
-
 	<PropertyGroup Condition="'$(Configuration)'=='Release'">
 		<DebugType>none</DebugType>
 	</PropertyGroup>
-
-	<PropertyGroup Condition="!$(MSBuildProjectName.EndsWith('Tests'))" Label="MetaData">
+	<PropertyGroup Label="MetaData">
 		<Author>BoBoBaSs84</Author>
 		<Authors>$(Author)</Authors>
 		<Company>https://github.com/$(Author)</Company>
@@ -42,7 +38,6 @@
 		<RepositoryUrl>https://github.com/$(Author)/$(Product)</RepositoryUrl>
 		<Title>$(AssemblyName)</Title>
 	</PropertyGroup>
-
 	<PropertyGroup Condition="!$(MSBuildProjectName.EndsWith('Tests'))" Label="Package">
 		<PackageIcon>icon.png</PackageIcon>
 		<PackageId>$(AssemblyName)</PackageId>
@@ -54,23 +49,14 @@
 		<PackageTags>source-generators; roslyn; analyzers; csharp; generators; code-generation</PackageTags>
 		<PackageVersion>$(FileVersion)</PackageVersion>
 	</PropertyGroup>
-
-	<PropertyGroup Condition="$(MSBuildProjectName.EndsWith('Tests'))">
-		<IsPackable>False</IsPackable>
-		<IsTestProject>True</IsTestProject>
-	</PropertyGroup>
-
 	<ItemGroup Condition="!$(MSBuildProjectName.EndsWith('Tests'))">
-		<!--<InternalsVisibleTo Include="$(AssemblyName).Tests" />-->
 		<None Include="..\..\LICENSE" Pack="True" PackagePath="\" />
 		<None Include="..\..\icon.png" Pack="True" PackagePath="\" />
 		<None Include="..\..\README.md" Pack="True" PackagePath="\" />
 	</ItemGroup>
-
 	<ItemGroup Condition="$(MSBuildProjectName.EndsWith('Tests'))">
 		<Using Include="Microsoft.VisualStudio.TestTools.UnitTesting" />
 		<Using Include="System.Diagnostics" />
 		<Using Include="System.Diagnostics.CodeAnalysis" />
 	</ItemGroup>
-
 </Project>
