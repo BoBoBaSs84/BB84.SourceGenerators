@@ -223,31 +223,10 @@ public sealed class AutoMapperGenerator : IIncrementalGenerator
 	}
 
 	private static IEnumerable<IPropertySymbol> GetSettableProperties(ITypeSymbol type)
-	{
-		return GetAllProperties(type)
-			.Where(p => p.SetMethod is not null && p.DeclaredAccessibility == Accessibility.Public);
-	}
+		=> GeneratorHelpers.GetPublicPropertySymbols(type, includeInherited: true, requireGetter: false, requireSetter: true);
 
 	private static IEnumerable<IPropertySymbol> GetReadableProperties(ITypeSymbol type)
-	{
-		return GetAllProperties(type)
-			.Where(p => p.GetMethod is not null && p.DeclaredAccessibility == Accessibility.Public);
-	}
-
-	private static IEnumerable<IPropertySymbol> GetAllProperties(ITypeSymbol type)
-	{
-		ITypeSymbol? current = type;
-		while (current is not null)
-		{
-			foreach (ISymbol member in current.GetMembers())
-			{
-				if (member is IPropertySymbol property && !property.IsIndexer && !property.IsStatic)
-					yield return property;
-			}
-
-			current = current.BaseType;
-		}
-	}
+		=> GeneratorHelpers.GetPublicPropertySymbols(type, includeInherited: true, requireGetter: true, requireSetter: false);
 
 	private void Execute(SourceProductionContext context, AutoMapperRequest? request)
 	{
