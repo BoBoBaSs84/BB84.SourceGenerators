@@ -461,12 +461,12 @@ using BB84.SourceGenerators.Attributes;
 
 namespace TestNamespace
 {
-  [GenerateNotifications]
-  public partial class NotifyModel
-  {
-    private int _id;
-    private string _name;
-  }
+	[GenerateNotifications]
+	public partial class NotifyModel
+	{
+		private int _id;
+		private string _name;
+	}
 }";
 
 		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources) = RunGenerator<NotificationsGenerator>(source);
@@ -475,6 +475,60 @@ namespace TestNamespace
 		Assert.IsNotEmpty(generatedSources);
 		string generated = generatedSources.First(s => s.Contains("INotifyPropertyChanged"));
 		Assert.Contains("INotifyPropertyChanging", generated);
+	}
+
+	[TestMethod]
+	public void NotificationsGeneratorShouldExcludeFieldWithExcludeAttribute()
+	{
+		string source = @"
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+	[GenerateNotifications]
+	public partial class ExcludeModel
+	{
+		private int _id;
+		[ExcludeFromNotification]
+		private string _secret;
+	}
+}";
+
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources) = RunGenerator<NotificationsGenerator>(source);
+
+		Assert.IsEmpty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+		Assert.IsNotEmpty(generatedSources);
+		string generated = generatedSources.First(s => s.Contains("partial class ExcludeModel"));
+		Assert.Contains("Id", generated);
+		Assert.DoesNotContain("Secret", generated);
+	}
+
+	[TestMethod]
+	public void NotificationsGeneratorShouldGenerateAlsoNotifyForProperties()
+	{
+		string source = @"
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+	[GenerateNotifications]
+	public partial class AlsoNotifyModel
+	{
+		[AlsoNotifyFor(nameof(FullName))]
+		private string _firstName;
+		[AlsoNotifyFor(nameof(FullName))]
+		private string _lastName;
+		private string _fullName;
+	}
+}";
+
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources) = RunGenerator<NotificationsGenerator>(source);
+
+		Assert.IsEmpty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+		Assert.IsNotEmpty(generatedSources);
+		string generated = generatedSources.First(s => s.Contains("partial class AlsoNotifyModel"));
+		Assert.Contains("RaisePropertyChanged(nameof(FullName))", generated);
+		Assert.Contains("RaisePropertyChanging(nameof(FullName))", generated);
 	}
 
 	[TestMethod]

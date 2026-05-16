@@ -91,6 +91,46 @@ public sealed class NotificationsGeneratorTests
 
 		Assert.IsTrue(model.HasChanged);
 	}
+
+	[TestMethod]
+	public void ExcludeFromNotificationShouldNotGenerateProperty()
+	{
+		ExcludeFieldModel model = new() { Id = 0 };
+
+		// Id should be generated
+		model.Id = 42;
+		Assert.AreEqual(42, model.Id);
+
+		// Secret should not have a generated property
+		Assert.IsNull(typeof(ExcludeFieldModel).GetProperty("Secret"), "Secret property should not be generated.");
+	}
+
+	[TestMethod]
+	public void AlsoNotifyForShouldRaiseAdditionalNotifications()
+	{
+		List<string> changedProperties = [];
+		List<string> changingProperties = [];
+		AlsoNotifyModel model = new();
+		model.PropertyChanged += (s, e) => changedProperties.Add(e.PropertyName!);
+		model.PropertyChanging += (s, e) => changingProperties.Add(e.PropertyName!);
+
+		model.FirstName = "John";
+		model.LastName = "Doe";
+		model.DateOfBirth = DateTime.MinValue;
+
+		CollectionAssert.Contains(changedProperties, nameof(model.FirstName));
+		CollectionAssert.Contains(changedProperties, nameof(model.LastName));
+		CollectionAssert.Contains(changedProperties, nameof(model.FullName));
+		CollectionAssert.Contains(changedProperties, nameof(model.DateOfBirth));
+		CollectionAssert.Contains(changedProperties, nameof(model.Age));
+		CollectionAssert.Contains(changedProperties, nameof(model.YearOfBirth));
+		CollectionAssert.Contains(changingProperties, nameof(model.FirstName));
+		CollectionAssert.Contains(changingProperties, nameof(model.LastName));
+		CollectionAssert.Contains(changingProperties, nameof(model.FullName));
+		CollectionAssert.Contains(changingProperties, nameof(model.DateOfBirth));
+		CollectionAssert.Contains(changingProperties, nameof(model.Age));
+		CollectionAssert.Contains(changingProperties, nameof(model.YearOfBirth));
+	}
 }
 
 [GenerateNotifications]
@@ -133,4 +173,28 @@ public partial class PropertyChangingOnlyModel
 public partial class HasChangedModel
 {
 	private string? _name;
+}
+
+[GenerateNotifications]
+public partial class ExcludeFieldModel
+{
+	private int _id;
+	[ExcludeFromNotification]
+	private readonly string? _secret;
+}
+
+[GenerateNotifications]
+public partial class AlsoNotifyModel
+{
+	private int _id;
+	[AlsoNotify(nameof(FullName))]
+	private string? _firstName;
+	[AlsoNotify(nameof(FullName))]
+	private string? _lastName;
+	[AlsoNotify("Age", nameof(YearOfBirth))]
+	private DateTime? _dateOfBirth;
+
+	public string? FullName => $"{_firstName} {_lastName}";
+	public int? Age => _dateOfBirth.HasValue ? (int)((DateTime.UtcNow - _dateOfBirth.Value).TotalDays / 365.25) : null;
+	public int? YearOfBirth => _dateOfBirth?.Year;
 }

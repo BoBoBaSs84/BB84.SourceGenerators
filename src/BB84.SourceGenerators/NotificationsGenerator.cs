@@ -41,7 +41,8 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 
 		List<FieldDeclarationSyntax> members = [.. ctx.ClassDeclaration.Members
 			.OfType<FieldDeclarationSyntax>()
-			.Where(field => field is not null)];
+			.Where(field => field is not null)
+			.Where(field => !HasAttribute(field, nameof(ExcludeFromNotificationAttribute)))];
 
 		bool isSealed = ctx.ClassDeclaration.Modifiers.Any(SyntaxKind.SealedKeyword);
 
@@ -183,6 +184,8 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 		bool first = true;
 		foreach (FieldDeclarationSyntax member in members)
 		{
+			List<string> alsoNotifyFor = GetAlsoNotifyForProperties(member);
+
 			foreach (VariableDeclaratorSyntax variable in member.Declaration.Variables)
 			{
 				if (!first)
@@ -201,10 +204,20 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 				sb.AppendLine($"if ({fieldName} != value)");
 				sb.OpenBrace();
 				if (propertyChanging)
-					sb.AppendLine($"RaisePropertyChanging(nameof({propertyName}));");
+				{
+					if (alsoNotifyFor.Count == 0)
+						sb.AppendLine($"RaisePropertyChanging(nameof({propertyName}));");
+					else
+						sb.AppendLine($"RaisePropertyChanging(nameof({propertyName}), {string.Join(", ", alsoNotifyFor.Select(p => $"nameof({p})"))});");
+				}
 				sb.AppendLine($"{fieldName} = value;");
 				if (propertyChanged)
-					sb.AppendLine($"RaisePropertyChanged(nameof({propertyName}));");
+				{
+					if (alsoNotifyFor.Count == 0)
+						sb.AppendLine($"RaisePropertyChanged(nameof({propertyName}));");
+					else
+						sb.AppendLine($"RaisePropertyChanged(nameof({propertyName}), {string.Join(", ", alsoNotifyFor.Select(p => $"nameof({p})"))});");
+				}
 				if (hasChanged)
 					sb.AppendLine("HasChanged = true;");
 				sb.CloseBrace();
@@ -230,6 +243,21 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 			sb.Indent();
 			sb.AppendLine("=> PropertyChanging?.Invoke(this, new PropertyChangingEventArgs(propertyName));");
 			sb.Outdent();
+			sb.AppendLine();
+			sb.AppendLine("/// <summary>");
+			sb.AppendLine("/// Raises the <see cref=\"PropertyChanging\"/> event to notify subscribers that a property");
+			sb.AppendLine("/// is about to change.");
+			sb.AppendLine("/// </summary>");
+			sb.AppendLine("/// <param name=\"propertyNames\">The names of the properties that are changing.</param>");
+			sb.AppendLine($"{methodModifier} void RaisePropertyChanging(params string[] propertyNames)");
+			sb.AppendLine("{");
+			sb.Indent();
+			sb.AppendLine("foreach(string propertyName in propertyNames)");
+			sb.Indent();
+			sb.AppendLine("RaisePropertyChanging(propertyName);");
+			sb.Outdent();
+			sb.Outdent();
+			sb.AppendLine("}");
 		}
 
 		if (propertyChanged)
@@ -244,6 +272,21 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 			sb.Indent();
 			sb.AppendLine("=> PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));");
 			sb.Outdent();
+			sb.AppendLine();
+			sb.AppendLine("/// <summary>");
+			sb.AppendLine("/// Raises the <see cref=\"PropertyChanged\"/> event to notify subscribers that a property");
+			sb.AppendLine("/// has changed.");
+			sb.AppendLine("/// </summary>");
+			sb.AppendLine("/// <param name=\"propertyNames\">The names of the properties that have changed.</param>");
+			sb.AppendLine($"{methodModifier} void RaisePropertyChanged(params string[] propertyNames)");
+			sb.AppendLine("{");
+			sb.Indent();
+			sb.AppendLine("foreach(string propertyName in propertyNames)");
+			sb.Indent();
+			sb.AppendLine("RaisePropertyChanged(propertyName);");
+			sb.Outdent();
+			sb.Outdent();
+			sb.AppendLine("}");
 		}
 	}
 
@@ -265,5 +308,57 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 		if (fieldName.StartsWith("_", StringComparison.OrdinalIgnoreCase))
 			fieldName = fieldName[1..];
 		return $"{char.ToUpperInvariant(fieldName[0])}{fieldName[1..]}";
+	}
+
+	private static bool HasAttribute(FieldDeclarationSyntax field, string attributeName)
+	{
+		string shortName = GeneratorHelpers.StripAttributeSuffix(attributeName);
+
+		foreach (AttributeListSyntax attributeList in field.AttributeLists)
+		{
+			foreach (AttributeSyntax attribute in attributeList.Attributes)
+			{
+				string name = attribute.Name.ToString();
+				if (name == attributeName || name == shortName)
+					return true;
+			}
+		}
+
+		return false;
+	}
+
+	private static List<string> GetAlsoNotifyForProperties(FieldDeclarationSyntax field)
+	{
+		List<string> properties = [];
+		string fullName = nameof(AlsoNotifyAttribute);
+		string shortName = GeneratorHelpers.StripAttributeSuffix(fullName);
+
+		foreach (AttributeListSyntax attributeList in field.AttributeLists)
+		{
+			foreach (AttributeSyntax attribute in attributeList.Attributes)
+			{
+				string name = attribute.Name.ToString();
+				if (name != fullName && name != shortName)
+					continue;
+
+				if (attribute.ArgumentList is null)
+					continue;
+
+				foreach (AttributeArgumentSyntax argument in attribute.ArgumentList.Arguments)
+				{
+					string argText = argument.Expression.ToString();
+
+					if (argText.StartsWith("nameof(", StringComparison.Ordinal))
+						argText = argText[7..^1];
+					else if (argText.StartsWith("\"", StringComparison.Ordinal))
+						argText = argText.Trim('"');
+
+					if (!string.IsNullOrWhiteSpace(argText))
+						properties.Add(argText);
+				}
+			}
+		}
+
+		return properties;
 	}
 }

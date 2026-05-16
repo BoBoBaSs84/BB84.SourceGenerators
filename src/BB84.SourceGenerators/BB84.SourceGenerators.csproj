@@ -31,7 +31,9 @@
 		<None Remove="bin\Debug\netstandard2.0\\BB84.SourceGenerators.dll" />
 	</ItemGroup>
 	<ItemGroup>
+		<EmbeddedResource Include="Attributes\AlsoNotifyAttribute.cs" LogicalName="AlsoNotifyAttribute.cs" />
 		<EmbeddedResource Include="Attributes\DisposeResourceAttribute.cs" LogicalName="DisposeResourceAttribute.cs" />
+		<EmbeddedResource Include="Attributes\ExcludeFromNotificationAttribute.cs" LogicalName="ExcludeFromNotificationAttribute.cs" />
 		<EmbeddedResource Include="Attributes\GenerateAbstractionAttribute.cs" LogicalName="GenerateAbstractionAttribute.cs" />
 		<EmbeddedResource Include="Attributes\GenerateAssemblyInformationAttribute.cs" LogicalName="GenerateAssemblyInformationAttribute.cs" />
 		<EmbeddedResource Include="Attributes\GenerateAutoMapperAttribute.cs" LogicalName="GenerateAutoMapperAttribute.cs" />
