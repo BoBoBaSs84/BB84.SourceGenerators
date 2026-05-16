@@ -128,10 +128,12 @@ IEnumerable<Status> values = status.GetValuesFast();
 
 Automatically generates properties with `INotifyPropertyChanged` and/or `INotifyPropertyChanging` support for private fields in a class. Both interfaces are independently configurable.
 
-#### Attribute
+#### Attributes
 
 ```csharp
 [GenerateNotifications(bool propertyChanged = true, bool propertyChanging = true, bool hasChanged = false)]
+[AlsoNotify(params string[] propertyNames)]
+[ExcludeFromNotification]
 ```
 
 **Parameters:**
@@ -139,6 +141,11 @@ Automatically generates properties with `INotifyPropertyChanged` and/or `INotify
 - `propertyChanged` - When `true` (default), implements `INotifyPropertyChanged` and generates `PropertyChanged` event and `RaisePropertyChanged()` method
 - `propertyChanging` - When `true` (default), implements `INotifyPropertyChanging` and generates `PropertyChanging` event and `RaisePropertyChanging()` method
 - `hasChanged` - When `true`, generates an additional `HasChanged` boolean property that is set to `true` when any property changes
+
+**Field-Level Attributes:**
+
+- `[AlsoNotify(...)]` - Specifies additional property names that should raise change notifications when the decorated field changes. Works for both `PropertyChanged` and `PropertyChanging` events.
+- `[ExcludeFromNotification]` - Excludes the decorated field from notification property generation. The field will not have a corresponding public property generated.
 
 #### Example
 
@@ -149,18 +156,30 @@ using BB84.SourceGenerators.Attributes;
 public partial class Person
 {
     private int _id;
-    private string _name;
-    private string _email;
+
+    [AlsoNotify(nameof(FullName))]
+    private string _firstName;
+
+    [AlsoNotify(nameof(FullName))]
+    private string _lastName;
+
+    private string _fullName;
+
+    [ExcludeFromNotification]
+    private string _internalToken;
+
     private DateTime _createdAt;
     private DateTime? _updatedAt;
 
-    public Person(int id, string name, string email)
+    public Person(int id, string firstName, string lastName)
     {
         _id = id;
-        _name = name;
-        _email = email;
+        _firstName = firstName;
+        _lastName = lastName;
         _createdAt = DateTime.UtcNow;
     }
+
+		public string FullName => $"{_firstName} {_lastName}";
 }
 ```
 
@@ -168,31 +187,39 @@ public partial class Person
 
 The generator creates:
 
-- Public properties for each private field with change notification
+- Public properties for each private field with change notification (unless excluded with `[ExcludeFromNotification]`)
 - Implementation of `INotifyPropertyChanged` and/or `INotifyPropertyChanging` interfaces (configurable)
 - `PropertyChanged` and/or `PropertyChanging` events
 - `RaisePropertyChanged()` and/or `RaisePropertyChanging()` methods (`protected virtual` for non-sealed classes, `private` for sealed classes)
+- Additional change notifications for properties specified via `[AlsoNotify]`
 - Optional `HasChanged` property (when `hasChanged` parameter is `true`)
 - Correct accessibility modifier matching the user's class declaration
 
 #### Usage Example
 
 ```csharp
-var person = new Person(1, "John Doe", "john@example.com");
+var person = new Person(1, "John", "Doe");
 
 // Subscribe to change notifications
 person.PropertyChanging += (s, e) => Console.WriteLine($"Property {e.PropertyName} is changing");
 person.PropertyChanged += (s, e) => Console.WriteLine($"Property {e.PropertyName} has changed");
 
-// Change a property - events will fire automatically
-person.Name = "Jane Doe";
-person.Email = "jane@example.com";
+// Change FirstName - fires notifications for both FirstName and FullName
+person.FirstName = "Jane";
+// Output:
+// Property FirstName is changing
+// Property FullName is changing
+// Property FirstName has changed
+// Property FullName has changed
 
 // Check if object has been modified (when hasChanged: true)
 if (person.HasChanged)
 {
     Console.WriteLine("Person has been modified");
 }
+
+// Fields with [ExcludeFromNotification] have no generated property
+// person.InternalToken  <-- does not exist
 
 // Only INotifyPropertyChanged (no PropertyChanging events)
 [GenerateNotifications(propertyChanging: false)]
@@ -1476,6 +1503,8 @@ The generated enum extension methods provide significant performance improvement
 - Generates optimized property setters with inline equality checks
 - Avoids reflection overhead of PropertyChanged.Fody or similar tools
 - Compile-time code generation means zero runtime overhead
+- Able to generate additional notifications without runtime attribute scanning
+- Also provides fine-grained control over generated properties
 
 ### INI File Serialization
 
