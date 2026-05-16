@@ -63,6 +63,12 @@ public sealed class AttributeSourceGenerator : IIncrementalGenerator
 	private static readonly string GenerateIniFileValueAttributeSource =
 		AttributeSourceRewriter.ReadAndTransform("GenerateIniFileValueAttribute.cs");
 
+	private static readonly string AlsoNotifyAttributeSource =
+		AttributeSourceRewriter.ReadAndTransform("AlsoNotifyAttribute.cs");
+
+	private static readonly string ExcludeFromNotificationAttributeSource =
+		AttributeSourceRewriter.ReadAndTransform("ExcludeFromNotificationAttribute.cs");
+
 	private static readonly string GenerateNotificationsAttributeSource =
 		AttributeSourceRewriter.ReadAndTransform("GenerateNotificationsAttribute.cs");
 
@@ -86,17 +92,20 @@ public sealed class AttributeSourceGenerator : IIncrementalGenerator
 	{
 		context.RegisterPostInitializationOutput(static ctx =>
 		{
+			ctx.AddSource("AlsoNotifyAttribute.g.cs", AlsoNotifyAttributeSource);
+			ctx.AddSource("DisposeResourceAttribute.g.cs", DisposeResourceAttributeSource);
+			ctx.AddSource("ExcludeFromNotificationAttribute.g.cs", ExcludeFromNotificationAttributeSource);
 			ctx.AddSource("GenerateAbstractionAttribute.g.cs", GenerateAbstractionAttributeSource);
 			ctx.AddSource("GenerateAssemblyInformationAttribute.g.cs", GenerateAssemblyInformationAttributeSource);
+			ctx.AddSource("GenerateAutoMapperAttribute.g.cs", GenerateAutoMapperAttributeSource);
 			ctx.AddSource("GenerateBuilderAttribute.g.cs", GenerateBuilderAttributeSource);
 			ctx.AddSource("GenerateCloneableAttribute.g.cs", GenerateCloneableAttributeSource);
 			ctx.AddSource("GenerateDecoratorAttribute.g.cs", GenerateDecoratorAttributeSource);
 			ctx.AddSource("GenerateDisposableAttribute.g.cs", GenerateDisposableAttributeSource);
-			ctx.AddSource("DisposeResourceAttribute.g.cs", DisposeResourceAttributeSource);
+			ctx.AddSource("GenerateEnumeratorExtensionsAttribute.g.cs", GenerateEnumeratorExtensionsAttributeSource);
 			ctx.AddSource("GenerateEqualityAttribute.g.cs", GenerateEqualityAttributeSource);
 			ctx.AddSource("GenerateFactoryAttribute.g.cs", GenerateFactoryAttributeSource);
 			ctx.AddSource("GenerateFactoryKeyAttribute.g.cs", GenerateFactoryKeyAttributeSource);
-			ctx.AddSource("GenerateEnumeratorExtensionsAttribute.g.cs", GenerateEnumeratorExtensionsAttributeSource);
 			ctx.AddSource("GenerateIniFileAttribute.g.cs", GenerateIniFileAttributeSource);
 			ctx.AddSource("GenerateIniFileSectionAttribute.g.cs", GenerateIniFileSectionAttributeSource);
 			ctx.AddSource("GenerateIniFileValueAttribute.g.cs", GenerateIniFileValueAttributeSource);
@@ -104,7 +113,6 @@ public sealed class AttributeSourceGenerator : IIncrementalGenerator
 			ctx.AddSource("GenerateSingletonAttribute.g.cs", GenerateSingletonAttributeSource);
 			ctx.AddSource("GenerateToStringAttribute.g.cs", GenerateToStringAttributeSource);
 			ctx.AddSource("GenerateValidatorAttribute.g.cs", GenerateValidatorAttributeSource);
-			ctx.AddSource("GenerateAutoMapperAttribute.g.cs", GenerateAutoMapperAttributeSource);
 			ctx.AddSource("PropertyMappingAttribute.g.cs", PropertyMappingAttributeSource);
 		});
 	}

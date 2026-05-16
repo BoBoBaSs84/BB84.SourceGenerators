@@ -31,13 +31,15 @@ public sealed class AttributeSourceGeneratorAttributeCoverageTests
 	{
 		string[] expectedAttributeClassNames =
 		[
+			nameof(AlsoNotifyAttribute),
+			nameof(DisposeResourceAttribute),
+			nameof(ExcludeFromNotificationAttribute),
 			nameof(GenerateAbstractionAttribute),
 			nameof(GenerateAssemblyInformationAttribute),
 			nameof(GenerateBuilderAttribute),
 			nameof(GenerateCloneableAttribute),
 			nameof(GenerateDecoratorAttribute),
 			nameof(GenerateDisposableAttribute),
-			nameof(DisposeResourceAttribute),
 			nameof(GenerateEqualityAttribute),
 			nameof(GenerateFactoryAttribute),
 			nameof(GenerateFactoryKeyAttribute),
