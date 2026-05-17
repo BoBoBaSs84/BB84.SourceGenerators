@@ -439,6 +439,215 @@ public sealed class ValidatorGeneratorTests
 
 		Assert.IsEmpty(errors);
 	}
+
+	[TestMethod]
+	public void ValidateShouldDetectEmailAddressViolation()
+	{
+		ValidatorTestModel model = new()
+		{
+			Name = "John",
+			Age = 25,
+			CompanyEmail = "not-an-email"
+		};
+
+		Dictionary<string, List<string>> errors = model.Validate();
+
+		Assert.IsNotEmpty(errors);
+		Assert.IsTrue(errors.ContainsKey("CompanyEmail"));
+	}
+
+	[TestMethod]
+	public void ValidateShouldPassValidEmailAddress()
+	{
+		ValidatorTestModel model = new()
+		{
+			Name = "John",
+			Age = 25,
+			CompanyEmail = "user@example.com"
+		};
+
+		Dictionary<string, List<string>> errors = model.Validate();
+
+		Assert.IsFalse(errors.ContainsKey("CompanyEmail"));
+	}
+
+	[TestMethod]
+	public void ValidateShouldDetectUrlViolation()
+	{
+		ValidatorTestModel model = new()
+		{
+			Name = "John",
+			Age = 25,
+			Website = "not-a-url"
+		};
+
+		Dictionary<string, List<string>> errors = model.Validate();
+
+		Assert.IsNotEmpty(errors);
+		Assert.IsTrue(errors.ContainsKey("Website"));
+	}
+
+	[TestMethod]
+	public void ValidateShouldPassValidUrl()
+	{
+		ValidatorTestModel model = new()
+		{
+			Name = "John",
+			Age = 25,
+			Website = "https://example.com"
+		};
+
+		Dictionary<string, List<string>> errors = model.Validate();
+
+		Assert.IsFalse(errors.ContainsKey("Website"));
+	}
+
+	[TestMethod]
+	public void ValidateShouldDetectPhoneViolation()
+	{
+		ValidatorTestModel model = new()
+		{
+			Name = "John",
+			Age = 25,
+			PhoneNumber = "abc123"
+		};
+
+		Dictionary<string, List<string>> errors = model.Validate();
+
+		Assert.IsNotEmpty(errors);
+		Assert.IsTrue(errors.ContainsKey("PhoneNumber"));
+	}
+
+	[TestMethod]
+	public void ValidateShouldPassValidPhone()
+	{
+		ValidatorTestModel model = new()
+		{
+			Name = "John",
+			Age = 25,
+			PhoneNumber = "+1 (555) 123-4567"
+		};
+
+		Dictionary<string, List<string>> errors = model.Validate();
+
+		Assert.IsFalse(errors.ContainsKey("PhoneNumber"));
+	}
+
+	[TestMethod]
+	public void ValidateShouldDetectCreditCardViolation()
+	{
+		ValidatorTestModel model = new()
+		{
+			Name = "John",
+			Age = 25,
+			CC = "1234567890123456"
+		};
+
+		Dictionary<string, List<string>> errors = model.Validate();
+
+		Assert.IsNotEmpty(errors);
+		Assert.IsTrue(errors.ContainsKey("CC"));
+	}
+
+	[TestMethod]
+	public void ValidateShouldPassValidCreditCard()
+	{
+		ValidatorTestModel model = new()
+		{
+			Name = "John",
+			Age = 25,
+			CC = "4111111111111111" // valid Luhn
+		};
+
+		Dictionary<string, List<string>> errors = model.Validate();
+
+		Assert.IsFalse(errors.ContainsKey("CC"));
+	}
+
+	[TestMethod]
+	public void ValidateShouldDetectCompareViolation()
+	{
+		ValidatorCompareTestModel model = new()
+		{
+			Password = "abc123",
+			ConfirmPassword = "different"
+		};
+
+		Dictionary<string, List<string>> errors = model.Validate();
+
+		Assert.IsNotEmpty(errors);
+		Assert.IsTrue(errors.ContainsKey("ConfirmPassword"));
+	}
+
+	[TestMethod]
+	public void ValidateShouldPassCompareWhenEqual()
+	{
+		ValidatorCompareTestModel model = new()
+		{
+			Password = "abc123",
+			ConfirmPassword = "abc123"
+		};
+
+		Dictionary<string, List<string>> errors = model.Validate();
+
+		Assert.IsEmpty(errors);
+	}
+
+	[TestMethod]
+	public void ValidateShouldDetectCustomValidationAttributeViolation()
+	{
+		ValidatorCustomAttrTestModel model = new()
+		{
+			EvenNumber = 3
+		};
+
+		Dictionary<string, List<string>> errors = model.Validate();
+
+		Assert.IsNotEmpty(errors);
+		Assert.IsTrue(errors.ContainsKey("EvenNumber"));
+	}
+
+	[TestMethod]
+	public void ValidateShouldPassCustomValidationAttribute()
+	{
+		ValidatorCustomAttrTestModel model = new()
+		{
+			EvenNumber = 4
+		};
+
+		Dictionary<string, List<string>> errors = model.Validate();
+
+		Assert.IsEmpty(errors);
+	}
+
+	[TestMethod]
+	public void ValidateShouldIntegrateIValidatableObject()
+	{
+		ValidatorValidatableObjectTestModel model = new()
+		{
+			Start = new DateTime(2025, 6, 1),
+			End = new DateTime(2025, 1, 1) // End before Start
+		};
+
+		Dictionary<string, List<string>> errors = model.Validate();
+
+		Assert.IsNotEmpty(errors);
+		Assert.IsTrue(errors.ContainsKey("End"));
+	}
+
+	[TestMethod]
+	public void ValidateShouldPassIValidatableObjectWhenValid()
+	{
+		ValidatorValidatableObjectTestModel model = new()
+		{
+			Start = new DateTime(2025, 1, 1),
+			End = new DateTime(2025, 6, 1)
+		};
+
+		Dictionary<string, List<string>> errors = model.Validate();
+
+		Assert.IsEmpty(errors);
+	}
 }
 
 [GenerateValidator]
@@ -449,6 +658,18 @@ public partial class ValidatorTestModel
 
 	[RegularExpression(@"^[^@\s]+@[^@\s]+\.[^@\s]+$")]
 	public string? Email { get; set; }
+
+	[EmailAddress]
+	public string? CompanyEmail { get; set; }
+
+	[Url]
+	public string? Website { get; set; }
+
+	[Phone]
+	public string? PhoneNumber { get; set; }
+
+	[CreditCard]
+	public string? CC { get; set; }
 
 	[Range(1, 150)]
 	public int Age { get; set; }
@@ -496,5 +717,40 @@ public partial class ValidatorOuterTestModel
 	{
 		[Range(1, int.MaxValue)]
 		public int Id { get; set; }
+	}
+}
+
+[GenerateValidator]
+public partial class ValidatorCompareTestModel
+{
+	public string? Password { get; set; }
+
+	[Compare(nameof(Password))]
+	public string? ConfirmPassword { get; set; }
+}
+
+public sealed class EvenNumberAttribute : ValidationAttribute
+{
+	public override bool IsValid(object? value)
+		=> value is int number && number % 2 == 0;
+}
+
+[GenerateValidator]
+public partial class ValidatorCustomAttrTestModel
+{
+	[EvenNumber(ErrorMessage = "The EvenNumber field must be an even number.")]
+	public int EvenNumber { get; set; }
+}
+
+[GenerateValidator]
+public partial class ValidatorValidatableObjectTestModel : IValidatableObject
+{
+	public DateTime Start { get; set; }
+	public DateTime End { get; set; }
+
+	public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+	{
+		if (End <= Start)
+			yield return new ValidationResult("End must be after Start.", [nameof(End)]);
 	}
 }

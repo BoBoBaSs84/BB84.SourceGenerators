@@ -16,4 +16,11 @@ internal static class DataAnnotationNames
 	internal const string MinLength = "System.ComponentModel.DataAnnotations.MinLengthAttribute";
 	internal const string MaxLength = "System.ComponentModel.DataAnnotations.MaxLengthAttribute";
 	internal const string RegularExpression = "System.ComponentModel.DataAnnotations.RegularExpressionAttribute";
+	internal const string EmailAddress = "System.ComponentModel.DataAnnotations.EmailAddressAttribute";
+	internal const string Url = "System.ComponentModel.DataAnnotations.UrlAttribute";
+	internal const string Phone = "System.ComponentModel.DataAnnotations.PhoneAttribute";
+	internal const string CreditCard = "System.ComponentModel.DataAnnotations.CreditCardAttribute";
+	internal const string Compare = "System.ComponentModel.DataAnnotations.CompareAttribute";
+	internal const string ValidationAttribute = "System.ComponentModel.DataAnnotations.ValidationAttribute";
+	internal const string IValidatableObject = "System.ComponentModel.DataAnnotations.IValidatableObject";
 }
