@@ -739,6 +739,16 @@ Generates a `Validate()` method for classes, scanning properties for data annota
 - `[MinLength(length)]` - Validates minimum length of a string or collection
 - `[MaxLength(length)]` - Validates maximum length of a string or collection
 - `[RegularExpression(pattern)]` - Validates that a string matches a regex pattern
+- `[EmailAddress]` - Validates that a string is a valid email address format
+- `[Url]` - Validates that a string is a valid fully-qualified HTTP, HTTPS, or FTP URL
+- `[Phone]` - Validates that a string is a valid phone number format
+- `[CreditCard]` - Validates that a string passes the Luhn algorithm (credit card check)
+- `[Compare("OtherProperty")]` - Validates that the property value matches another property's value
+- **Custom `ValidationAttribute` subclasses** - Any attribute inheriting from `ValidationAttribute` is automatically detected and validated via `IsValid()` delegation
+
+**IValidatableObject Integration:**
+
+When a class implements `IValidatableObject`, the generated `Validate()` method automatically calls `IValidatableObject.Validate(ValidationContext)` and merges the results into the error dictionary.
 
 **Constraints:**
 
@@ -839,6 +849,62 @@ public partial class LoginModel
     [Required(ErrorMessage = "Password cannot be empty.")]
     [MinLength(6, ErrorMessage = "Password must be at least 6 characters.")]
     public string? Password { get; set; }
+}
+
+// Cross-property validation with [Compare]
+[GenerateValidator]
+public partial class RegistrationModel
+{
+    [Required]
+    [EmailAddress]
+    public string? Email { get; set; }
+
+    [Required]
+    [MinLength(8)]
+    public string? Password { get; set; }
+
+    [Compare(nameof(Password), ErrorMessage = "Passwords do not match.")]
+    public string? ConfirmPassword { get; set; }
+
+    [Url]
+    public string? Website { get; set; }
+
+    [Phone]
+    public string? PhoneNumber { get; set; }
+
+    [CreditCard]
+    public string? PaymentCard { get; set; }
+}
+
+// Custom ValidationAttribute subclasses
+public sealed class EvenNumberAttribute : ValidationAttribute
+{
+    public override bool IsValid(object? value)
+        => value is int n && n % 2 == 0;
+}
+
+[GenerateValidator]
+public partial class CustomAttrModel
+{
+    [EvenNumber(ErrorMessage = "Must be even.")]
+    public int Value { get; set; }
+}
+
+// IValidatableObject integration
+[GenerateValidator]
+public partial class DateRangeModel : IValidatableObject
+{
+    [Required]
+    public DateTime Start { get; set; }
+
+    [Required]
+    public DateTime End { get; set; }
+
+    public IEnumerable<ValidationResult> Validate(ValidationContext context)
+    {
+        if (End <= Start)
+            yield return new ValidationResult("End must be after Start.", new[] { nameof(End) });
+    }
 }
 ```
 
@@ -1588,6 +1654,9 @@ The generated enum extension methods provide significant performance improvement
 - Replaces `Validator.TryValidateObject()` which uses `TypeDescriptor` and reflection at runtime
 - Provides compile-time discovery of validation attributes - no runtime attribute scanning
 - Supports custom error messages for localization and user-friendly feedback
+- Supports `[EmailAddress]`, `[Url]`, `[Phone]`, `[CreditCard]`, and `[Compare]` attributes
+- Automatically detects custom `ValidationAttribute` subclasses and delegates to `IsValid()`
+- Integrates with `IValidatableObject` for complex cross-property validation logic
 
 ### Equality
 
