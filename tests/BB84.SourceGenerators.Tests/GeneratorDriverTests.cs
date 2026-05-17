@@ -266,8 +266,36 @@ namespace TestNamespace
   [GenerateValidator]
   public partial class ValModel
   {
-    [Required]
-    public string Name { get; set; }
+  	[Required]
+  	public string? Name { get; set; }
+  
+  	[RegularExpression(@""^[^@\s]+@[^@\s]+\.[^@\s]+$"")]
+  	public string? Email { get; set; }
+  
+  	[EmailAddress]
+  	public string? CompanyEmail { get; set; }
+  
+  	[Url]
+  	public string? Website { get; set; }
+  
+  	[Phone]
+  	public string? PhoneNumber { get; set; }
+  
+  	[CreditCard]
+  	public string? CC { get; set; }
+  
+  	[Range(1, 150)]
+  	public int Age { get; set; }
+  
+  	[StringLength(500, MinimumLength = 3)]
+  	public string? Bio { get; set; }
+  
+  	[MinLength(5)]
+  	[MaxLength(50)]
+  	public string? Password { get; set; }
+  
+  	[Compare(nameof(Password))]
+  	public string? ConfirmPassword { get; set; }
   }
 }";
 

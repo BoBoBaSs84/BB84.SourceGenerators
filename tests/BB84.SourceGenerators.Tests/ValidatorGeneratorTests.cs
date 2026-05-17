@@ -21,7 +21,8 @@ public sealed class ValidatorGeneratorTests
 			Email = "john@example.com",
 			Age = 25,
 			Bio = "Hello",
-			Password = "abcdef"
+			Password = "abcdef",
+			ConfirmPassword = "abcdef"
 		};
 
 		Dictionary<string, List<string>> errors = model.Validate();
@@ -680,6 +681,9 @@ public partial class ValidatorTestModel
 	[MinLength(5)]
 	[MaxLength(50)]
 	public string? Password { get; set; }
+
+	[Compare(nameof(Password))]
+	public string? ConfirmPassword { get; set; }
 }
 
 [GenerateValidator]

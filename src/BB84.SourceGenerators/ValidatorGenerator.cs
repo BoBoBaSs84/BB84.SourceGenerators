@@ -73,6 +73,21 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 	{
 		sb.OpenClass(accessibility, className);
 
+		// Collect all unique regex patterns and emit static readonly Regex fields
+		Dictionary<string, RegexFieldInfo> regexFields = CollectRegexPatterns(validatedProperties);
+
+		foreach (KeyValuePair<string, RegexFieldInfo> entry in regexFields)
+		{
+			RegexFieldInfo info = entry.Value;
+			if (info.Options is not null)
+				sb.AppendLine($"private static readonly Regex {info.FieldName} = new Regex(@\"{GeneratorHelpers.EscapeVerbatimString(entry.Key)}\", RegexOptions.Compiled | {info.Options});");
+			else
+				sb.AppendLine($"private static readonly Regex {info.FieldName} = new Regex(@\"{GeneratorHelpers.EscapeVerbatimString(entry.Key)}\", RegexOptions.Compiled);");
+		}
+
+		if (regexFields.Count > 0)
+			sb.AppendLine();
+
 		// Generate Validate() returning Dictionary<string, List<string>>
 		sb.AppendLine("/// <summary>");
 		sb.AppendLine("/// Validates the current instance and returns a dictionary of validation errors grouped by property name.");
@@ -86,7 +101,7 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 		{
 			foreach (ValidationRule rule in property.Rules)
 			{
-				AppendValidationRule(sb, property.Name, property.TypeName, property.IsCollection, property.IsArray, rule);
+				AppendValidationRule(sb, property.Name, property.TypeName, property.IsCollection, property.IsArray, rule, regexFields);
 			}
 		}
 
@@ -135,7 +150,7 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 		sb.CloseClass();
 	}
 
-	private static void AppendValidationRule(SourceBuilder sb, string propertyName, string typeName, bool isCollection, bool isArray, ValidationRule rule)
+	private static void AppendValidationRule(SourceBuilder sb, string propertyName, string typeName, bool isCollection, bool isArray, ValidationRule rule, Dictionary<string, RegexFieldInfo> regexFields)
 	{
 		sb.AppendLine();
 
@@ -157,16 +172,16 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 				AppendMaxLengthValidation(sb, propertyName, rule);
 				break;
 			case ValidationKind.RegularExpression:
-				AppendRegularExpressionValidation(sb, propertyName, rule);
+				AppendRegularExpressionValidation(sb, propertyName, rule, regexFields);
 				break;
 			case ValidationKind.EmailAddress:
-				AppendEmailAddressValidation(sb, propertyName, rule);
+				AppendEmailAddressValidation(sb, propertyName, rule, regexFields);
 				break;
 			case ValidationKind.Url:
-				AppendUrlValidation(sb, propertyName, rule);
+				AppendUrlValidation(sb, propertyName, rule, regexFields);
 				break;
 			case ValidationKind.Phone:
-				AppendPhoneValidation(sb, propertyName, rule);
+				AppendPhoneValidation(sb, propertyName, rule, regexFields);
 				break;
 			case ValidationKind.CreditCard:
 				AppendCreditCardValidation(sb, propertyName, rule);
@@ -245,35 +260,39 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 		AppendAddError(sb, propertyName, message);
 	}
 
-	private static void AppendRegularExpressionValidation(SourceBuilder sb, string propertyName, ValidationRule rule)
+	private static void AppendRegularExpressionValidation(SourceBuilder sb, string propertyName, ValidationRule rule, Dictionary<string, RegexFieldInfo> regexFields)
 	{
 		string message = rule.ErrorMessage ?? $"The field {propertyName} must match the regular expression '{GeneratorHelpers.EscapeString(rule.Pattern!)}'.";
+		string fieldName = regexFields[rule.Pattern!].FieldName;
 
-		sb.AppendLine($"if ({propertyName} != null && !Regex.IsMatch({propertyName}, @\"{GeneratorHelpers.EscapeVerbatimString(rule.Pattern!)}\"))");
+		sb.AppendLine($"if ({propertyName} != null && !{fieldName}.IsMatch({propertyName}))");
 		AppendAddError(sb, propertyName, message);
 	}
 
-	private static void AppendEmailAddressValidation(SourceBuilder sb, string propertyName, ValidationRule rule)
+	private static void AppendEmailAddressValidation(SourceBuilder sb, string propertyName, ValidationRule rule, Dictionary<string, RegexFieldInfo> regexFields)
 	{
 		string message = rule.ErrorMessage ?? $"The {propertyName} field is not a valid e-mail address.";
+		string fieldName = regexFields[EmailPattern].FieldName;
 
-		sb.AppendLine($"if ({propertyName} != null && !Regex.IsMatch({propertyName}, @\"^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$\"))");
+		sb.AppendLine($"if ({propertyName} != null && !{fieldName}.IsMatch({propertyName}))");
 		AppendAddError(sb, propertyName, message);
 	}
 
-	private static void AppendUrlValidation(SourceBuilder sb, string propertyName, ValidationRule rule)
+	private static void AppendUrlValidation(SourceBuilder sb, string propertyName, ValidationRule rule, Dictionary<string, RegexFieldInfo> regexFields)
 	{
 		string message = rule.ErrorMessage ?? $"The {propertyName} field is not a valid fully-qualified http, https, or ftp URL.";
+		string fieldName = regexFields[UrlPattern].FieldName;
 
-		sb.AppendLine($"if ({propertyName} != null && !Regex.IsMatch({propertyName}, @\"^https?://|^ftp://\", RegexOptions.IgnoreCase))");
+		sb.AppendLine($"if ({propertyName} != null && !{fieldName}.IsMatch({propertyName}))");
 		AppendAddError(sb, propertyName, message);
 	}
 
-	private static void AppendPhoneValidation(SourceBuilder sb, string propertyName, ValidationRule rule)
+	private static void AppendPhoneValidation(SourceBuilder sb, string propertyName, ValidationRule rule, Dictionary<string, RegexFieldInfo> regexFields)
 	{
 		string message = rule.ErrorMessage ?? $"The {propertyName} field is not a valid phone number.";
+		string fieldName = regexFields[PhonePattern].FieldName;
 
-		sb.AppendLine($"if ({propertyName} != null && !Regex.IsMatch({propertyName}, @\"^[\\+]?[\\d\\s\\-\\(\\)\\.]+$\"))");
+		sb.AppendLine($"if ({propertyName} != null && !{fieldName}.IsMatch({propertyName}))");
 		AppendAddError(sb, propertyName, message);
 	}
 
@@ -610,4 +629,50 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 		public bool IsArray { get; } = isArray;
 		public ImmutableArray<ValidationRule> Rules { get; } = rules;
 	}
+
+	private const string EmailPattern = @"^[^@\s]+@[^@\s]+\.[^@\s]+$";
+	private const string UrlPattern = @"^https?://|^ftp://";
+	private const string PhonePattern = @"^[\+]?[\d\s\-\(\)\.]+$";
+
+	private static Dictionary<string, RegexFieldInfo> CollectRegexPatterns(ImmutableArray<PropertyValidationInfo> validatedProperties)
+	{
+		Dictionary<string, RegexFieldInfo> patterns = [];
+		int counter = 0;
+
+		foreach (PropertyValidationInfo property in validatedProperties)
+		{
+			foreach (ValidationRule rule in property.Rules)
+			{
+				string? pattern = null;
+				string? options = null;
+
+				switch (rule.Kind)
+				{
+					case ValidationKind.RegularExpression:
+						pattern = rule.Pattern;
+						break;
+					case ValidationKind.EmailAddress:
+						pattern = EmailPattern;
+						break;
+					case ValidationKind.Url:
+						pattern = UrlPattern;
+						options = "RegexOptions.IgnoreCase";
+						break;
+					case ValidationKind.Phone:
+						pattern = PhonePattern;
+						break;
+				}
+
+				if (pattern is not null && !patterns.ContainsKey(pattern))
+				{
+					patterns[pattern] = new RegexFieldInfo($"s_regex{counter}", options);
+					counter++;
+				}
+			}
+		}
+
+		return patterns;
+	}
+
+	private sealed record RegexFieldInfo(string FieldName, string? Options);
 }
