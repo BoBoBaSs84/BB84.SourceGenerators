@@ -748,6 +748,216 @@ public sealed class IniFileGeneratorTests
 
 		Assert.IsNull(target.Section);
 	}
+
+	[TestMethod]
+	public void ReadShouldHandleGuidValues()
+	{
+		string content = "[Extended]\r\nId=d3b07384-d9a0-4e9b-8c12-f7a8b2c1d3e5\r\n";
+
+		TestIniFileExtendedTypes result = TestIniFileExtendedTypes.Read(content);
+
+		Assert.IsNotNull(result.Extended);
+		Assert.AreEqual(Guid.Parse("d3b07384-d9a0-4e9b-8c12-f7a8b2c1d3e5"), result.Extended.Id);
+	}
+
+	[TestMethod]
+	public void ReadShouldHandleTimeSpanValues()
+	{
+		string content = "[Extended]\r\nDuration=01:30:00\r\n";
+
+		TestIniFileExtendedTypes result = TestIniFileExtendedTypes.Read(content);
+
+		Assert.IsNotNull(result.Extended);
+		Assert.AreEqual(TimeSpan.Parse("01:30:00", CultureInfo.InvariantCulture), result.Extended.Duration);
+	}
+
+	[TestMethod]
+	public void ReadShouldHandleDateTimeOffsetValues()
+	{
+		string content = "[Extended]\r\nTimestamp=01/15/2025 10:30:00 +02:00\r\n";
+
+		TestIniFileExtendedTypes result = TestIniFileExtendedTypes.Read(content);
+
+		Assert.IsNotNull(result.Extended);
+		Assert.AreEqual(DateTimeOffset.Parse("01/15/2025 10:30:00 +02:00", CultureInfo.InvariantCulture), result.Extended.Timestamp);
+	}
+
+	[TestMethod]
+	public void WriteShouldHandleGuidValues()
+	{
+		Guid id = Guid.Parse("d3b07384-d9a0-4e9b-8c12-f7a8b2c1d3e5");
+		TestIniFileExtendedTypes instance = new()
+		{
+			Extended = new TestExtendedTypesSection { Id = id }
+		};
+
+		string result = TestIniFileExtendedTypes.Write(instance);
+
+		Assert.Contains("Id=d3b07384-d9a0-4e9b-8c12-f7a8b2c1d3e5", result);
+	}
+
+	[TestMethod]
+	public void WriteShouldHandleTimeSpanValues()
+	{
+		TestIniFileExtendedTypes instance = new()
+		{
+			Extended = new TestExtendedTypesSection { Duration = TimeSpan.FromHours(1.5) }
+		};
+
+		string result = TestIniFileExtendedTypes.Write(instance);
+
+		Assert.Contains("Duration=01:30:00", result);
+	}
+
+	[TestMethod]
+	public void WriteShouldHandleDateTimeOffsetValues()
+	{
+		DateTimeOffset ts = DateTimeOffset.Parse("01/15/2025 10:30:00 +02:00", CultureInfo.InvariantCulture);
+		TestIniFileExtendedTypes instance = new()
+		{
+			Extended = new TestExtendedTypesSection { Timestamp = ts }
+		};
+
+		string result = TestIniFileExtendedTypes.Write(instance);
+
+		Assert.Contains("Timestamp=" + ts.ToString(CultureInfo.InvariantCulture), result);
+	}
+
+	[TestMethod]
+	public void ReadShouldHandleCommaSeparatedListValues()
+	{
+		string content = "[Collections]\r\nTags=one,two,three\r\nScores=10,20,30\r\n";
+
+		TestIniFileCollections result = TestIniFileCollections.Read(content);
+
+		Assert.IsNotNull(result.Collections);
+		CollectionAssert.AreEqual(new List<string> { "one", "two", "three" }, result.Collections.Tags);
+		CollectionAssert.AreEqual(new List<int> { 10, 20, 30 }, result.Collections.Scores);
+	}
+
+	[TestMethod]
+	public void WriteShouldHandleCommaSeparatedListValues()
+	{
+		TestIniFileCollections instance = new()
+		{
+			Collections = new TestCollectionsSection
+			{
+				Tags = ["alpha", "beta"],
+				Scores = [1, 2, 3]
+			}
+		};
+
+		string result = TestIniFileCollections.Write(instance);
+
+		Assert.Contains("Tags=alpha,beta", result);
+		Assert.Contains("Scores=1,2,3", result);
+	}
+
+	[TestMethod]
+	public void ReadShouldHandleArrayValues()
+	{
+		string content = "[Arrays]\r\nValues=1.1,2.2,3.3\r\n";
+
+		TestIniFileArrays result = TestIniFileArrays.Read(content);
+
+		Assert.IsNotNull(result.Arrays);
+		CollectionAssert.AreEqual(new double[] { 1.1, 2.2, 3.3 }, result.Arrays.Values);
+	}
+
+	[TestMethod]
+	public void WriteShouldHandleArrayValues()
+	{
+		TestIniFileArrays instance = new()
+		{
+			Arrays = new TestArraysSection { Values = [4.4, 5.5] }
+		};
+
+		string result = TestIniFileArrays.Write(instance);
+
+		Assert.Contains("Values=4.4,5.5", result);
+	}
+
+	[TestMethod]
+	public void TryReadShouldReturnTrueOnValidContent()
+	{
+		string content = "[General]\r\nAppName=TestApp\r\nVersion=1\r\nEnabled=True\r\n";
+
+		bool success = TestIniFile.TryRead(content, out TestIniFile? result);
+
+		Assert.IsTrue(success);
+		Assert.IsNotNull(result);
+		Assert.AreEqual("TestApp", result.General!.AppName);
+	}
+
+	[TestMethod]
+	public void TryReadShouldReturnFalseOnInvalidContent()
+	{
+		string content = "[General]\r\nVersion=not_a_number\r\n";
+
+		bool success = TestIniFile.TryRead(content, out TestIniFile? result);
+
+		Assert.IsFalse(success);
+		Assert.IsNull(result);
+	}
+
+	[TestMethod]
+	public async Task ReadAsyncShouldDeserializeFromTextReader()
+	{
+		string content = "[General]\r\nAppName=AsyncApp\r\nVersion=7\r\nEnabled=True\r\n";
+		using StringReader reader = new(content);
+
+		TestIniFile result = await TestIniFile.ReadAsync(reader);
+
+		Assert.IsNotNull(result.General);
+		Assert.AreEqual("AsyncApp", result.General.AppName);
+		Assert.AreEqual(7, result.General.Version);
+	}
+
+	[TestMethod]
+	public async Task ReadAsyncShouldDeserializeFromStream()
+	{
+		string content = "[General]\r\nAppName=StreamApp\r\nVersion=3\r\nEnabled=False\r\n";
+		using MemoryStream stream = new(System.Text.Encoding.UTF8.GetBytes(content));
+
+		TestIniFile result = await TestIniFile.ReadAsync(stream);
+
+		Assert.IsNotNull(result.General);
+		Assert.AreEqual("StreamApp", result.General.AppName);
+		Assert.AreEqual(3, result.General.Version);
+	}
+
+	[TestMethod]
+	public async Task WriteAsyncShouldSerializeToTextWriter()
+	{
+		TestIniFile instance = new()
+		{
+			General = new TestGeneralSection { AppName = "WriterApp", Version = 5, Enabled = true }
+		};
+		using StringWriter writer = new();
+
+		await TestIniFile.WriteAsync(instance, writer);
+		string result = writer.ToString();
+
+		Assert.Contains("[General]", result);
+		Assert.Contains("AppName=WriterApp", result);
+	}
+
+	[TestMethod]
+	public async Task WriteAsyncShouldSerializeToStream()
+	{
+		TestIniFile instance = new()
+		{
+			General = new TestGeneralSection { AppName = "StreamWrite", Version = 9, Enabled = false }
+		};
+		using MemoryStream stream = new();
+
+		await TestIniFile.WriteAsync(instance, stream);
+		stream.Position = 0;
+		string result = new StreamReader(stream).ReadToEnd();
+
+		Assert.Contains("[General]", result);
+		Assert.Contains("AppName=StreamWrite", result);
+	}
 }
 
 #region Test Types
@@ -944,6 +1154,54 @@ public class TestCommentedGeneralSection
 	/// </summary>
 	[GenerateIniFileValue]
 	public int Version { get; set; }
+}
+
+[GenerateIniFile]
+internal sealed partial class TestIniFileExtendedTypes
+{
+	[GenerateIniFileSection]
+	public TestExtendedTypesSection? Extended { get; set; }
+}
+
+public class TestExtendedTypesSection
+{
+	[GenerateIniFileValue]
+	public Guid Id { get; set; }
+
+	[GenerateIniFileValue]
+	public TimeSpan Duration { get; set; }
+
+	[GenerateIniFileValue]
+	public DateTimeOffset Timestamp { get; set; }
+}
+
+[GenerateIniFile]
+internal sealed partial class TestIniFileCollections
+{
+	[GenerateIniFileSection]
+	public TestCollectionsSection? Collections { get; set; }
+}
+
+public class TestCollectionsSection
+{
+	[GenerateIniFileValue]
+	public List<string>? Tags { get; set; }
+
+	[GenerateIniFileValue]
+	public List<int>? Scores { get; set; }
+}
+
+[GenerateIniFile]
+internal sealed partial class TestIniFileArrays
+{
+	[GenerateIniFileSection]
+	public TestArraysSection? Arrays { get; set; }
+}
+
+public class TestArraysSection
+{
+	[GenerateIniFileValue]
+	public double[]? Values { get; set; }
 }
 
 #endregion
