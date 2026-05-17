@@ -317,7 +317,10 @@ Generates static `Read` and `Write` methods and an instance `Load` method for cl
 - `GenerateIniFileValue` - Marks a property as a key-value pair within an INI section. The optional `name` parameter specifies the key name; if omitted, the property name is used
 
 **Supported Value Types:**
-`string`, `int`, `long`, `float`, `double`, `bool`, `decimal`, `DateTime`
+`string`, `int`, `long`, `float`, `double`, `bool`, `decimal`, `DateTime`, `Guid`, `TimeSpan`, `DateTimeOffset`
+
+**Collection Support:**
+`List<T>` and `T[]` are supported for any of the above value types. Values are serialized and deserialized as comma-separated strings.
 
 #### Example
 
@@ -364,7 +367,12 @@ public class DatabaseSection
 The generator creates the following methods on the decorated class:
 
 - `Read(string content)` - Static method that parses an INI file string and returns a deserialized instance
+- `TryRead(string content, out T? result)` - Static method that attempts to parse an INI file string, returning `true` on success or `false` on failure without throwing exceptions
 - `Write(TClass instance)` - Static method that serializes an instance into an INI file string
+- `ReadAsync(TextReader reader)` - Static async method that reads and deserializes INI content from a `TextReader`
+- `ReadAsync(Stream stream)` - Static async method that reads and deserializes INI content from a `Stream`
+- `WriteAsync(TClass instance, TextWriter writer)` - Static async method that serializes an instance and writes it to a `TextWriter`
+- `WriteAsync(TClass instance, Stream stream)` - Static async method that serializes an instance and writes it to a `Stream`
 - `Load(TClass other)` - Instance method that copies all section/value properties from another instance into this instance (null-safe per section)
 
 #### Usage Example
@@ -388,6 +396,24 @@ File.WriteAllText("config.ini", output);
 string fileContent = File.ReadAllText("updated.ini");
 AppConfig newConfig = AppConfig.Read(fileContent);
 config.Load(newConfig); // copies all section values from newConfig into config
+
+// Safe parsing with TryRead (no exceptions)
+if (AppConfig.TryRead(iniContent, out AppConfig? parsed))
+{
+    Console.WriteLine(parsed.General.ApplicationName);
+}
+else
+{
+    Console.WriteLine("Failed to parse INI content");
+}
+
+// Async reading from a stream
+using FileStream fs = File.OpenRead("config.ini");
+AppConfig asyncConfig = await AppConfig.ReadAsync(fs);
+
+// Async writing to a stream
+using FileStream outFs = File.Create("output.ini");
+await AppConfig.WriteAsync(asyncConfig, outFs);
 ```
 
 **Output:**
@@ -531,6 +557,33 @@ This produces:
 [App]
 Level=Warning
 Perms=Read Write Execute
+```
+
+**Collection Support:**
+
+`List<T>` and `T[]` properties are serialized as comma-separated values:
+
+```csharp
+public class SettingsSection
+{
+    [GenerateIniFileValue]
+    public List<string>? Tags { get; set; }
+
+    [GenerateIniFileValue]
+    public int[]? Ports { get; set; }
+
+    [GenerateIniFileValue]
+    public List<Guid>? Identifiers { get; set; }
+}
+```
+
+This produces:
+
+```ini
+[Settings]
+Tags=web,api,backend
+Ports=8080,8443,9090
+Identifiers=d3b07384-d9a0-4e9b-8c12-f7a8b2c1d3e5,a1b2c3d4-e5f6-7890-abcd-ef1234567890
 ```
 
 ### 5. Builder Generator
@@ -1511,6 +1564,9 @@ The generated enum extension methods provide significant performance improvement
 - Generates direct string parsing and formatting code at compile time
 - Avoids runtime reflection or third-party INI parsing libraries
 - Uses `CultureInfo.InvariantCulture` for consistent cross-platform formatting
+- Supports `Guid`, `TimeSpan`, `DateTimeOffset`, and collection types (`List<T>`, `T[]`)
+- Provides `TryRead` for safe parsing without exceptions
+- Provides async `ReadAsync`/`WriteAsync` for non-blocking I/O with `Stream` and `TextReader`/`TextWriter`
 
 ### Builder Pattern
 
