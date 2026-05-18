@@ -53,11 +53,11 @@ internal sealed class SourceBuilder
 	/// <summary>
 	/// Appends a using directive.
 	/// </summary>
-	/// <param name="ns">The namespace to import.</param>
+	/// <param name="namespace">The namespace to import.</param>
 	/// <returns>The current <see cref="SourceBuilder"/> instance.</returns>
-	public SourceBuilder AppendUsing(string ns)
+	public SourceBuilder AppendUsing(string @namespace)
 	{
-		_sb.AppendLine($"using {ns};");
+		_sb.AppendLine($"using {@namespace};");
 		return this;
 	}
 

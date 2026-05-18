@@ -4,6 +4,7 @@
 // This source code is licensed under the MIT license found in the
 // LICENSE file in the root directory of this source tree.
 using System.Globalization;
+using System.Text;
 
 using BB84.SourceGenerators.Attributes;
 
@@ -12,6 +13,8 @@ namespace BB84.SourceGenerators.Tests;
 [TestClass]
 public sealed class IniFileGeneratorTests
 {
+	private readonly CancellationToken _testToken = CancellationToken.None;
+
 	[TestMethod]
 	public void ReadShouldDeserializeSimpleIniContent()
 	{
@@ -857,11 +860,12 @@ public sealed class IniFileGeneratorTests
 	public void ReadShouldHandleArrayValues()
 	{
 		string content = "[Arrays]\r\nValues=1.1,2.2,3.3\r\n";
+		double[] expected = [1.1, 2.2, 3.3];
 
 		TestIniFileArrays result = TestIniFileArrays.Read(content);
 
 		Assert.IsNotNull(result.Arrays);
-		CollectionAssert.AreEqual(new double[] { 1.1, 2.2, 3.3 }, result.Arrays.Values);
+		CollectionAssert.AreEqual(expected, result.Arrays.Values);
 	}
 
 	[TestMethod]
@@ -906,7 +910,9 @@ public sealed class IniFileGeneratorTests
 		string content = "[General]\r\nAppName=AsyncApp\r\nVersion=7\r\nEnabled=True\r\n";
 		using StringReader reader = new(content);
 
-		TestIniFile result = await TestIniFile.ReadAsync(reader);
+		TestIniFile result = await TestIniFile
+			.ReadAsync(reader, _testToken)
+			.ConfigureAwait(false);
 
 		Assert.IsNotNull(result.General);
 		Assert.AreEqual("AsyncApp", result.General.AppName);
@@ -917,9 +923,11 @@ public sealed class IniFileGeneratorTests
 	public async Task ReadAsyncShouldDeserializeFromStream()
 	{
 		string content = "[General]\r\nAppName=StreamApp\r\nVersion=3\r\nEnabled=False\r\n";
-		using MemoryStream stream = new(System.Text.Encoding.UTF8.GetBytes(content));
+		using MemoryStream stream = new(Encoding.UTF8.GetBytes(content));
 
-		TestIniFile result = await TestIniFile.ReadAsync(stream);
+		TestIniFile result = await TestIniFile
+			.ReadAsync(stream, _testToken)
+			.ConfigureAwait(false);
 
 		Assert.IsNotNull(result.General);
 		Assert.AreEqual("StreamApp", result.General.AppName);
@@ -935,7 +943,9 @@ public sealed class IniFileGeneratorTests
 		};
 		using StringWriter writer = new();
 
-		await TestIniFile.WriteAsync(instance, writer);
+		await TestIniFile
+			.WriteAsync(instance, writer, _testToken)
+			.ConfigureAwait(false);
 		string result = writer.ToString();
 
 		Assert.Contains("[General]", result);
@@ -951,7 +961,9 @@ public sealed class IniFileGeneratorTests
 		};
 		using MemoryStream stream = new();
 
-		await TestIniFile.WriteAsync(instance, stream);
+		await TestIniFile
+			.WriteAsync(instance, stream, _testToken)
+			.ConfigureAwait(false);
 		stream.Position = 0;
 		string result = new StreamReader(stream).ReadToEnd();
 
