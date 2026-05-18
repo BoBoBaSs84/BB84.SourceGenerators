@@ -174,13 +174,13 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 				AppendRegularExpressionValidation(sb, propertyName, rule, regexFields);
 				break;
 			case ValidationKind.EmailAddress:
-				AppendEmailAddressValidation(sb, propertyName, rule, regexFields);
+				AppendEmailAddressValidation(sb, propertyName, rule);
 				break;
 			case ValidationKind.Url:
-				AppendUrlValidation(sb, propertyName, rule, regexFields);
+				AppendUrlValidation(sb, propertyName, rule);
 				break;
 			case ValidationKind.Phone:
-				AppendPhoneValidation(sb, propertyName, rule, regexFields);
+				AppendPhoneValidation(sb, propertyName, rule);
 				break;
 			case ValidationKind.CreditCard:
 				AppendCreditCardValidation(sb, propertyName, rule);
@@ -268,30 +268,27 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 		AppendAddError(sb, propertyName, message);
 	}
 
-	private static void AppendEmailAddressValidation(SourceBuilder sb, string propertyName, ValidationRule rule, Dictionary<string, RegexFieldInfo> regexFields)
+	private static void AppendEmailAddressValidation(SourceBuilder sb, string propertyName, ValidationRule rule)
 	{
 		string message = rule.ErrorMessage ?? $"The {propertyName} field is not a valid e-mail address.";
-		string fieldName = regexFields[EmailPattern].FieldName;
 
-		sb.AppendLine($"if ({propertyName} != null && !{fieldName}.IsMatch({propertyName}))");
+		sb.AppendLine($"if ({propertyName} != null && !new EmailAddressAttribute().IsValid({propertyName}))");
 		AppendAddError(sb, propertyName, message);
 	}
 
-	private static void AppendUrlValidation(SourceBuilder sb, string propertyName, ValidationRule rule, Dictionary<string, RegexFieldInfo> regexFields)
+	private static void AppendUrlValidation(SourceBuilder sb, string propertyName, ValidationRule rule)
 	{
 		string message = rule.ErrorMessage ?? $"The {propertyName} field is not a valid fully-qualified http, https, or ftp URL.";
-		string fieldName = regexFields[UrlPattern].FieldName;
 
-		sb.AppendLine($"if ({propertyName} != null && !{fieldName}.IsMatch({propertyName}))");
+		sb.AppendLine($"if ({propertyName} != null && !new UrlAttribute().IsValid({propertyName}))");
 		AppendAddError(sb, propertyName, message);
 	}
 
-	private static void AppendPhoneValidation(SourceBuilder sb, string propertyName, ValidationRule rule, Dictionary<string, RegexFieldInfo> regexFields)
+	private static void AppendPhoneValidation(SourceBuilder sb, string propertyName, ValidationRule rule)
 	{
 		string message = rule.ErrorMessage ?? $"The {propertyName} field is not a valid phone number.";
-		string fieldName = regexFields[PhonePattern].FieldName;
 
-		sb.AppendLine($"if ({propertyName} != null && !{fieldName}.IsMatch({propertyName}))");
+		sb.AppendLine($"if ({propertyName} != null && !new PhoneAttribute().IsValid({propertyName}))");
 		AppendAddError(sb, propertyName, message);
 	}
 
@@ -299,31 +296,8 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 	{
 		string message = rule.ErrorMessage ?? $"The {propertyName} field is not a valid credit card number.";
 
-		// Luhn algorithm check at runtime
-		sb.AppendLine($"if ({propertyName} != null)");
-		sb.OpenBrace();
-		sb.AppendLine($"string digits = {propertyName}.Replace(\"-\", \"\").Replace(\" \", \"\");");
-		sb.AppendLine("bool ccValid = digits.Length > 0 && digits.All(char.IsDigit);");
-		sb.AppendLine("if (ccValid)");
-		sb.OpenBrace();
-		sb.AppendLine("int sum = 0;");
-		sb.AppendLine("bool alternate = false;");
-		sb.AppendLine("for (int i = digits.Length - 1; i >= 0; i--)");
-		sb.OpenBrace();
-		sb.AppendLine("int n = digits[i] - '0';");
-		sb.AppendLine("if (alternate)");
-		sb.OpenBrace();
-		sb.AppendLine("n *= 2;");
-		sb.AppendLine("if (n > 9) n -= 9;");
-		sb.CloseBrace();
-		sb.AppendLine("sum += n;");
-		sb.AppendLine("alternate = !alternate;");
-		sb.CloseBrace();
-		sb.AppendLine("ccValid = sum % 10 == 0;");
-		sb.CloseBrace();
-		sb.AppendLine("if (!ccValid)");
+		sb.AppendLine($"if ({propertyName} != null && !new CreditCardAttribute().IsValid({propertyName}))");
 		AppendAddError(sb, propertyName, message);
-		sb.CloseBrace();
 	}
 
 	private static void AppendCompareValidation(SourceBuilder sb, string propertyName, ValidationRule rule)
@@ -629,10 +603,6 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 		public ImmutableArray<ValidationRule> Rules { get; } = rules;
 	}
 
-	private const string EmailPattern = @"^[^@\s]+@[^@\s]+\.[^@\s]+$";
-	private const string UrlPattern = @"^https?://|^ftp://";
-	private const string PhonePattern = @"^[\+]?[\d\s\-\(\)\.]+$";
-
 	private static Dictionary<string, RegexFieldInfo> CollectRegexPatterns(ImmutableArray<PropertyValidationInfo> validatedProperties)
 	{
 		Dictionary<string, RegexFieldInfo> patterns = [];
@@ -643,28 +613,17 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 			foreach (ValidationRule rule in property.Rules)
 			{
 				string? pattern = null;
-				string? options = null;
 
 				switch (rule.Kind)
 				{
 					case ValidationKind.RegularExpression:
 						pattern = rule.Pattern;
 						break;
-					case ValidationKind.EmailAddress:
-						pattern = EmailPattern;
-						break;
-					case ValidationKind.Url:
-						pattern = UrlPattern;
-						options = "RegexOptions.IgnoreCase";
-						break;
-					case ValidationKind.Phone:
-						pattern = PhonePattern;
-						break;
 				}
 
 				if (pattern is not null && !patterns.ContainsKey(pattern))
 				{
-					patterns[pattern] = new RegexFieldInfo($"s_regex{counter}", options);
+					patterns[pattern] = new RegexFieldInfo($"s_regex{counter}", null);
 					counter++;
 				}
 			}
