@@ -564,6 +564,12 @@ namespace TestNamespace
 	{
 		string source = @"
 using BB84.SourceGenerators.Attributes;
+[assembly: System.Reflection.AssemblyTitle(""Test Assembly"")]
+[assembly: System.Reflection.AssemblyMetadata(""BuildCommit"", ""abc123"")]
+[assembly: System.Reflection.AssemblyMetadata(""BuildHash"", ""0x001122"")]
+[assembly: System.CLSCompliant(true)]
+[assembly: System.Runtime.CompilerServices.InternalsVisibleTo(""FriendA"")]
+[assembly: System.Runtime.CompilerServices.InternalsVisibleTo(""FriendB"")]
 
 namespace TestNamespace
 {
@@ -583,6 +589,11 @@ namespace TestNamespace
 		Assert.Contains("const string Copyright", generated);
 		Assert.Contains("const string FileVersion", generated);
 		Assert.Contains("const string InformationalVersion", generated);
+		Assert.Contains("public static readonly Dictionary<string, List<string>> Attributes", generated);
+		Assert.DoesNotContain("[\"System.Reflection.AssemblyTitleAttribute\"] = \"Test Assembly\"", generated);
+		Assert.Contains("[\"System.Reflection.AssemblyMetadataAttribute\"]", generated);
+		Assert.Contains("[\"System.CLSCompliantAttribute\"] = new List<string> { \"True\" }", generated);
+		Assert.Contains("[\"System.Runtime.CompilerServices.InternalsVisibleToAttribute\"] = new List<string> { \"FriendA\", \"FriendB\" }", generated);
 	}
 
 	[TestMethod]
