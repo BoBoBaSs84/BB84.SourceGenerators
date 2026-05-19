@@ -62,7 +62,7 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 		sb.OpenOuterClasses(ctx.OuterClasses);
 
 		AppendReadMethod(sb, ctx.ClassName, ctx.Accessibility, sections, stringComparison);
-		AppendTryReadMethod(sb, ctx.ClassName, sections, stringComparison);
+		AppendTryReadMethod(sb, ctx.ClassName);
 		AppendWriteMethod(sb, ctx.ClassName, sections, serializeComments);
 		AppendReadAsyncMethod(sb, ctx.ClassName);
 		AppendWriteAsyncMethod(sb, ctx.ClassName);
@@ -158,7 +158,7 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 		sb.AppendLine();
 	}
 
-	private static void AppendTryReadMethod(SourceBuilder sb, string className, List<SectionInfo> sections, string stringComparison)
+	private static void AppendTryReadMethod(SourceBuilder sb, string className)
 	{
 		sb.AppendLine("/// <summary>");
 		sb.AppendLine($"/// Tries to read the specified INI file content and deserialize it into a new instance");
@@ -327,42 +327,21 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 			if (member is not IPropertySymbol propertySymbol)
 				continue;
 
-			AttributeData? sectionAttribute = null;
-			foreach (AttributeData attr in propertySymbol.GetAttributes())
-			{
-				if (attr.AttributeClass?.ToDisplayString() == SectionAttributeName)
-				{
-					sectionAttribute = attr;
-					break;
-				}
-			}
+			AttributeData? sectionAttribute = FindAttribute(propertySymbol, SectionAttributeName);
 
 			if (sectionAttribute is null)
 				continue;
 
-			string sectionName = propertySymbol.Name;
-			if (sectionAttribute.ConstructorArguments.Length > 0
-				&& sectionAttribute.ConstructorArguments[0].Value is string explicitName
-				&& !string.IsNullOrEmpty(explicitName))
-			{
-				sectionName = explicitName;
-			}
-
 			if (propertySymbol.Type is not INamedTypeSymbol sectionType)
 				continue;
 
+			string sectionName = GetExplicitNameOrDefault(sectionAttribute, propertySymbol.Name);
 			bool needsInit = !HasInitializer(classDeclaration, propertySymbol.Name);
 			string propertyPath = propertySymbol.Name;
 			string? comment = serializeComments ? GetXmlSummaryComment(propertySymbol) : null;
 
 			List<ValueInfo> values = GetValues(sectionType, serializeComments);
-
-			string sectionTypeName = sectionType
-				.WithNullableAnnotation(NullableAnnotation.NotAnnotated)
-				.ToFullyQualifiedDisplayString();
-
-			if (sectionTypeName.EndsWith("?", StringComparison.Ordinal))
-				sectionTypeName = sectionTypeName[..^1];
+			string sectionTypeName = GetNonNullableFullyQualifiedName(sectionType);
 
 			sections.Add(new SectionInfo(
 				PropertyName: propertySymbol.Name,
@@ -390,42 +369,21 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 			if (member is not IPropertySymbol propertySymbol)
 				continue;
 
-			AttributeData? sectionAttribute = null;
-			foreach (AttributeData attr in propertySymbol.GetAttributes())
-			{
-				if (attr.AttributeClass?.ToDisplayString() == SectionAttributeName)
-				{
-					sectionAttribute = attr;
-					break;
-				}
-			}
+			AttributeData? sectionAttribute = FindAttribute(propertySymbol, SectionAttributeName);
 
 			if (sectionAttribute is null)
 				continue;
 
-			string sectionName = propertySymbol.Name;
-			if (sectionAttribute.ConstructorArguments.Length > 0
-				&& sectionAttribute.ConstructorArguments[0].Value is string explicitName
-				&& !string.IsNullOrEmpty(explicitName))
-			{
-				sectionName = explicitName;
-			}
-
 			if (propertySymbol.Type is not INamedTypeSymbol sectionType)
 				continue;
 
+			string sectionName = GetExplicitNameOrDefault(sectionAttribute, propertySymbol.Name);
 			string fullSectionName = $"{parentSectionName}{sectionDelimiter}{sectionName}";
 			string propertyPath = $"{parentPropertyPath}.{propertySymbol.Name}";
 			string? comment = serializeComments ? GetXmlSummaryComment(propertySymbol) : null;
 
 			List<ValueInfo> values = GetValues(sectionType, serializeComments);
-
-			string sectionTypeName = sectionType
-				 .WithNullableAnnotation(NullableAnnotation.NotAnnotated)
-				 .ToFullyQualifiedDisplayString();
-
-			if (sectionTypeName.EndsWith("?", StringComparison.Ordinal))
-				sectionTypeName = sectionTypeName[..^1];
+			string sectionTypeName = GetNonNullableFullyQualifiedName(sectionType);
 
 			sections.Add(new SectionInfo(
 				PropertyName: propertySymbol.Name,
@@ -450,26 +408,12 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 			if (member is not IPropertySymbol propertySymbol)
 				continue;
 
-			AttributeData? valueAttribute = null;
-			foreach (AttributeData attr in propertySymbol.GetAttributes())
-			{
-				if (attr.AttributeClass?.ToDisplayString() == ValueAttributeName)
-				{
-					valueAttribute = attr;
-					break;
-				}
-			}
+			AttributeData? valueAttribute = FindAttribute(propertySymbol, ValueAttributeName);
 
 			if (valueAttribute is null)
 				continue;
 
-			string keyName = propertySymbol.Name;
-			if (valueAttribute.ConstructorArguments.Length > 0
-				&& valueAttribute.ConstructorArguments[0].Value is string explicitName
-				&& !string.IsNullOrEmpty(explicitName))
-			{
-				keyName = explicitName;
-			}
+			string keyName = GetExplicitNameOrDefault(valueAttribute, propertySymbol.Name);
 
 			// Detect collection types (List<T> or T[])
 			bool isCollection = false;
@@ -491,24 +435,7 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 
 			string typeName = isCollection
 				? propertySymbol.Type.ToDisplayString()
-				: propertySymbol.Type.SpecialType switch
-				{
-					SpecialType.System_String => "string",
-					SpecialType.System_Int32 => "int",
-					SpecialType.System_Int64 => "long",
-					SpecialType.System_Single => "float",
-					SpecialType.System_Double => "double",
-					SpecialType.System_Boolean => "bool",
-					SpecialType.System_Decimal => "decimal",
-					SpecialType.System_DateTime => "DateTime",
-					_ => propertySymbol.Type.ToDisplayString() switch
-					{
-						"System.Guid" => "Guid",
-						"System.TimeSpan" => "TimeSpan",
-						"System.DateTimeOffset" => "DateTimeOffset",
-						var other => other
-					}
-				};
+				: GetSimpleTypeName(propertySymbol.Type);
 
 			bool isEnum = propertySymbol.Type.TypeKind == TypeKind.Enum;
 			bool isFlagsEnum = false;
@@ -517,8 +444,7 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 			if (isEnum)
 			{
 				enumFullName = propertySymbol.Type.ToFullyQualifiedDisplayString();
-				isFlagsEnum = propertySymbol.Type.GetAttributes()
-					.Any(a => a.AttributeClass?.ToDisplayString() == "System.FlagsAttribute");
+				isFlagsEnum = propertySymbol.Type.GetAttributes().Any(a => a.AttributeClass?.ToMinimalDisplayString() == "FlagsAttribute");
 			}
 
 			string? comment = serializeComments ? GetXmlSummaryComment(propertySymbol) : null;
@@ -570,21 +496,7 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 			? value.IsFlagsEnum
 				? $"({value.EnumFullName}){variableName}.Split(' ').Select(flag => ({value.EnumFullName})Enum.Parse(typeof({value.EnumFullName}), flag)).Aggregate(0, (current, flag) => current | (int)flag)"
 				: $"({value.EnumFullName})Enum.Parse(typeof({value.EnumFullName}), {variableName})"
-			: value.TypeName switch
-			{
-				"string" => variableName,
-				"int" => $"int.Parse({variableName}, CultureInfo.InvariantCulture)",
-				"long" => $"long.Parse({variableName}, CultureInfo.InvariantCulture)",
-				"float" => $"float.Parse({variableName}, CultureInfo.InvariantCulture)",
-				"double" => $"double.Parse({variableName}, CultureInfo.InvariantCulture)",
-				"bool" => $"bool.Parse({variableName})",
-				"decimal" => $"decimal.Parse({variableName}, CultureInfo.InvariantCulture)",
-				"DateTime" => $"DateTime.Parse({variableName}, CultureInfo.InvariantCulture)",
-				"Guid" => $"Guid.Parse({variableName})",
-				"TimeSpan" => $"TimeSpan.Parse({variableName}, CultureInfo.InvariantCulture)",
-				"DateTimeOffset" => $"DateTimeOffset.Parse({variableName}, CultureInfo.InvariantCulture)",
-				_ => variableName,
-			};
+			: GetElementParseExpression(value.TypeName, variableName);
 	}
 
 	private static string GetElementParseExpression(string elementTypeName, string variableName)
@@ -618,11 +530,11 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 			SpecialType.System_Boolean => "bool",
 			SpecialType.System_Decimal => "decimal",
 			SpecialType.System_DateTime => "DateTime",
-			_ => type.ToDisplayString() switch
+			_ => type.ToMinimalDisplayString() switch
 			{
-				"System.Guid" => "Guid",
-				"System.TimeSpan" => "TimeSpan",
-				"System.DateTimeOffset" => "DateTimeOffset",
+				"Guid" => "Guid",
+				"TimeSpan" => "TimeSpan",
+				"DateTimeOffset" => "DateTimeOffset",
 				var other => other
 			}
 		};
@@ -664,30 +576,26 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 	private static string GetStringComparison(ClassDeclarationSyntax classDeclaration, SemanticModel semanticModel)
 	{
 		INamedTypeSymbol? classSymbol = semanticModel.GetDeclaredSymbol(classDeclaration);
+
 		if (classSymbol is null)
-			return "OrdinalIgnoreCase";
+			return nameof(StringComparison.OrdinalIgnoreCase);
 
-		foreach (AttributeData attr in classSymbol.GetAttributes())
-		{
-			if (attr.AttributeClass?.ToDisplayString() != GeneratorAttributeName)
-				continue;
+		AttributeData? attributeData = FindGeneratorAttribute(classSymbol);
 
-			if (attr.ConstructorArguments.Length > 0 && attr.ConstructorArguments[0].Value is int comparisonValue)
-			{
-				return comparisonValue switch
+		return attributeData is not null
+			&& attributeData.ConstructorArguments.Length > 0
+			&& attributeData.ConstructorArguments[0].Value is int comparisonValue
+				? comparisonValue switch
 				{
-					0 => "CurrentCulture",
-					1 => "CurrentCultureIgnoreCase",
-					2 => "InvariantCulture",
-					3 => "InvariantCultureIgnoreCase",
-					4 => "Ordinal",
-					5 => "OrdinalIgnoreCase",
-					_ => "OrdinalIgnoreCase"
-				};
-			}
-		}
-
-		return "OrdinalIgnoreCase";
+					0 => nameof(StringComparison.CurrentCulture),
+					1 => nameof(StringComparison.CurrentCultureIgnoreCase),
+					2 => nameof(StringComparison.InvariantCulture),
+					3 => nameof(StringComparison.InvariantCultureIgnoreCase),
+					4 => nameof(StringComparison.Ordinal),
+					5 => nameof(StringComparison.OrdinalIgnoreCase),
+					_ => nameof(StringComparison.OrdinalIgnoreCase)
+				}
+				: nameof(StringComparison.OrdinalIgnoreCase);
 	}
 
 	private static string GetSectionDelimiter(ClassDeclarationSyntax classDeclaration, SemanticModel semanticModel)
@@ -696,16 +604,13 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 		if (classSymbol is null)
 			return ".";
 
-		foreach (AttributeData attr in classSymbol.GetAttributes())
-		{
-			if (attr.AttributeClass?.ToDisplayString() != GeneratorAttributeName)
-				continue;
+		AttributeData? attributeData = FindGeneratorAttribute(classSymbol);
 
-			if (attr.ConstructorArguments.Length > 1 && attr.ConstructorArguments[1].Value is string delimiterValue)
-				return delimiterValue;
-		}
-
-		return ".";
+		return attributeData is not null
+			&& attributeData.ConstructorArguments.Length > 1
+			&& attributeData.ConstructorArguments[1].Value is string delimiterValue
+				? delimiterValue
+				: ".";
 	}
 
 	private static bool GetSerializeComments(ClassDeclarationSyntax classDeclaration)
@@ -796,6 +701,49 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 		}
 
 		return string.Join(" && ", checks);
+	}
+
+	private static AttributeData? FindAttribute(IPropertySymbol propertySymbol, string attributeName)
+	{
+		foreach (AttributeData attr in propertySymbol.GetAttributes())
+		{
+			if (attr.AttributeClass?.ToDisplayString() == attributeName)
+				return attr;
+		}
+
+		return null;
+	}
+
+	private static string GetExplicitNameOrDefault(AttributeData attribute, string defaultName)
+	{
+		return attribute.ConstructorArguments.Length > 0
+			&& attribute.ConstructorArguments[0].Value is string explicitName
+			&& !string.IsNullOrEmpty(explicitName)
+			? explicitName
+			: defaultName;
+	}
+
+	private static string GetNonNullableFullyQualifiedName(INamedTypeSymbol type)
+	{
+		string typeName = type
+			.WithNullableAnnotation(NullableAnnotation.NotAnnotated)
+			.ToFullyQualifiedDisplayString();
+
+		if (typeName.EndsWith("?", StringComparison.Ordinal))
+			typeName = typeName[..^1];
+
+		return typeName;
+	}
+
+	private static AttributeData? FindGeneratorAttribute(INamedTypeSymbol classSymbol)
+	{
+		foreach (AttributeData attr in classSymbol.GetAttributes())
+		{
+			if (attr.AttributeClass?.ToDisplayString() == GeneratorAttributeName)
+				return attr;
+		}
+
+		return null;
 	}
 
 	private sealed record SectionInfo(
