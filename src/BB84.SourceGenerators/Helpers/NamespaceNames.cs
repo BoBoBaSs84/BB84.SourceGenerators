@@ -9,6 +9,7 @@ internal static class NamespaceNames
 {
 	internal const string System = "System";
 	internal const string SystemCollectionsGeneric = "System.Collections.Generic";
+	internal const string SystemCollectionsImmutable = "System.Collections.Immutable";
 	internal const string SystemComponentModel = "System.ComponentModel";
 	internal const string SystemComponentModelDataAnnotations = "System.ComponentModel.DataAnnotations";
 	internal const string SystemGlobalization = "System.Globalization";

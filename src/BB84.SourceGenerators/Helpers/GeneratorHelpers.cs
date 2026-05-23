@@ -26,13 +26,13 @@ internal static class GeneratorHelpers
 	private const string PrivateKeyword = "private";
 
 	/// <summary>
-	/// Gets the accessibility keyword for a class declaration.
+	/// Gets the accessibility keyword for a type declaration.
 	/// </summary>
-	/// <param name="classDeclaration">The class declaration syntax.</param>
+	/// <param name="typeDeclaration">The type declaration syntax.</param>
 	/// <returns>The accessibility keyword string.</returns>
-	internal static string GetAccessibility(ClassDeclarationSyntax classDeclaration)
+	internal static string GetAccessibility(TypeDeclarationSyntax typeDeclaration)
 	{
-		foreach (SyntaxToken modifier in classDeclaration.Modifiers)
+		foreach (SyntaxToken modifier in typeDeclaration.Modifiers)
 		{
 			if (modifier.IsKind(SyntaxKind.PublicKeyword))
 				return PublicKeyword;
@@ -64,23 +64,23 @@ internal static class GeneratorHelpers
 	};
 
 	/// <summary>
-	/// Gets the list of outer (nesting) classes for a given class declaration.
+	/// Gets the list of outer (nesting) classes for a given type declaration.
 	/// </summary>
-	/// <param name="classDeclaration">The class declaration syntax.</param>
+	/// <param name="typeDeclaration">The type declaration syntax.</param>
 	/// <returns>A list of tuples containing the accessibility and name of each outer class, from outermost to innermost.</returns>
-	internal static List<(string Accessibility, string Name)> GetOuterClasses(ClassDeclarationSyntax classDeclaration)
+	internal static List<(string Accessibility, string Name)> GetOuterClasses(TypeDeclarationSyntax typeDeclaration)
 	{
-		List<(string Accessibility, string Name)> outerClasses = [];
-		SyntaxNode? parent = classDeclaration.Parent;
+		List<(string Accessibility, string Name)> outerTypes = [];
+		SyntaxNode? parent = typeDeclaration.Parent;
 
-		while (parent is ClassDeclarationSyntax outerClass)
+		while (parent is TypeDeclarationSyntax parentType)
 		{
-			outerClasses.Add((GetAccessibility(outerClass), outerClass.Identifier.Text));
-			parent = outerClass.Parent;
+			outerTypes.Add((GetAccessibility(parentType), parentType.Identifier.Text));
+			parent = parentType.Parent;
 		}
 
-		outerClasses.Reverse();
-		return outerClasses;
+		outerTypes.Reverse();
+		return outerTypes;
 	}
 
 	/// <summary>
@@ -94,11 +94,24 @@ internal static class GeneratorHelpers
 		ClassDeclarationSyntax classDeclaration,
 		SemanticModel semanticModel,
 		string attributeFullName)
+		=> GetExcludedProperties((TypeDeclarationSyntax)classDeclaration, semanticModel, attributeFullName);
+
+	/// <summary>
+	/// Gets the set of excluded property names from an attribute's constructor arguments on a type declaration.
+	/// </summary>
+	/// <param name="typeDeclaration">The type declaration syntax (class or struct).</param>
+	/// <param name="semanticModel">The semantic model.</param>
+	/// <param name="attributeFullName">The full name of the attribute (e.g., "GenerateToStringAttribute").</param>
+	/// <returns>A set of excluded property names.</returns>
+	internal static HashSet<string> GetExcludedProperties(
+		TypeDeclarationSyntax typeDeclaration,
+		SemanticModel semanticModel,
+		string attributeFullName)
 	{
 		string attributeShortName = StripAttributeSuffix(attributeFullName);
 		HashSet<string> excluded = new(StringComparer.Ordinal);
 
-		foreach (AttributeListSyntax attributeList in classDeclaration.AttributeLists)
+		foreach (AttributeListSyntax attributeList in typeDeclaration.AttributeLists)
 		{
 			foreach (AttributeSyntax attribute in attributeList.Attributes)
 			{
@@ -247,6 +260,12 @@ internal static class GeneratorHelpers
 			string typeName = propertySymbol.Type.ToFullyQualifiedDisplayString();
 
 			bool isCloneable = false;
+			CollectionKind collectionKind = CollectionKind.None;
+			string? elementTypeName = null;
+			bool isElementCloneable = false;
+			string? dictionaryValueTypeName = null;
+			bool isDictionaryValueCloneable = false;
+
 			if (cloneableAttributeName is not null)
 			{
 				foreach (AttributeData attributeData in propertySymbol.Type.GetAttributes())
@@ -257,12 +276,90 @@ internal static class GeneratorHelpers
 						break;
 					}
 				}
+
+				// Detect collection types
+				(collectionKind, elementTypeName, isElementCloneable, dictionaryValueTypeName, isDictionaryValueCloneable) =
+					DetectCollectionKind(propertySymbol.Type, cloneableAttributeName);
 			}
 
-			builder.Add(new PropertyDescriptor(propertySymbol.Name, typeName, isValueType, isNullable, isCloneable));
+			builder.Add(new PropertyDescriptor(propertySymbol.Name, typeName, isValueType, isNullable, isCloneable, collectionKind, elementTypeName, isElementCloneable, dictionaryValueTypeName, isDictionaryValueCloneable));
 		}
 
 		return builder.ToImmutable();
+	}
+
+	/// <summary>
+	/// Detects the collection kind of a type symbol and extracts element type information.
+	/// </summary>
+	private static (CollectionKind Kind, string? ElementTypeName, bool IsElementCloneable, string? DictionaryValueTypeName, bool IsDictionaryValueCloneable) DetectCollectionKind(
+		ITypeSymbol typeSymbol, string cloneableAttributeName)
+	{
+		// Unwrap nullable
+		if (typeSymbol is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T } nullable)
+			typeSymbol = nullable.TypeArguments[0];
+
+		// Array
+		if (typeSymbol is IArrayTypeSymbol arrayType)
+		{
+			string elementType = arrayType.ElementType.ToFullyQualifiedDisplayString();
+			bool elementCloneable = HasAttribute(arrayType.ElementType, cloneableAttributeName);
+			return (CollectionKind.Array, elementType, elementCloneable, null, false);
+		}
+
+		if (typeSymbol is INamedTypeSymbol namedType && namedType.IsGenericType)
+		{
+			string originalDef = namedType.OriginalDefinition.ToDisplayString();
+
+			// Dictionary<TKey, TValue>
+			if (originalDef == "System.Collections.Generic.Dictionary<TKey, TValue>")
+			{
+				string keyType = namedType.TypeArguments[0].ToFullyQualifiedDisplayString();
+				string valueType = namedType.TypeArguments[1].ToFullyQualifiedDisplayString();
+				bool valueCloneable = HasAttribute(namedType.TypeArguments[1], cloneableAttributeName);
+				return (CollectionKind.Dictionary, keyType, false, valueType, valueCloneable);
+			}
+
+			// List<T>
+			if (originalDef == "System.Collections.Generic.List<T>")
+			{
+				string elementType = namedType.TypeArguments[0].ToFullyQualifiedDisplayString();
+				bool elementCloneable = HasAttribute(namedType.TypeArguments[0], cloneableAttributeName);
+				return (CollectionKind.List, elementType, elementCloneable, null, false);
+			}
+
+			// ImmutableArray<T>
+			if (originalDef == "System.Collections.Immutable.ImmutableArray<T>")
+			{
+				string elementType = namedType.TypeArguments[0].ToFullyQualifiedDisplayString();
+				bool elementCloneable = HasAttribute(namedType.TypeArguments[0], cloneableAttributeName);
+				return (CollectionKind.ImmutableArray, elementType, elementCloneable, null, false);
+			}
+
+			// ReadOnlyCollection<T>, IReadOnlyList<T>, IReadOnlyCollection<T>
+			if (originalDef is "System.Collections.ObjectModel.ReadOnlyCollection<T>"
+				or "System.Collections.Generic.IReadOnlyList<T>"
+				or "System.Collections.Generic.IReadOnlyCollection<T>")
+			{
+				string elementType = namedType.TypeArguments[0].ToFullyQualifiedDisplayString();
+				bool elementCloneable = HasAttribute(namedType.TypeArguments[0], cloneableAttributeName);
+				return (CollectionKind.ReadOnlyCollection, elementType, elementCloneable, null, false);
+			}
+		}
+
+		return (CollectionKind.None, null, false, null, false);
+	}
+
+	/// <summary>
+	/// Checks whether a type symbol has a specific attribute.
+	/// </summary>
+	private static bool HasAttribute(ITypeSymbol typeSymbol, string attributeName)
+	{
+		foreach (AttributeData attr in typeSymbol.GetAttributes())
+		{
+			if (attr.AttributeClass?.ToDisplayString() == attributeName)
+				return true;
+		}
+		return false;
 	}
 
 	/// <summary>
