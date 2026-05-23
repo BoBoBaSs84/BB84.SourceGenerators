@@ -9,7 +9,7 @@ namespace BB84.SourceGenerators.Models;
 /// Describes a property discovered during source generation, carrying metadata
 /// needed by multiple generators (Equality, Cloneable, Builder, ToString).
 /// </summary>
-internal sealed record PropertyDescriptor(string Name, string TypeName, bool IsValueType, bool IsNullable, bool IsCloneable)
+internal sealed record PropertyDescriptor(string Name, string TypeName, bool IsValueType, bool IsNullable, bool IsCloneable, CollectionKind CollectionKind = CollectionKind.None, string? ElementTypeName = null, bool IsElementCloneable = false, string? DictionaryValueTypeName = null, bool IsDictionaryValueCloneable = false)
 {
 	/// <summary>
 	/// Gets the name of the property.
@@ -41,4 +41,31 @@ internal sealed record PropertyDescriptor(string Name, string TypeName, bool IsV
 	/// <c>[GenerateCloneable]</c> and supports deep cloning.
 	/// </summary>
 	public bool IsCloneable { get; } = IsCloneable;
+
+	/// <summary>
+	/// Gets the collection kind for this property (None if not a collection).
+	/// </summary>
+	public CollectionKind CollectionKind { get; } = CollectionKind;
+
+	/// <summary>
+	/// Gets the element type name for collection properties.
+	/// </summary>
+	public string? ElementTypeName { get; } = ElementTypeName;
+
+	/// <summary>
+	/// Gets a value indicating whether the element type of a collection is marked with
+	/// <c>[GenerateCloneable]</c> and supports deep cloning.
+	/// </summary>
+	public bool IsElementCloneable { get; } = IsElementCloneable;
+
+	/// <summary>
+	/// Gets the dictionary value type name for dictionary properties.
+	/// </summary>
+	public string? DictionaryValueTypeName { get; } = DictionaryValueTypeName;
+
+	/// <summary>
+	/// Gets a value indicating whether the dictionary value type is marked with
+	/// <c>[GenerateCloneable]</c> and supports deep cloning.
+	/// </summary>
+	public bool IsDictionaryValueCloneable { get; } = IsDictionaryValueCloneable;
 }

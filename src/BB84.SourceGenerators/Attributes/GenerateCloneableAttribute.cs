@@ -6,13 +6,13 @@
 namespace BB84.SourceGenerators.Attributes;
 
 /// <summary>
-/// Indicates that the decorated <c>class</c> should have clone methods generated for it.
+/// Indicates that the decorated <c>class</c> or <c>struct</c> should have clone methods generated for it.
 /// The generated code includes a <c>Clone()</c> method for shallow copying and a
 /// <c>DeepClone()</c> method that recursively deep clones reference-type properties
-/// also marked with <see cref="GenerateCloneableAttribute"/>, implementing <see cref="ICloneable"/>.
+/// also marked with <see cref="GenerateCloneableAttribute"/> and collection properties, implementing <see cref="ICloneable"/>.
 /// </summary>
 /// <param name="excludeProperties">The property names to exclude from the generated clone methods.</param>
-[AttributeUsage(AttributeTargets.Class, Inherited = false, AllowMultiple = false)]
+[AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct, Inherited = false, AllowMultiple = false)]
 internal sealed class GenerateCloneableAttribute(params string[] excludeProperties) : Attribute
 {
 	/// <summary>
