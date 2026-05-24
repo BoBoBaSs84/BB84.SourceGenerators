@@ -773,6 +773,99 @@ namespace TestNamespace
 	}
 
 	[TestMethod]
+	public void DecoratorGeneratorShouldHandleGenericMethods()
+	{
+		string source = @"
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+	public interface IGenericService
+	{
+		T Transform<T>(T input) where T : class;
+		TResult Convert<TInput, TResult>(TInput input) where TResult : new();
+	}
+
+	[GenerateDecorator]
+	public partial class GenericDecorator : IGenericService
+	{
+	}
+}";
+
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources) = RunGenerator<DecoratorGenerator>(source);
+
+		Assert.IsEmpty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+		Assert.IsNotEmpty(generatedSources);
+		string generated = generatedSources.First(s => s.Contains("partial class GenericDecorator"));
+		Assert.Contains("Transform<T>", generated);
+		Assert.Contains("Convert<TInput, TResult>", generated);
+		Assert.Contains("where T : class", generated);
+		Assert.Contains("where TResult : new()", generated);
+	}
+
+	[TestMethod]
+	public void DecoratorGeneratorShouldGeneratePartialMethodHooks()
+	{
+		string source = @"
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+	public interface IMyService
+	{
+		string GetValue();
+		void DoWork();
+	}
+
+	[GenerateDecorator]
+	public partial class HookedDecorator : IMyService
+	{
+	}
+}";
+
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources) = RunGenerator<DecoratorGenerator>(source);
+
+		Assert.IsEmpty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+		Assert.IsNotEmpty(generatedSources);
+		string generated = generatedSources.First(s => s.Contains("partial class HookedDecorator"));
+		Assert.Contains("partial void OnGetValueExecuting();", generated);
+		Assert.Contains("partial void OnGetValueExecuted();", generated);
+		Assert.Contains("partial void OnDoWorkExecuting();", generated);
+		Assert.Contains("partial void OnDoWorkExecuted();", generated);
+	}
+
+	[TestMethod]
+	public void DecoratorGeneratorShouldHandleEventDelegation()
+	{
+		string source = @"
+using System;
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+	public interface IEventService
+	{
+		event EventHandler Changed;
+		void DoWork();
+	}
+
+	[GenerateDecorator]
+	public partial class EventDecorator : IEventService
+	{
+	}
+}";
+
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources) = RunGenerator<DecoratorGenerator>(source);
+
+		Assert.IsEmpty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+		Assert.IsNotEmpty(generatedSources);
+		string generated = generatedSources.First(s => s.Contains("partial class EventDecorator"));
+		Assert.Contains("event EventHandler Changed", generated);
+		Assert.Contains("add =>", generated);
+		Assert.Contains("remove =>", generated);
+	}
+
+	[TestMethod]
 	public void FactoryGeneratorShouldGenerateSource()
 	{
 		string source = @"

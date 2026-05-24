@@ -102,6 +102,59 @@ public sealed class DecoratorGeneratorTests
 	{
 		Assert.ThrowsExactly<ArgumentNullException>(() => new DecoratorTestServiceDecorator(null!));
 	}
+
+	[TestMethod]
+	public void DecoratorShouldDelegateGenericMethods()
+	{
+		GenericService inner = new();
+		GenericServiceDecorator decorator = new(inner);
+
+		string result = decorator.Transform("hello");
+
+		Assert.AreEqual("hello", result);
+	}
+
+	[TestMethod]
+	public void DecoratorShouldDelegateGenericMethodsWithMultipleTypeParameters()
+	{
+		GenericService inner = new();
+		GenericServiceDecorator decorator = new(inner);
+
+		object result = decorator.Convert<string, object>("input");
+
+		Assert.IsNotNull(result);
+	}
+
+	[TestMethod]
+	public void DecoratorShouldDelegateEvents()
+	{
+		EventService inner = new();
+		EventServiceDecorator decorator = new(inner);
+
+		bool changed = false;
+		string? status = null;
+		decorator.Changed += (s, e) => changed = true;
+		decorator.StatusChanged += (s, st) => status = st;
+
+		inner.RaiseChange();
+
+		Assert.IsTrue(changed);
+		Assert.AreEqual("changed", status);
+	}
+
+	[TestMethod]
+	public void DecoratorShouldInvokePartialMethodHooks()
+	{
+		TracedService inner = new();
+		TracedServiceDecorator decorator = new(inner);
+		string[] expected = ["Process:before", "Process:after", "Execute:before", "Execute:after"];
+
+		string result = decorator.Process("test");
+		decorator.Execute();
+
+		Assert.AreEqual("processed:test", result);
+		CollectionAssert.AreEqual(expected, decorator.Log.ToArray());
+	}
 }
 
 public interface IDecoratorTestService
@@ -156,4 +209,71 @@ public class OverridingDecorator(IDecoratorTestService inner) : DecoratorTestSer
 		get => base.Name?.ToUpperInvariant();
 		set => base.Name = value;
 	}
+}
+
+// Generic interface for testing generic method support
+public interface IGenericService
+{
+	T Transform<T>(T input) where T : class;
+	TResult Convert<TInput, TResult>(TInput input) where TResult : new();
+}
+
+public class GenericService : IGenericService
+{
+	public T Transform<T>(T input) where T : class => input;
+	public TResult Convert<TInput, TResult>(TInput input) where TResult : new() => new();
+}
+
+[GenerateDecorator]
+public partial class GenericServiceDecorator : IGenericService
+{ }
+
+// Event interface for testing event delegation
+public delegate void StatusChangedHandler(object sender, string status);
+
+public interface IEventService
+{
+	event EventHandler? Changed;
+	event StatusChangedHandler? StatusChanged;
+	void RaiseChange();
+}
+
+public class EventService : IEventService
+{
+	public event EventHandler? Changed;
+	public event StatusChangedHandler? StatusChanged;
+
+	public void RaiseChange()
+	{
+		Changed?.Invoke(this, EventArgs.Empty);
+		StatusChanged?.Invoke(this, "changed");
+	}
+}
+
+[GenerateDecorator]
+public partial class EventServiceDecorator : IEventService
+{ }
+
+// Decorator with partial method hooks
+public interface ITracedService
+{
+	string Process(string input);
+	void Execute();
+}
+
+public class TracedService : ITracedService
+{
+	public string Process(string input) => $"processed:{input}";
+	public void Execute() { }
+}
+
+[GenerateDecorator]
+public partial class TracedServiceDecorator : ITracedService
+{
+	public List<string> Log { get; } = [];
+
+	partial void OnProcessExecuting() => Log.Add("Process:before");
+	partial void OnProcessExecuted() => Log.Add("Process:after");
+	partial void OnExecuteExecuting() => Log.Add("Execute:before");
+	partial void OnExecuteExecuted() => Log.Add("Execute:after");
 }
