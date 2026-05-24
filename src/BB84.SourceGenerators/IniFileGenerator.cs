@@ -135,6 +135,24 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 				sb.Outdent();
 				sb.AppendLine();
 			}
+			else if (section.PropertyPath.Contains("."))
+			{
+				// Ensure parent path segments are initialized for nested sections
+				string[] segments = section.PropertyPath.Split('.');
+				for (int i = 0; i < segments.Length - 1; i++)
+				{
+					string parentPath = string.Join(".", segments, 0, i + 1);
+					SectionInfo? parentSection = sections.FirstOrDefault(ps => ps.PropertyPath == parentPath);
+					if (parentSection is not null)
+					{
+						sb.AppendLine($"if (result.{parentPath} == null)");
+						sb.Indent();
+						sb.AppendLine($"result.{parentPath} = new {parentSection.TypeName}();");
+						sb.Outdent();
+						sb.AppendLine();
+					}
+				}
+			}
 
 			for (int v = 0; v < section.Values.Count; v++)
 			{
@@ -553,7 +571,12 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 				"Guid" => "e.ToString()",
 				_ => "e?.ToString() ?? string.Empty"
 			};
-			return $"string.Join(\",\", {expression}.Select(e => {elementToString}))";
+
+			string emptyFallback = value.IsArray
+				? $"Array.Empty<{value.CollectionElementTypeName}>()"
+				: $"Enumerable.Empty<{value.CollectionElementTypeName}>()";
+			
+			return $"string.Join(\",\", ({expression} ?? {emptyFallback}).Select(e => {elementToString}))";
 		}
 
 		return value.IsEnum && value.EnumFullName is not null
