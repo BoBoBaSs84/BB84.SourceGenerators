@@ -3,6 +3,7 @@
 //
 // This source code is licensed under the MIT license found in the
 // LICENSE file in the root directory of this source tree.
+using BB84.SourceGenerators.Analyzers;
 using BB84.SourceGenerators.Attributes;
 using BB84.SourceGenerators.Extensions;
 using BB84.SourceGenerators.Helpers;
@@ -44,6 +45,9 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 		bool serializeComments = GetSerializeComments(ctx.ClassDeclaration);
 
 		List<SectionInfo> sections = GetSections(ctx.ClassDeclaration, ctx.SemanticModel, sectionDelimiter, serializeComments);
+
+		if (!ValidateSectionProperties(context, ctx.ClassDeclaration, ctx.SemanticModel))
+			return;
 
 		SourceBuilder sb = new();
 
@@ -127,33 +131,6 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 			sb.AppendLine($"{elsePrefix}if (string.Equals(currentSection, \"{section.SectionName}\", StringComparison.{stringComparison}))");
 			sb.OpenBrace();
 
-			if (section.NeedsInitialization)
-			{
-				sb.AppendLine($"if (result.{section.PropertyPath} == null)");
-				sb.Indent();
-				sb.AppendLine($"result.{section.PropertyPath} = new {section.TypeName}();");
-				sb.Outdent();
-				sb.AppendLine();
-			}
-			else if (section.PropertyPath.Contains("."))
-			{
-				// Ensure parent path segments are initialized for nested sections
-				string[] segments = section.PropertyPath.Split('.');
-				for (int i = 0; i < segments.Length - 1; i++)
-				{
-					string parentPath = string.Join(".", segments, 0, i + 1);
-					SectionInfo? parentSection = sections.FirstOrDefault(ps => ps.PropertyPath == parentPath);
-					if (parentSection is not null)
-					{
-						sb.AppendLine($"if (result.{parentPath} == null)");
-						sb.Indent();
-						sb.AppendLine($"result.{parentPath} = new {parentSection.TypeName}();");
-						sb.Outdent();
-						sb.AppendLine();
-					}
-				}
-			}
-
 			for (int v = 0; v < section.Values.Count; v++)
 			{
 				ValueInfo value = section.Values[v];
@@ -220,10 +197,6 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 			if (s > 0)
 				sb.AppendLine("sb.AppendLine();");
 
-			string nullCheck = BuildNullCheck($"instance.{section.PropertyPath}");
-			sb.AppendLine($"if ({nullCheck})");
-			sb.OpenBrace();
-
 			if (serializeComments && section.Comment is not null)
 				sb.AppendLine($"sb.AppendLine(\"; {GeneratorHelpers.EscapeString(section.Comment)}\");");
 
@@ -236,8 +209,6 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 
 				sb.AppendLine($"sb.AppendLine(\"{value.KeyName}=\" + {GetToStringExpression($"instance.{section.PropertyPath}.{value.PropertyName}", value)});");
 			}
-
-			sb.CloseBrace();
 		}
 
 		sb.AppendLine();
@@ -318,15 +289,8 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 
 		foreach (SectionInfo section in sections)
 		{
-			string targetNullCheck = BuildNullCheck($"this.{section.PropertyPath}");
-			string sourceNullCheck = BuildNullCheck($"other.{section.PropertyPath}");
-			sb.AppendLine($"if ({targetNullCheck} && {sourceNullCheck})");
-			sb.OpenBrace();
-
 			foreach (ValueInfo value in section.Values)
 				sb.AppendLine($"{section.PropertyPath}.{value.PropertyName} = other.{section.PropertyPath}.{value.PropertyName};");
-
-			sb.CloseBrace();
 		}
 
 		sb.CloseBrace();
@@ -354,7 +318,6 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 				continue;
 
 			string sectionName = GetExplicitNameOrDefault(sectionAttribute, propertySymbol.Name);
-			bool needsInit = !HasInitializer(classDeclaration, propertySymbol.Name);
 			string propertyPath = propertySymbol.Name;
 			string? comment = serializeComments ? GetXmlSummaryComment(propertySymbol) : null;
 
@@ -366,7 +329,6 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 				PropertyPath: propertyPath,
 				SectionName: sectionName,
 				TypeName: sectionTypeName,
-				NeedsInitialization: needsInit,
 				Values: values,
 				Comment: comment
 			));
@@ -408,10 +370,9 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 				PropertyPath: propertyPath,
 				SectionName: fullSectionName,
 				TypeName: sectionTypeName,
-				NeedsInitialization: false,
 				Values: values,
 				Comment: comment
-			));
+				));
 
 			CollectNestedSections(sections, sectionType, fullSectionName, propertyPath, sectionDelimiter, depth + 1, serializeComments);
 		}
@@ -488,12 +449,19 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 	{
 		foreach (MemberDeclarationSyntax member in classDeclaration.Members)
 		{
-			if (member is PropertyDeclarationSyntax propSyntax
-				&& propSyntax.Identifier.Text == propertyName
-				&& propSyntax.Initializer is not null)
-			{
+			if (member is PropertyDeclarationSyntax propSyntax && propSyntax.Identifier.Text == propertyName && propSyntax.Initializer is not null)
 				return true;
-			}
+		}
+
+		return false;
+	}
+
+	private static bool HasInitializer(INamedTypeSymbol typeSymbol, string propertyName)
+	{
+		foreach (SyntaxReference syntaxRef in typeSymbol.DeclaringSyntaxReferences)
+		{
+			if (syntaxRef.GetSyntax() is ClassDeclarationSyntax classDeclaration && HasInitializer(classDeclaration, propertyName))
+				return true;
 		}
 
 		return false;
@@ -575,7 +543,7 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 			string emptyFallback = value.IsArray
 				? $"Array.Empty<{value.CollectionElementTypeName}>()"
 				: $"Enumerable.Empty<{value.CollectionElementTypeName}>()";
-			
+
 			return $"string.Join(\",\", ({expression} ?? {emptyFallback}).Select(e => {elementToString}))";
 		}
 
@@ -711,19 +679,74 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 		return null;
 	}
 
-	private static string BuildNullCheck(string propertyPath)
+	private static bool ValidateSectionProperties(SourceProductionContext context, ClassDeclarationSyntax classDeclaration, SemanticModel semanticModel)
 	{
-		string[] segments = propertyPath.Split('.');
-		if (segments.Length <= 2)
-			return $"{propertyPath} != null";
+		INamedTypeSymbol? classSymbol = semanticModel.GetDeclaredSymbol(classDeclaration);
 
-		List<string> checks = [];
-		for (int i = 1; i < segments.Length; i++)
+		if (classSymbol is null)
+			return false;
+
+		bool isValid = true;
+		ValidateSectionPropertiesOnType(context, classSymbol, classDeclaration, ref isValid);
+		return isValid;
+	}
+
+	private static void ValidateSectionPropertiesOnType(SourceProductionContext context, INamedTypeSymbol typeSymbol, ClassDeclarationSyntax? classDeclaration, ref bool isValid)
+	{
+		foreach (ISymbol member in typeSymbol.GetMembers())
 		{
-			checks.Add($"{string.Join(".", segments, 0, i + 1)} != null");
-		}
+			if (member is not IPropertySymbol propertySymbol)
+				continue;
 
-		return string.Join(" && ", checks);
+			AttributeData? sectionAttribute = FindAttribute(propertySymbol, SectionAttributeName);
+
+			if (sectionAttribute is null)
+				continue;
+
+			string className = typeSymbol.Name;
+			Location location = propertySymbol.Locations.FirstOrDefault() ?? Location.None;
+
+			// Check nullable
+			if (propertySymbol.Type.NullableAnnotation == NullableAnnotation.Annotated)
+			{
+				context.ReportDiagnostic(Diagnostic.Create(
+					DiagnosticDescriptors.IniFileSectionNullablePropertyDiagnostic,
+					location,
+					propertySymbol.Name,
+					className));
+				isValid = false;
+			}
+
+			// Check initialized
+			bool hasInit = classDeclaration is not null
+				? HasInitializer(classDeclaration, propertySymbol.Name)
+				: HasInitializer(typeSymbol, propertySymbol.Name);
+
+			if (!hasInit)
+			{
+				context.ReportDiagnostic(Diagnostic.Create(
+					DiagnosticDescriptors.IniFileSectionUninitializedPropertyDiagnostic,
+					location,
+					propertySymbol.Name,
+					className));
+				isValid = false;
+			}
+
+			// Check public getter
+			if (propertySymbol.GetMethod is null || propertySymbol.GetMethod.DeclaredAccessibility != Accessibility.Public)
+			{
+				context.ReportDiagnostic(Diagnostic.Create(
+					DiagnosticDescriptors.IniFileSectionNoPublicGetterDiagnostic,
+					location,
+					propertySymbol.Name,
+					className));
+				isValid = false;
+			}
+
+			// Recursively validate nested section types
+			if (propertySymbol.Type is INamedTypeSymbol nestedType)
+				ValidateSectionPropertiesOnType(context, nestedType, null, ref isValid);
+		}
 	}
 
 	private static AttributeData? FindAttribute(IPropertySymbol propertySymbol, string attributeName)
@@ -774,7 +797,6 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 		string PropertyPath,
 		string SectionName,
 		string TypeName,
-		bool NeedsInitialization,
 		List<ValueInfo> Values,
 		string? Comment = null
 	);
