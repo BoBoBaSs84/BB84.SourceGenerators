@@ -230,26 +230,6 @@ public sealed class IniFileGeneratorTests
 	}
 
 	[TestMethod]
-	public void WriteShouldSkipNullSections()
-	{
-		TestIniFile instance = new()
-		{
-			General = new TestGeneralSection
-			{
-				AppName = "TestApp",
-				Version = 1,
-				Enabled = true
-			},
-			Database = null
-		};
-
-		string result = TestIniFile.Write(instance);
-
-		Assert.Contains("[General]", result);
-		Assert.DoesNotContain("[Database]", result);
-	}
-
-	[TestMethod]
 	public void ReadThenWriteShouldRoundTrip()
 	{
 		TestIniFile original = new()
@@ -349,8 +329,8 @@ public sealed class IniFileGeneratorTests
 		TestIniFile result = TestIniFile.Read(content);
 
 		Assert.IsNotNull(result);
-		Assert.IsNull(result.General);
-		Assert.IsNull(result.Database);
+		Assert.IsNotNull(result.General);
+		Assert.IsNotNull(result.Database);
 	}
 
 	[TestMethod]
@@ -437,7 +417,10 @@ public sealed class IniFileGeneratorTests
 
 		TestIniFileCaseSensitive result = TestIniFileCaseSensitive.Read(content);
 
-		Assert.IsNull(result.General);
+		Assert.IsNotNull(result.General);
+		Assert.IsNull(result.General.AppName);
+		Assert.AreEqual(0, result.General.Version);
+		Assert.IsFalse(result.General.Enabled);
 	}
 
 	[TestMethod]
@@ -696,38 +679,13 @@ public sealed class IniFileGeneratorTests
 	}
 
 	[TestMethod]
-	public void LoadShouldSkipNullSections()
-	{
-		TestIniFile target = new()
-		{
-			General = new TestGeneralSection { AppName = "Keep", Version = 1, Enabled = true },
-			Database = null
-		};
-
-		TestIniFile source = new()
-		{
-			General = new TestGeneralSection { AppName = "New", Version = 5, Enabled = false },
-			Database = new TestDatabaseSection { Host = "host", Port = 9999, Timeout = 99.0 }
-		};
-
-		target.Load(source);
-
-		// General should be updated
-		Assert.AreEqual("New", target.General.AppName);
-		Assert.AreEqual(5, target.General.Version);
-
-		// Database should remain null (target section is null)
-		Assert.IsNull(target.Database);
-	}
-
-	[TestMethod]
 	public void LoadShouldCopyNestedSectionValues()
 	{
-		TestIniFileWithNestedSection target = new() { Section = new() };
+		TestIniFileWithNestedSection target = new() { Section = new() { SubSection = new() } };
 		target.Section.Domain = "old-domain";
 		target.Section.SubSection.Foo = "old-foo";
 
-		TestIniFileWithNestedSection source = new() { Section = new() };
+		TestIniFileWithNestedSection source = new() { Section = new() { SubSection = new() } };
 		source.Section.Domain = "new-domain";
 		source.Section.SubSection.Foo = "new-foo";
 
@@ -735,21 +693,6 @@ public sealed class IniFileGeneratorTests
 
 		Assert.AreEqual("new-domain", target.Section.Domain);
 		Assert.AreEqual("new-foo", target.Section.SubSection.Foo);
-	}
-
-	[TestMethod]
-	public void LoadShouldNotThrowWhenNestedParentIsNull()
-	{
-		TestIniFileWithNestedSection target = new();
-		TestIniFileWithNestedSection source = new() { Section = new() };
-
-		target.Section = null!;
-		source.Section.Domain = "new-domain";
-		source.Section.SubSection.Foo = "new-foo";
-
-		target.Load(source);
-
-		Assert.IsNull(target.Section);
 	}
 
 	[TestMethod]
@@ -978,10 +921,10 @@ public sealed class IniFileGeneratorTests
 internal sealed partial class TestIniFile
 {
 	[GenerateIniFileSection]
-	public TestGeneralSection? General { get; set; }
+	public TestGeneralSection General { get; set; } = new();
 
 	[GenerateIniFileSection]
-	public TestDatabaseSection? Database { get; set; }
+	public TestDatabaseSection Database { get; set; } = new();
 }
 
 public class TestGeneralSection
@@ -1012,10 +955,10 @@ public class TestDatabaseSection
 internal sealed partial class TestIniFileWithCustomNames
 {
 	[GenerateIniFileSection("CustomSection")]
-	public TestCustomSection? Stats { get; set; }
+	public TestCustomSection Stats { get; set; } = new();
 
 	[GenerateIniFileSection]
-	public TestMetricsSection? Metrics { get; set; }
+	public TestMetricsSection Metrics { get; set; } = new();
 }
 
 public class TestCustomSection
@@ -1034,7 +977,7 @@ public class TestMetricsSection
 internal sealed partial class TestIniFileAllTypes
 {
 	[GenerateIniFileSection]
-	public TestAllTypesSection? AllTypes { get; set; }
+	public TestAllTypesSection AllTypes { get; set; } = new();
 }
 
 public class TestAllTypesSection
@@ -1081,22 +1024,26 @@ public class TestSettingsSection
 internal sealed partial class TestIniFileCaseSensitive
 {
 	[GenerateIniFileSection]
-	public TestGeneralSection? General { get; set; }
+	public TestGeneralSection General { get; set; } = new();
 }
 
 [GenerateIniFile]
 internal sealed partial class TestIniFileWithNestedSection
 {
 	[GenerateIniFileSection]
-	public TestSection? Section { get; set; }
+	public TestSection Section { get; set; } = new();
 }
 
 public class TestSection
 {
 	[GenerateIniFileValue]
 	public string? Domain { get; set; }
+
 	[GenerateIniFileSection]
-	public TestSubSection SubSection { get; set; } = new TestSubSection();
+	public TestSubSection SubSection { get; set; } = new();
+
+	[GenerateIniFileSection]
+	public TestSubSection OtherSubSection { get; set; } = new();
 }
 
 public class TestSubSection
@@ -1121,7 +1068,7 @@ public enum TestPermissions { None = 0, Read = 1, Write = 2, Execute = 4 }
 internal sealed partial class TestIniFileWithEnums
 {
 	[GenerateIniFileSection]
-	public TestAppSection? App { get; set; }
+	public TestAppSection App { get; set; } = new();
 }
 
 public class TestAppSection
@@ -1134,7 +1081,7 @@ public class TestAppSection
 internal sealed partial class TestIniFileWithFlagsEnum
 {
 	[GenerateIniFileSection]
-	public TestFlagsAppSection? App { get; set; }
+	public TestFlagsAppSection App { get; set; } = new();
 }
 
 public class TestFlagsAppSection
@@ -1150,7 +1097,7 @@ internal sealed partial class TestIniFileWithComments
 	/// General application settings
 	/// </summary>
 	[GenerateIniFileSection]
-	public TestCommentedGeneralSection? General { get; set; }
+	public TestCommentedGeneralSection General { get; set; } = new();
 }
 
 public class TestCommentedGeneralSection
@@ -1172,7 +1119,7 @@ public class TestCommentedGeneralSection
 internal sealed partial class TestIniFileExtendedTypes
 {
 	[GenerateIniFileSection]
-	public TestExtendedTypesSection? Extended { get; set; }
+	public TestExtendedTypesSection Extended { get; set; } = new();
 }
 
 public class TestExtendedTypesSection
@@ -1191,7 +1138,7 @@ public class TestExtendedTypesSection
 internal sealed partial class TestIniFileCollections
 {
 	[GenerateIniFileSection]
-	public TestCollectionsSection? Collections { get; set; }
+	public TestCollectionsSection Collections { get; set; } = new();
 }
 
 public class TestCollectionsSection
@@ -1207,7 +1154,7 @@ public class TestCollectionsSection
 internal sealed partial class TestIniFileArrays
 {
 	[GenerateIniFileSection]
-	public TestArraysSection? Arrays { get; set; }
+	public TestArraysSection Arrays { get; set; } = new();
 }
 
 public class TestArraysSection

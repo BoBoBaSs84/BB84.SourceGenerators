@@ -129,4 +129,40 @@ internal static class DiagnosticDescriptors
 		category: "BB84.SourceGenerators",
 		defaultSeverity: DiagnosticSeverity.Error,
 		isEnabledByDefault: true);
+
+	/// <summary>
+	/// Represents a diagnostic error indicating that a property decorated with [GenerateIniFileSection]
+	/// has a nullable type, which is not supported.
+	/// </summary>
+	internal static readonly DiagnosticDescriptor IniFileSectionNullablePropertyDiagnostic = new(
+		id: "BB84SG0011",
+		title: "IniFile section property must not be nullable",
+		messageFormat: "The property '{0}' on class '{1}' decorated with [GenerateIniFileSection] must not be nullable",
+		category: "BB84.SourceGenerators",
+		defaultSeverity: DiagnosticSeverity.Error,
+		isEnabledByDefault: true);
+
+	/// <summary>
+	/// Represents a diagnostic error indicating that a property decorated with [GenerateIniFileSection]
+	/// is not initialized.
+	/// </summary>
+	internal static readonly DiagnosticDescriptor IniFileSectionUninitializedPropertyDiagnostic = new(
+		id: "BB84SG0012",
+		title: "IniFile section property must be initialized",
+		messageFormat: "The property '{0}' on class '{1}' decorated with [GenerateIniFileSection] must be initialized",
+		category: "BB84.SourceGenerators",
+		defaultSeverity: DiagnosticSeverity.Error,
+		isEnabledByDefault: true);
+
+	/// <summary>
+	/// Represents a diagnostic error indicating that a property decorated with [GenerateIniFileSection]
+	/// does not have a public getter.
+	/// </summary>
+	internal static readonly DiagnosticDescriptor IniFileSectionNoPublicGetterDiagnostic = new(
+		id: "BB84SG0013",
+		title: "IniFile section property must have a public getter",
+		messageFormat: "The property '{0}' on class '{1}' decorated with [GenerateIniFileSection] must have a public getter",
+		category: "BB84.SourceGenerators",
+		defaultSeverity: DiagnosticSeverity.Error,
+		isEnabledByDefault: true);
 }

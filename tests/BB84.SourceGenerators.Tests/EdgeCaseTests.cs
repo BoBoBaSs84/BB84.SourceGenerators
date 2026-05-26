@@ -253,8 +253,8 @@ public sealed class EdgeCaseTests
 		TestIniFile result = TestIniFile.Read(content);
 
 		Assert.IsNotNull(result);
-		Assert.IsNull(result.General);
-		Assert.IsNull(result.Database);
+		Assert.IsNotNull(result.General);
+		Assert.IsNotNull(result.Database);
 	}
 
 	[TestMethod]
