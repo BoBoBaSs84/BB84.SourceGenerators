@@ -329,8 +329,8 @@ public sealed class IniFileGeneratorTests
 		TestIniFile result = TestIniFile.Read(content);
 
 		Assert.IsNotNull(result);
-		Assert.IsNull(result.General);
-		Assert.IsNull(result.Database);
+		Assert.IsNotNull(result.General);
+		Assert.IsNotNull(result.Database);
 	}
 
 	[TestMethod]
@@ -417,7 +417,10 @@ public sealed class IniFileGeneratorTests
 
 		TestIniFileCaseSensitive result = TestIniFileCaseSensitive.Read(content);
 
-		Assert.IsNull(result.General);
+		Assert.IsNotNull(result.General);
+		Assert.IsNull(result.General.AppName);
+		Assert.AreEqual(0, result.General.Version);
+		Assert.IsFalse(result.General.Enabled);
 	}
 
 	[TestMethod]
@@ -690,21 +693,6 @@ public sealed class IniFileGeneratorTests
 
 		Assert.AreEqual("new-domain", target.Section.Domain);
 		Assert.AreEqual("new-foo", target.Section.SubSection.Foo);
-	}
-
-	[TestMethod]
-	public void LoadShouldNotThrowWhenNestedParentIsNull()
-	{
-		TestIniFileWithNestedSection target = new();
-		TestIniFileWithNestedSection source = new() { Section = new() { SubSection = new() } };
-
-		target.Section = null!;
-		source.Section.Domain = "new-domain";
-		source.Section.SubSection.Foo = "new-foo";
-
-		target.Load(source);
-
-		Assert.IsNull(target.Section);
 	}
 
 	[TestMethod]

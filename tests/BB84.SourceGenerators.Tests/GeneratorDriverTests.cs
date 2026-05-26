@@ -1253,6 +1253,116 @@ namespace TestNamespace
 		Assert.IsEmpty(autoMapperErrors, string.Join("\n", autoMapperErrors.Select(e => e.ToString())));
 	}
 
+	[TestMethod]
+	public void IniFileGeneratorShouldReportDiagnosticForNullableSectionProperty()
+	{
+		string source = @"
+#nullable enable
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+	public class MySection
+	{
+		[GenerateIniFileValue]
+		public string? Name { get; set; }
+	}
+
+	[GenerateIniFile]
+	internal sealed partial class MyConfig
+	{
+		[GenerateIniFileSection]
+		public MySection? Section { get; set; } = new();
+	}
+}";
+
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources) = RunGenerator<IniFileGenerator>(source);
+
+		Assert.IsNotEmpty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error && d.Id == "BB84SG0011"));
+	}
+
+	[TestMethod]
+	public void IniFileGeneratorShouldReportDiagnosticForUninitializedSectionProperty()
+	{
+		string source = @"
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+	public class MySection
+	{
+		[GenerateIniFileValue]
+		public string Name { get; set; }
+	}
+
+	[GenerateIniFile]
+	internal sealed partial class MyConfig
+	{
+		[GenerateIniFileSection]
+		public MySection Section { get; set; }
+	}
+}";
+
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources) = RunGenerator<IniFileGenerator>(source);
+
+		Assert.IsNotEmpty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error && d.Id == "BB84SG0012"));
+	}
+
+	[TestMethod]
+	public void IniFileGeneratorShouldReportDiagnosticForNoPublicGetter()
+	{
+		string source = @"
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+	public class MySection
+	{
+		[GenerateIniFileValue]
+		public string Name { get; set; }
+	}
+
+	[GenerateIniFile]
+	internal sealed partial class MyConfig
+	{
+		[GenerateIniFileSection]
+		public MySection Section { private get; set; } = new();
+	}
+}";
+
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources) = RunGenerator<IniFileGenerator>(source);
+
+		Assert.IsNotEmpty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error && d.Id == "BB84SG0013"));
+	}
+
+	[TestMethod]
+	public void IniFileGeneratorShouldNotReportDiagnosticForValidSectionProperty()
+	{
+		string source = @"
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+	public class MySection
+	{
+		[GenerateIniFileValue]
+		public string Name { get; set; }
+	}
+
+	[GenerateIniFile]
+	internal sealed partial class MyConfig
+	{
+		[GenerateIniFileSection]
+		public MySection Section { get; set; } = new();
+	}
+}";
+
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources) = RunGenerator<IniFileGenerator>(source);
+
+		Assert.IsEmpty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+		Assert.IsNotEmpty(generatedSources);
+	}
+
 	private static (ImmutableArray<Diagnostic> Diagnostics, string[] GeneratedSources) RunGenerator<TGenerator>(string source)
 		where TGenerator : IIncrementalGenerator, new()
 	{
