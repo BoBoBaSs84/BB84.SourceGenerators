@@ -33,7 +33,7 @@ jobs:
         run: dotnet build BB84.SourceGenerators.slnx --configuration Release --no-restore
 
       - name: Run tests
-        run: dotnet test BB84.SourceGenerators.slnx --configuration Release --no-build --verbosity normal --logger "trx;LogFileName=test-results-{framework}.trx"
+        run: dotnet test BB84.SourceGenerators.slnx --configuration Release --no-build --verbosity normal --logger trx
 
       - name: Upload test results
         if: always()
