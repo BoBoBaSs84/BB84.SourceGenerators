@@ -21,6 +21,11 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
 
+      - name: Install mono
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mono-complete
+
       - name: Restore dependencies
         run: dotnet restore BB84.SourceGenerators.slnx
 
@@ -28,7 +33,7 @@ jobs:
         run: dotnet build BB84.SourceGenerators.slnx --configuration Release --no-restore
 
       - name: Run tests
-        run: dotnet test BB84.SourceGenerators.slnx --configuration Release --no-build --verbosity normal --logger "trx;LogFileName=test-results.trx"
+        run: dotnet test BB84.SourceGenerators.slnx --configuration Release --no-build --verbosity normal --logger "trx;LogFileName=test-results-{framework}.trx"
 
       - name: Upload test results
         if: always()
