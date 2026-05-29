@@ -226,9 +226,17 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 		sb.AppendLine("/// <param name=\"reader\">The <see cref=\"TextReader\"/> to read from.</param>");
 		sb.AppendLine("/// <param name=\"cancellationToken\">A cancellation token that can be used to cancel the asynchronous operation.</param>");
 		sb.AppendLine($"/// <returns>A task representing the asynchronous operation, containing the deserialized <see cref=\"{className}\"/> instance.</returns>");
+		sb.AppendLine("#if NET5_0_OR_GREATER");
 		sb.AppendLine($"public static async Task<{className}> ReadAsync(TextReader reader, CancellationToken cancellationToken = default)");
+		sb.AppendLine("#else");
+		sb.AppendLine($"public static async Task<{className}> ReadAsync(TextReader reader)");
+		sb.AppendLine("#endif");
 		sb.OpenBrace();
+		sb.AppendLine("#if NET5_0_OR_GREATER");
 		sb.AppendLine("string content = await reader.ReadToEndAsync(cancellationToken).ConfigureAwait(false);");
+		sb.AppendLine("#else");
+		sb.AppendLine("string content = await reader.ReadToEndAsync().ConfigureAwait(false);");
+		sb.AppendLine("#endif");
 		sb.AppendLine("return Read(content);");
 		sb.CloseBrace();
 		sb.AppendLine();
@@ -239,10 +247,18 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 		sb.AppendLine("/// <param name=\"stream\">The <see cref=\"Stream\"/> to read from.</param>");
 		sb.AppendLine("/// <param name=\"cancellationToken\">A cancellation token that can be used to cancel the asynchronous operation.</param>");
 		sb.AppendLine($"/// <returns>A task representing the asynchronous operation, containing the deserialized <see cref=\"{className}\"/> instance.</returns>");
+		sb.AppendLine("#if NET5_0_OR_GREATER");
 		sb.AppendLine($"public static async Task<{className}> ReadAsync(Stream stream, CancellationToken cancellationToken = default)");
+		sb.AppendLine("#else");
+		sb.AppendLine($"public static async Task<{className}> ReadAsync(Stream stream)");
+		sb.AppendLine("#endif");
 		sb.OpenBrace();
 		sb.AppendLine("using StreamReader reader = new StreamReader(stream, Encoding.UTF8, true, 1024, leaveOpen: true);");
+		sb.AppendLine("#if NET5_0_OR_GREATER");
 		sb.AppendLine("return await ReadAsync(reader, cancellationToken).ConfigureAwait(false);");
+		sb.AppendLine("#else");
+		sb.AppendLine("return await ReadAsync(reader).ConfigureAwait(false);");
+		sb.AppendLine("#endif");
 		sb.CloseBrace();
 	}
 
@@ -256,11 +272,19 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 		sb.AppendLine("/// <param name=\"writer\">The <see cref=\"TextWriter\"/> to write to.</param>");
 		sb.AppendLine("/// <param name=\"cancellationToken\">A cancellation token that can be used to cancel the asynchronous operation.</param>");
 		sb.AppendLine("/// <returns>A task representing the asynchronous operation.</returns>");
+		sb.AppendLine("#if NET5_0_OR_GREATER");
 		sb.AppendLine($"public static async Task WriteAsync({className} instance, TextWriter writer, CancellationToken cancellationToken = default)");
+		sb.AppendLine("#else");
+		sb.AppendLine($"public static async Task WriteAsync({className} instance, TextWriter writer)");
+		sb.AppendLine("#endif");
 		sb.OpenBrace();
 		sb.AppendLine("string content = Write(instance);");
+		sb.AppendLine("#if NET5_0_OR_GREATER");
 		sb.AppendLine("StringBuilder builder = new StringBuilder(content);");
 		sb.AppendLine("await writer.WriteAsync(builder, cancellationToken).ConfigureAwait(false);");
+		sb.AppendLine("#else");
+		sb.AppendLine("await writer.WriteAsync(content).ConfigureAwait(false);");
+		sb.AppendLine("#endif");
 		sb.CloseBrace();
 		sb.AppendLine();
 		sb.AppendLine("/// <summary>");
@@ -270,10 +294,18 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 		sb.AppendLine("/// <param name=\"stream\">The <see cref=\"Stream\"/> to write to.</param>");
 		sb.AppendLine("/// <param name=\"cancellationToken\">A cancellation token that can be used to cancel the asynchronous operation.</param>");
 		sb.AppendLine("/// <returns>A task representing the asynchronous operation.</returns>");
+		sb.AppendLine("#if NET5_0_OR_GREATER");
 		sb.AppendLine($"public static async Task WriteAsync({className} instance, Stream stream, CancellationToken cancellationToken = default)");
+		sb.AppendLine("#else");
+		sb.AppendLine($"public static async Task WriteAsync({className} instance, Stream stream)");
+		sb.AppendLine("#endif");
 		sb.OpenBrace();
 		sb.AppendLine("using StreamWriter writer = new StreamWriter(stream, Encoding.UTF8, 1024, leaveOpen: true);");
+		sb.AppendLine("#if NET5_0_OR_GREATER");
 		sb.AppendLine("await WriteAsync(instance, writer, cancellationToken).ConfigureAwait(false);");
+		sb.AppendLine("#else");
+		sb.AppendLine("await WriteAsync(instance, writer).ConfigureAwait(false);");
+		sb.AppendLine("#endif");
 		sb.CloseBrace();
 	}
 

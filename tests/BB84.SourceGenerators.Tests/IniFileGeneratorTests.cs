@@ -853,9 +853,15 @@ public sealed class IniFileGeneratorTests
 		string content = "[General]\r\nAppName=AsyncApp\r\nVersion=7\r\nEnabled=True\r\n";
 		using StringReader reader = new(content);
 
+#if NET5_0_OR_GREATER
 		TestIniFile result = await TestIniFile
 			.ReadAsync(reader, _testToken)
 			.ConfigureAwait(false);
+#else
+		TestIniFile result = await TestIniFile
+			.ReadAsync(reader)
+			.ConfigureAwait(false);
+#endif
 
 		Assert.IsNotNull(result.General);
 		Assert.AreEqual("AsyncApp", result.General.AppName);
@@ -868,9 +874,15 @@ public sealed class IniFileGeneratorTests
 		string content = "[General]\r\nAppName=StreamApp\r\nVersion=3\r\nEnabled=False\r\n";
 		using MemoryStream stream = new(Encoding.UTF8.GetBytes(content));
 
+#if NET5_0_OR_GREATER
 		TestIniFile result = await TestIniFile
 			.ReadAsync(stream, _testToken)
 			.ConfigureAwait(false);
+#else
+		TestIniFile result = await TestIniFile
+			.ReadAsync(stream)
+			.ConfigureAwait(false);
+#endif
 
 		Assert.IsNotNull(result.General);
 		Assert.AreEqual("StreamApp", result.General.AppName);
@@ -886,9 +898,15 @@ public sealed class IniFileGeneratorTests
 		};
 		using StringWriter writer = new();
 
+#if NET5_0_OR_GREATER
 		await TestIniFile
 			.WriteAsync(instance, writer, _testToken)
 			.ConfigureAwait(false);
+#else
+		await TestIniFile
+			.WriteAsync(instance, writer)
+			.ConfigureAwait(false);
+#endif
 		string result = writer.ToString();
 
 		Assert.Contains("[General]", result);
@@ -904,9 +922,15 @@ public sealed class IniFileGeneratorTests
 		};
 		using MemoryStream stream = new();
 
+#if NET5_0_OR_GREATER
 		await TestIniFile
 			.WriteAsync(instance, stream, _testToken)
 			.ConfigureAwait(false);
+#else
+		await TestIniFile
+			.WriteAsync(instance, stream)
+			.ConfigureAwait(false);
+#endif
 		stream.Position = 0;
 		string result = new StreamReader(stream).ReadToEnd();
 
