@@ -76,7 +76,13 @@ internal sealed partial class EnvironmentProvider
 public partial interface IEnvironmentProvider
 { }
 
-[GenerateAbstraction(typeof(Path), typeof(IPathProvider), typeof(PathProvider), ExcludeProperties = new string[] { nameof(Path.EndsInDirectorySeparator) })]
+[GenerateAbstraction(typeof(Path), typeof(IPathProvider), typeof(PathProvider), ExcludeProperties = new string[] {
+#if NET5_0_OR_GREATER
+	nameof(Path.EndsInDirectorySeparator)
+#else	
+	"EndsInDirectorySeparator"
+#endif
+})]
 internal sealed partial class PathProvider
 { }
 
