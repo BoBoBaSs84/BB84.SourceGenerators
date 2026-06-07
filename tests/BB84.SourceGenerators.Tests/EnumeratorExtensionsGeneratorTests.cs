@@ -16,7 +16,7 @@ public sealed class EnumeratorExtensionsGeneratorTests
 	public void GetNamesFastShouldReturnCorrectNames()
 	{
 		List<string> expectedNames = [nameof(GeneratorTestType.None), nameof(GeneratorTestType.One), nameof(GeneratorTestType.Two), nameof(GeneratorTestType.Three)];
-		List<string> actualNames = [.. GeneratorTestType.None.GetNamesFast()];
+		List<string> actualNames = [.. GeneratorTestTypeExtensions.GetNamesFast()];
 		CollectionAssert.AreEqual(expectedNames, actualNames);
 	}
 
@@ -24,7 +24,7 @@ public sealed class EnumeratorExtensionsGeneratorTests
 	public void GetValuesFastShouldReturnCorrectValues()
 	{
 		List<GeneratorTestType> expectedValues = [GeneratorTestType.None, GeneratorTestType.One, GeneratorTestType.Two, GeneratorTestType.Three];
-		List<GeneratorTestType> actualValues = [.. GeneratorTestType.None.GetValuesFast()];
+		List<GeneratorTestType> actualValues = [.. GeneratorTestTypeExtensions.GetValuesFast()];
 		CollectionAssert.AreEqual(expectedValues, actualValues);
 	}
 

@@ -161,9 +161,8 @@ public sealed class EnumeratorExtensionsGenerator : IIncrementalGenerator
 		sb.AppendLine("/// <summary>");
 		sb.AppendLine($"/// Returns the names of the <see cref=\"{enumName}\"/> enumeration as an collection of strings.");
 		sb.AppendLine("/// </summary>");
-		sb.AppendLine("/// <param name=\"value\">The enumeration value to get the names for.</param>");
 		sb.AppendLine("/// <returns>An array of strings containing the names of the enumeration values.</returns>");
-		sb.AppendLine($"public static IEnumerable<string> GetNamesFast(this {enumName} value)");
+		sb.AppendLine($"public static IEnumerable<string> GetNamesFast()");
 		sb.OpenBrace();
 		sb.AppendLine("return new[]");
 		sb.OpenBrace();
@@ -183,9 +182,8 @@ public sealed class EnumeratorExtensionsGenerator : IIncrementalGenerator
 		sb.AppendLine("/// <summary>");
 		sb.AppendLine($"/// Returns the values of the <see cref=\"{enumName}\"/> enumeration.");
 		sb.AppendLine("/// </summary>");
-		sb.AppendLine("/// <param name=\"value\">The enumeration value to get the values for.</param>");
 		sb.AppendLine("/// <returns>An collection of the enumeration values.</returns>");
-		sb.AppendLine($"public static IEnumerable<{enumName}> GetValuesFast(this {enumName} value)");
+		sb.AppendLine($"public static IEnumerable<{enumName}> GetValuesFast()");
 		sb.OpenBrace();
 		sb.AppendLine("return new[]");
 		sb.OpenBrace();
