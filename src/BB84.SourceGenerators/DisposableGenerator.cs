@@ -23,15 +23,14 @@ namespace BB84.SourceGenerators;
 [Generator(LanguageNames.CSharp)]
 public sealed class DisposableGenerator : IIncrementalGenerator
 {
-	private static readonly string GeneratorAttributeName = typeof(GenerateDisposableAttribute).FullName;
-	private const string AttributeFullName = nameof(GenerateDisposableAttribute);
-	private static readonly string AttributeShortName = GeneratorHelpers.StripAttributeSuffix(AttributeFullName);
-	private const string DisposeResourceFullName = nameof(DisposeResourceAttribute);
-	private static readonly string DisposeResourceShortName = GeneratorHelpers.StripAttributeSuffix(DisposeResourceFullName);
+	private static readonly (string MetadataName, string FullName, string ShortName) AttributeNames =
+		GeneratorHelpers.GetAttributeNames<GenerateDisposableAttribute>();
+	private static readonly (string MetadataName, string FullName, string ShortName) DisposeResourceAttributeNames =
+		GeneratorHelpers.GetAttributeNames<DisposeResourceAttribute>();
 
 	/// <inheritdoc/>
 	public void Initialize(IncrementalGeneratorInitializationContext context)
-		=> GeneratorHelpers.RegisterClassGenerator(context, GeneratorAttributeName, Execute);
+		=> GeneratorHelpers.RegisterClassGenerator(context, AttributeNames.MetadataName, Execute);
 
 	private void Execute(SourceProductionContext context, (ClassDeclarationSyntax ClassSyntax, SemanticModel SemanticModel)? input)
 	{
@@ -109,7 +108,7 @@ public sealed class DisposableGenerator : IIncrementalGenerator
 			{
 				string name = attribute.Name.ToString();
 
-				if (name != AttributeShortName && name != AttributeFullName)
+				if (name != AttributeNames.ShortName && name != AttributeNames.FullName)
 					continue;
 
 				if (attribute.ArgumentList is null || attribute.ArgumentList.Arguments.Count == 0)
@@ -195,7 +194,7 @@ public sealed class DisposableGenerator : IIncrementalGenerator
 			{
 				string name = attribute.Name.ToString();
 
-				if (name != DisposeResourceShortName && name != DisposeResourceFullName)
+				if (name != DisposeResourceAttributeNames.ShortName && name != DisposeResourceAttributeNames.FullName)
 					continue;
 
 				if (attribute.ArgumentList is null || attribute.ArgumentList.Arguments.Count == 0)
