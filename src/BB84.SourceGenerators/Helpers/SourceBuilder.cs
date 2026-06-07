@@ -14,6 +14,9 @@ namespace BB84.SourceGenerators.Helpers;
 internal sealed class SourceBuilder
 {
 	private const int IndentSize = 2;
+	private const int MaxIndentLevels = 20;
+	private static readonly string[] Indents =
+		[.. Enumerable.Range(0, MaxIndentLevels).Select(i => new string(' ', i * IndentSize))];
 	private readonly StringBuilder _sb = new();
 
 	/// <summary>
@@ -160,7 +163,7 @@ internal sealed class SourceBuilder
 	/// <returns>The current <see cref="SourceBuilder"/> instance.</returns>
 	public SourceBuilder AppendLine(string text)
 	{
-		_sb.Append(new string(' ', IndentLevel * IndentSize));
+		_sb.Append(IndentLevel < MaxIndentLevels ? Indents[IndentLevel] : new string(' ', IndentLevel * IndentSize));
 		_sb.AppendLine(text);
 		return this;
 	}
@@ -181,7 +184,7 @@ internal sealed class SourceBuilder
 	/// <returns>The current <see cref="SourceBuilder"/> instance.</returns>
 	public SourceBuilder OpenBrace()
 	{
-		_sb.Append(new string(' ', IndentLevel * IndentSize));
+		_sb.Append(IndentLevel < MaxIndentLevels ? Indents[IndentLevel] : new string(' ', IndentLevel * IndentSize));
 		_sb.AppendLine("{");
 		IndentLevel++;
 		return this;
@@ -194,7 +197,7 @@ internal sealed class SourceBuilder
 	public SourceBuilder CloseBrace()
 	{
 		IndentLevel--;
-		_sb.Append(new string(' ', IndentLevel * IndentSize));
+		_sb.Append(IndentLevel < MaxIndentLevels ? Indents[IndentLevel] : new string(' ', IndentLevel * IndentSize));
 		_sb.AppendLine("}");
 		return this;
 	}
