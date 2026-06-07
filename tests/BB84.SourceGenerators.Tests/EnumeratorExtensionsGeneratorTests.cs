@@ -47,17 +47,17 @@ public sealed class EnumeratorExtensionsGeneratorTests
 	[TestMethod]
 	public void IsDefinedFastShouldReturnTrueForDefinedNames()
 	{
-		Assert.IsTrue(nameof(GeneratorTestType.None).IsDefinedFast());
-		Assert.IsTrue(nameof(GeneratorTestType.One).IsDefinedFast());
-		Assert.IsTrue(nameof(GeneratorTestType.Two).IsDefinedFast());
-		Assert.IsTrue(nameof(GeneratorTestType.Three).IsDefinedFast());
+		Assert.IsTrue(GeneratorTestTypeExtensions.IsDefinedFast(nameof(GeneratorTestType.None)));
+		Assert.IsTrue(GeneratorTestTypeExtensions.IsDefinedFast(nameof(GeneratorTestType.One)));
+		Assert.IsTrue(GeneratorTestTypeExtensions.IsDefinedFast(nameof(GeneratorTestType.Two)));
+		Assert.IsTrue(GeneratorTestTypeExtensions.IsDefinedFast(nameof(GeneratorTestType.Three)));
 	}
 
 	[TestMethod]
 	public void IsDefinedFastShouldReturnFalseForUndefinedNames()
 	{
-		Assert.IsFalse("UndefinedValue".IsDefinedFast());
-		Assert.IsFalse("AnotherUndefinedValue".IsDefinedFast());
+		Assert.IsFalse(GeneratorTestTypeExtensions.IsDefinedFast("UndefinedValue"));
+		Assert.IsFalse(GeneratorTestTypeExtensions.IsDefinedFast("AnotherUndefinedValue"));
 	}
 
 	[TestMethod]
