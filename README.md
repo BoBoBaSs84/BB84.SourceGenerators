@@ -99,9 +99,9 @@ The generator creates the following extension methods:
 
 - `ToStringFast()` - Returns the name of the enum value as a string
 - `IsDefinedFast(this TEnum value)` - Checks if an enum value is defined
-- `IsDefinedFast(this string name)` - Checks if an enum name is defined
-- `GetNamesFast()` - Returns all enum names as an `IEnumerable<string>`
-- `GetValuesFast()` - Returns all enum values as an `IEnumerable<TEnum>`
+- `IsDefinedFast(string name)` - Checks if an enum name is defined
+- `GetNamesFast()` - Returns all enum names as an `IEnumerable<string>` (static method)
+- `GetValuesFast()` - Returns all enum values as an `IEnumerable<TEnum>` (static method)
 - `GetDescriptionFast()` - Returns the description from `[Description]` attribute, or the name if not present
 
 #### Usage Example
@@ -114,14 +114,14 @@ string name = status.ToStringFast(); // "Pending"
 
 // Check if defined
 bool isDefined = status.IsDefinedFast(); // true
-bool isNameDefined = "Active".IsDefinedFast(); // true
+bool isNameDefined = StatusExtensions.IsDefinedFast("Active"); // true
 
 // Get description
 string description = status.GetDescriptionFast(); // "Pending approval"
 
 // Get all names and values
-IEnumerable<string> names = status.GetNamesFast();
-IEnumerable<Status> values = status.GetValuesFast();
+IEnumerable<string> names = StatusExtensions.GetNamesFast();
+IEnumerable<Status> values = StatusExtensions.GetValuesFast();
 ```
 
 ### 2. Notification Properties Generator
