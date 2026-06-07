@@ -60,6 +60,17 @@ public sealed class AbstractionGeneratorTests
 		Assert.IsTrue(result);
 		Assert.AreEqual(42, value);
 	}
+
+	[TestMethod]
+	public void ExcludeMethodsAndPropertiesTest()
+	{
+		IFilteredEnvironmentProvider? provider;
+
+		provider = new FilteredEnvironmentProvider();
+
+		Assert.IsNotNull(provider);
+		Assert.IsInstanceOfType<IFilteredEnvironmentProvider>(provider);
+	}
 }
 
 [GenerateAbstraction(typeof(File), typeof(IFileProvider), typeof(FileProvider))]
@@ -100,4 +111,13 @@ internal sealed partial class OutParamProvider
 { }
 
 public partial interface IOutParamProvider
+{ }
+
+[GenerateAbstraction(typeof(Environment), typeof(IFilteredEnvironmentProvider), typeof(FilteredEnvironmentProvider),
+	ExcludeMethods = [nameof(Environment.Exit), "FailFast"],
+	ExcludeProperties = [nameof(Environment.ExitCode), "StackTrace"])]
+internal sealed partial class FilteredEnvironmentProvider
+{ }
+
+public partial interface IFilteredEnvironmentProvider
 { }

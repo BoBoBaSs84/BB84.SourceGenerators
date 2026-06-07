@@ -243,7 +243,7 @@ Generates interface and implementation classes for static classes, making them t
 #### Attribute
 
 ```csharp
-[GenerateAbstraction(Type targetType, Type abstractionType, Type implementationType, params string[] excludeMethods)]
+[GenerateAbstraction(Type targetType, Type abstractionType, Type implementationType)]
 ```
 
 **Parameters:**
@@ -251,7 +251,11 @@ Generates interface and implementation classes for static classes, making them t
 - `targetType` - The static class to generate an abstraction for
 - `abstractionType` - The interface type to generate
 - `implementationType` - The implementation class type to generate
-- `excludeMethods` - Optional array of method names to exclude from generation
+
+**Properties:**
+
+- `ExcludeMethods` - Optional array of method names to exclude from generation
+- `ExcludeProperties` - Optional array of property names to exclude from generation
 
 #### Example
 
@@ -264,6 +268,16 @@ public partial class FileProvider
 { }
 
 public partial interface IFileProvider
+{ }
+
+// Generate abstraction with exclusions
+[GenerateAbstraction(typeof(Environment), typeof(IEnvironmentProvider), typeof(EnvironmentProvider),
+    ExcludeMethods = ["Exit", "FailFast"],
+    ExcludeProperties = ["ExitCode"])]
+public partial class EnvironmentProvider
+{ }
+
+public partial interface IEnvironmentProvider
 { }
 ```
 
