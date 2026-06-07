@@ -51,7 +51,7 @@ public sealed class AbstractionGenerator : IIncrementalGenerator
 	private static string GenerateAbstractionSource(AbstractionRequest request)
 	{
 		IEnumerable<IPropertySymbol> propertySymbols = GetPropertySymbols(request);
-		HashSet<string> propertyAccessorNames = GetPropertyAccessorNames(propertySymbols);
+		HashSet<string> propertyAccessorNames = GetAllPropertyAccessorNames(request);
 		IEnumerable<IMethodSymbol> methodSymbols = GetMethodSymbols(request, propertyAccessorNames);
 
 		string abstractionNamespace = GetFullNamespace(request.AbstractionType);
@@ -82,7 +82,7 @@ public sealed class AbstractionGenerator : IIncrementalGenerator
 	private static string GenerateImplementationSource(AbstractionRequest request)
 	{
 		IEnumerable<IPropertySymbol> propertySymbols = GetPropertySymbols(request);
-		HashSet<string> propertyAccessorNames = GetPropertyAccessorNames(propertySymbols);
+		HashSet<string> propertyAccessorNames = GetAllPropertyAccessorNames(request);
 		IEnumerable<IMethodSymbol> methodSymbols = GetMethodSymbols(request, propertyAccessorNames);
 
 		string abstractionNamespace = GetFullNamespace(request.AbstractionType);
@@ -129,15 +129,17 @@ public sealed class AbstractionGenerator : IIncrementalGenerator
 			.Where(p => p.DeclaredAccessibility == Accessibility.Public && p.IsStatic && !request.ExcludeProperties.Contains(p.Name));
 
 	/// <summary>
-	/// Gets the set of property accessor method names (e.g. get_PropertyName, set_PropertyName)
-	/// for the given property symbols, so they can be filtered from method generation.
+	/// Gets the set of all property accessor method names (e.g. get_PropertyName, set_PropertyName)
+	/// from all public static properties of the target type, so they can be filtered from method generation.
+	/// This includes accessors from excluded properties to prevent them from appearing as methods.
 	/// </summary>
-	/// <param name="propertySymbols">The property symbols to extract accessor names from.</param>
+	/// <param name="request">The abstraction request containing the target type.</param>
 	/// <returns>A set of accessor method names.</returns>
-	private static HashSet<string> GetPropertyAccessorNames(IEnumerable<IPropertySymbol> propertySymbols)
+	private static HashSet<string> GetAllPropertyAccessorNames(AbstractionRequest request)
 	{
 		HashSet<string> names = [];
-		foreach (IPropertySymbol property in propertySymbols)
+		foreach (IPropertySymbol property in request.TargetType.GetMembers().OfType<IPropertySymbol>()
+			.Where(p => p.DeclaredAccessibility == Accessibility.Public && p.IsStatic))
 		{
 			if (property.GetMethod != null)
 				names.Add(property.GetMethod.Name);
@@ -375,17 +377,13 @@ public sealed class AbstractionGenerator : IIncrementalGenerator
 				TypedConstant targetTypeArg = attributeData.ConstructorArguments[0];
 				TypedConstant abstractionTypeArg = attributeData.ConstructorArguments[1];
 				TypedConstant implementationTypeArg = attributeData.ConstructorArguments[2];
-				TypedConstant excludeMethodsArg = attributeData.ConstructorArguments.Length > 3
-					? attributeData.ConstructorArguments[3]
-					: default;
 
 				string[] excludeMethods = [];
-				if (excludeMethodsArg.Kind is TypedConstantKind.Array)
-					excludeMethods = [.. excludeMethodsArg.Values.Select(v => v.Value as string ?? string.Empty)];
-
 				string[] excludeProperties = [];
 				foreach (KeyValuePair<string, TypedConstant> namedArg in attributeData.NamedArguments)
 				{
+					if (namedArg.Key == nameof(GenerateAbstractionAttribute.ExcludeMethods) && namedArg.Value.Kind is TypedConstantKind.Array)
+						excludeMethods = [.. namedArg.Value.Values.Select(v => v.Value as string ?? string.Empty)];
 					if (namedArg.Key == nameof(GenerateAbstractionAttribute.ExcludeProperties) && namedArg.Value.Kind is TypedConstantKind.Array)
 						excludeProperties = [.. namedArg.Value.Values.Select(v => v.Value as string ?? string.Empty)];
 				}

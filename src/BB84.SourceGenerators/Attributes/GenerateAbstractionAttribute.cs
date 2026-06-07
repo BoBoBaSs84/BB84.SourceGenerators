@@ -11,19 +11,9 @@ namespace BB84.SourceGenerators.Attributes;
 /// <param name="targetType">The type of the static class to generate an abstraction for.</param>
 /// <param name="abstractionType">The type of the generated abstraction.</param>
 /// <param name="implementationType">The type of the generated implementation.</param>
-/// <param name="excludeMethods">The methods to exclude from the generated abstraction.</param>
 [AttributeUsage(AttributeTargets.Class, Inherited = false, AllowMultiple = false)]
-internal sealed class GenerateAbstractionAttribute(Type targetType, Type abstractionType, Type implementationType, params string[] excludeMethods) : Attribute
+internal sealed class GenerateAbstractionAttribute(Type targetType, Type abstractionType, Type implementationType) : Attribute
 {
-	/// <summary>
-	/// Initializes a new instance of the <see cref="GenerateAbstractionAttribute"/> class.
-	/// </summary>
-	/// <param name="targetType">The type of the static class to generate an abstraction for.</param>
-	/// <param name="abstractionType">The type of the generated abstraction.</param>
-	/// <param name="implementationType">The type of the generated implementation.</param>
-	public GenerateAbstractionAttribute(Type targetType, Type abstractionType, Type implementationType) : this(targetType, abstractionType, implementationType, [])
-	{ }
-
 	/// <summary>
 	/// Gets the type of the static class to generate an abstraction for.
 	/// </summary>
@@ -40,9 +30,9 @@ internal sealed class GenerateAbstractionAttribute(Type targetType, Type abstrac
 	public Type ImplementationType => implementationType;
 
 	/// <summary>
-	/// Gets the methods to exclude from the generated abstraction.
+	/// Gets or sets the methods to exclude from the generated abstraction.
 	/// </summary>
-	public string[] ExcludeMethods => excludeMethods;
+	public string[] ExcludeMethods { get; set; } = [];
 
 	/// <summary>
 	/// Gets or sets the properties to exclude from the generated abstraction.
