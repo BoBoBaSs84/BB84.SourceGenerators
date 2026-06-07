@@ -20,13 +20,12 @@ namespace BB84.SourceGenerators;
 [Generator(LanguageNames.CSharp)]
 public sealed class SingletonGenerator : IIncrementalGenerator
 {
-	private const string AttributeFullName = nameof(GenerateSingletonAttribute);
-	private static readonly string AttributeShortName = GeneratorHelpers.StripAttributeSuffix(AttributeFullName);
-	private static readonly string GeneratorAttributeName = typeof(GenerateSingletonAttribute).FullName;
+	private static readonly (string MetadataName, string FullName, string ShortName) AttributeNames =
+		GeneratorHelpers.GetAttributeNames<GenerateSingletonAttribute>();
 
 	/// <inheritdoc/>
 	public void Initialize(IncrementalGeneratorInitializationContext context)
-		=> GeneratorHelpers.RegisterClassGenerator(context, GeneratorAttributeName, Execute);
+		=> GeneratorHelpers.RegisterClassGenerator(context, AttributeNames.MetadataName, Execute);
 
 	private void Execute(SourceProductionContext context, (ClassDeclarationSyntax ClassSyntax, SemanticModel SemanticModel)? input)
 	{
@@ -122,7 +121,7 @@ public sealed class SingletonGenerator : IIncrementalGenerator
 			{
 				string name = attribute.Name.ToString();
 
-				if (name != AttributeShortName && name != AttributeFullName)
+				if (name != AttributeNames.ShortName && name != AttributeNames.FullName)
 					continue;
 
 				if (attribute.ArgumentList is null || attribute.ArgumentList.Arguments.Count == 0)

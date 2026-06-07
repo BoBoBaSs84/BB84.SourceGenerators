@@ -24,16 +24,15 @@ namespace BB84.SourceGenerators;
 [Generator(LanguageNames.CSharp)]
 public sealed class IniFileGenerator : IIncrementalGenerator
 {
-	private static readonly string GeneratorAttributeName = typeof(GenerateIniFileAttribute).FullName;
+	private static readonly (string MetadataName, string FullName, string ShortName) AttributeNames =
+		GeneratorHelpers.GetAttributeNames<GenerateIniFileAttribute>();
 	private static readonly string SectionAttributeName = typeof(GenerateIniFileSectionAttribute).FullName;
 	private static readonly string ValueAttributeName = typeof(GenerateIniFileValueAttribute).FullName;
-	private const string AttributeFullName = nameof(GenerateIniFileAttribute);
-	private static readonly string AttributeShortName = GeneratorHelpers.StripAttributeSuffix(AttributeFullName);
 	private static readonly string[] LineBreakSeparators = ["\r\n", "\n"];
 
 	/// <inheritdoc/>
 	public void Initialize(IncrementalGeneratorInitializationContext context)
-		=> GeneratorHelpers.RegisterClassGenerator(context, GeneratorAttributeName, Execute);
+		=> GeneratorHelpers.RegisterClassGenerator(context, AttributeNames.MetadataName, Execute);
 
 	private void Execute(SourceProductionContext context, (ClassDeclarationSyntax ClassSyntax, SemanticModel SemanticModel)? input)
 	{
@@ -644,7 +643,7 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 			{
 				string name = attribute.Name.ToString();
 
-				if (name != AttributeShortName && name != AttributeFullName)
+				if (name != AttributeNames.ShortName && name != AttributeNames.FullName)
 					continue;
 
 				if (attribute.ArgumentList is null)
@@ -817,7 +816,7 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 	{
 		foreach (AttributeData attr in classSymbol.GetAttributes())
 		{
-			if (attr.AttributeClass?.ToDisplayString() == GeneratorAttributeName)
+			if (attr.AttributeClass?.ToDisplayString() == AttributeNames.MetadataName)
 				return attr;
 		}
 
