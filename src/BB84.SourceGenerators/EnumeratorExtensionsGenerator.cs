@@ -140,7 +140,7 @@ public sealed class EnumeratorExtensionsGenerator : IIncrementalGenerator
 		sb.AppendLine("/// </summary>");
 		sb.AppendLine("/// <param name=\"name\">The name of the enumeration value to check.</param>");
 		sb.AppendLine("/// <returns>True if the enumeration value is defined; otherwise, false.</returns>");
-		sb.AppendLine($"public static bool IsDefinedFast(this string name)");
+		sb.AppendLine($"public static bool IsDefinedFast(string name)");
 		sb.OpenBrace();
 		sb.AppendLine("return name switch");
 		sb.OpenBrace();
