@@ -18,6 +18,12 @@ namespace BB84.SourceGenerators.Attributes;
 /// <item><c>MinLengthAttribute</c></item>
 /// <item><c>MaxLengthAttribute</c></item>
 /// <item><c>RegularExpressionAttribute</c></item>
+/// <item><c>EmailAddressAttribute</c></item>
+/// <item><c>UrlAttribute</c></item>
+/// <item><c>PhoneAttribute</c></item>
+/// <item><c>CreditCardAttribute</c></item>
+/// <item><c>CompareAttribute</c></item>
+/// <item>Any custom <c>ValidationAttribute</c> subclass (via <c>IsValid</c> call)</item>
 /// </list>
 /// </para>
 /// </summary>
