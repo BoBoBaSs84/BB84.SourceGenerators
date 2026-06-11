@@ -52,4 +52,10 @@ internal sealed class GenerateToStringAttribute(params string[] excludePropertie
 	/// Defaults to <see cref="CollectionFormat.Count"/>.
 	/// </summary>
 	public CollectionFormat CollectionFormat { get; set; } = CollectionFormat.Count;
+
+	/// <summary>
+	/// Gets or sets the separator string used between properties in the generated <c>ToString()</c> output.
+	/// Defaults to <c>", "</c>.
+	/// </summary>
+	public string Separator { get; set; } = ", ";
 }

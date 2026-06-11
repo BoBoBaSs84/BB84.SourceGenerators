@@ -676,6 +676,7 @@ Generates a `ToString()` override for classes, returning a formatted string cont
 
 - `excludeProperties` - Optional list of property names to exclude from the generated `ToString()` output
 - `CollectionFormat` - Controls how collection properties are rendered (named argument, default: `CollectionFormat.Count`)
+- `Separator` - Custom separator string between properties (named argument, default: `", "`)
 
 **Per-Property Formatting:**
 
@@ -743,6 +744,14 @@ public partial class Order
 
     [ToStringFormat("C2")]
     public decimal Total { get; set; }
+}
+
+// Custom property separator
+[GenerateToString(Separator = " | ")]
+public partial class Config
+{
+    public string Host { get; set; }
+    public int Port { get; set; }
 }
 ```
 
@@ -814,6 +823,15 @@ var order = new Order
 
 Console.WriteLine(order.ToString());
 // Output: Order { Id = 1, CreatedAt = 2025-01-15, Total = $1,234.56 }
+
+var config = new Config
+{
+    Host = "localhost",
+    Port = 8080
+};
+
+Console.WriteLine(config.ToString());
+// Output: Config { Host = localhost | Port = 8080 }
 ```
 
 ### 7. Validator Generator

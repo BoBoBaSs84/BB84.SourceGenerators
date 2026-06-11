@@ -130,7 +130,7 @@ public sealed class ToStringGeneratorTests
 		ToStringCollectionElementsTestModel model = new()
 		{
 			Name = "Alpha",
-			Members = new List<string> { "Alice", "Bob", "Charlie" },
+			Members = ["Alice", "Bob", "Charlie"],
 			Scores = new Dictionary<string, int> { ["Alice"] = 10, ["Bob"] = 20 }
 		};
 
@@ -248,6 +248,40 @@ public sealed class ToStringGeneratorTests
 
 		Assert.AreEqual(expected, result);
 	}
+
+	[TestMethod]
+	public void ToStringShouldUseCustomSeparator()
+	{
+		ToStringCustomSeparatorTestModel model = new()
+		{
+			Host = "localhost",
+			Port = 8080
+		};
+
+		string? result = model.ToString();
+		string expected = nameof(ToStringCustomSeparatorTestModel) + " { " +
+			"Host = localhost | " +
+			"Port = 8080 }";
+
+		Assert.AreEqual(expected, result);
+	}
+
+	[TestMethod]
+	public void ToStringShouldUseDefaultSeparatorWhenNotSpecified()
+	{
+		ToStringTestModel model = new()
+		{
+			Id = 1,
+			Name = "Test",
+			Description = "Desc",
+			Price = 10.0,
+			IsActive = true
+		};
+
+		string? result = model.ToString();
+
+		Assert.Contains(", ", result);
+	}
 }
 
 [GenerateToString]
@@ -334,4 +368,11 @@ public partial class ToStringMixedFormatTestModel
 
 	[ToStringFormat("yyyy-MM-dd")]
 	public DateTime Created { get; set; }
+}
+
+[GenerateToString(Separator = " | ")]
+public partial class ToStringCustomSeparatorTestModel
+{
+	public string? Host { get; set; }
+	public int Port { get; set; }
 }
