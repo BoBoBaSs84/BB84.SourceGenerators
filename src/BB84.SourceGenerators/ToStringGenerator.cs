@@ -37,6 +37,7 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 			return;
 
 		CollectionFormat collectionFormat = GetCollectionFormat(ctx.ClassDeclaration, ctx.SemanticModel);
+		string separator = GetSeparator(ctx.ClassDeclaration, ctx.SemanticModel);
 		HashSet<string> excludedProperties = GeneratorHelpers.GetExcludedProperties(ctx.ClassDeclaration, ctx.SemanticModel, nameof(GenerateToStringAttribute));
 		ImmutableArray<PropertyDescriptor> properties = GeneratorHelpers.GetPropertyDescriptors(ctx.ClassSymbol, excludedProperties, detectCollections: true, toStringFormatAttributeName: ToStringFormatAttributeName);
 
@@ -50,7 +51,7 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 		sb.OpenNamespace(ctx.NamespaceName);
 		sb.OpenOuterClasses(ctx.OuterClasses);
 
-		AppendPartialClass(sb, ctx.ClassName, ctx.Accessibility, properties, collectionFormat);
+		AppendPartialClass(sb, ctx.ClassName, ctx.Accessibility, properties, collectionFormat, separator);
 
 		sb.CloseOuterClasses(ctx.OuterClasses);
 		sb.CloseNamespace();
@@ -62,7 +63,7 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 		context.AddSource(hintName, sb.ToString());
 	}
 
-	private static void AppendPartialClass(SourceBuilder sb, string className, string accessibility, ImmutableArray<PropertyDescriptor> properties, CollectionFormat collectionFormat)
+	private static void AppendPartialClass(SourceBuilder sb, string className, string accessibility, ImmutableArray<PropertyDescriptor> properties, CollectionFormat collectionFormat, string separator)
 	{
 		bool hasDictionary = collectionFormat == CollectionFormat.Elements
 			&& properties.Any(static p => p.CollectionKind == CollectionKind.Dictionary);
@@ -86,7 +87,7 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 				sb.AppendLine($"string {prop.Name.ToLowerInvariant()} = {BuildCollectionFormatExpression(prop, collectionFormat)};");
 			}
 
-			sb.AppendLine($"return $\"{className} {{{{ {BuildFormatString(properties)} }}}}\";");
+			sb.AppendLine($"return $\"{className} {{{{ {BuildFormatString(properties, separator)} }}}}\";");
 		}
 
 		sb.CloseBrace();
@@ -100,14 +101,14 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 		sb.CloseClass();
 	}
 
-	private static string BuildFormatString(ImmutableArray<PropertyDescriptor> properties)
+	private static string BuildFormatString(ImmutableArray<PropertyDescriptor> properties, string separator)
 	{
 		StringBuilder format = new();
 
 		for (int i = 0; i < properties.Length; i++)
 		{
 			if (i > 0)
-				format.Append(", ");
+				format.Append(separator);
 
 			string token = properties[i].CollectionKind != CollectionKind.None
 				? $"{properties[i].Name.ToLowerInvariant()}"
@@ -174,6 +175,40 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 		sb.Outdent();
 		sb.AppendLine("return \"{\" + string.Join(\", \", parts) + \"}\";");
 		sb.CloseBrace();
+	}
+
+	private static string GetSeparator(ClassDeclarationSyntax classDeclaration, SemanticModel semanticModel)
+	{
+		foreach (AttributeListSyntax attributeList in classDeclaration.AttributeLists)
+		{
+			foreach (AttributeSyntax attribute in attributeList.Attributes)
+			{
+				string name = attribute.Name.ToString();
+
+				if (name != AttributeNames.ShortName && name != AttributeNames.FullName)
+					continue;
+
+				if (attribute.ArgumentList is null)
+					return ", ";
+
+				foreach (AttributeArgumentSyntax arg in attribute.ArgumentList.Arguments)
+				{
+					if (arg.NameEquals?.Name.Identifier.Text != nameof(GenerateToStringAttribute.Separator))
+						continue;
+
+					Optional<object?> value = semanticModel.GetConstantValue(arg.Expression);
+
+					if (value.HasValue && value.Value is string stringValue)
+						return stringValue;
+
+					break;
+				}
+
+				return ", ";
+			}
+		}
+
+		return ", ";
 	}
 
 	private static CollectionFormat GetCollectionFormat(ClassDeclarationSyntax classDeclaration, SemanticModel semanticModel)
