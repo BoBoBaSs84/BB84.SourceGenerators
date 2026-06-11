@@ -39,6 +39,7 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 		CollectionFormat collectionFormat = GetCollectionFormat(ctx.ClassDeclaration, ctx.SemanticModel);
 		string separator = GetSeparator(ctx.ClassDeclaration, ctx.SemanticModel);
 		bool formattable = GetFormattable(ctx.ClassDeclaration, ctx.SemanticModel);
+		string? nullPlaceholder = GetNullPlaceholder(ctx.ClassDeclaration, ctx.SemanticModel);
 		HashSet<string> excludedProperties = GeneratorHelpers.GetExcludedProperties(ctx.ClassDeclaration, ctx.SemanticModel, nameof(GenerateToStringAttribute));
 		ImmutableArray<PropertyDescriptor> properties = GeneratorHelpers.GetPropertyDescriptors(ctx.ClassSymbol, excludedProperties, detectCollections: true, toStringFormatAttributeName: ToStringFormatAttributeName);
 
@@ -52,7 +53,7 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 		sb.OpenNamespace(ctx.NamespaceName);
 		sb.OpenOuterClasses(ctx.OuterClasses);
 
-		AppendPartialClass(sb, ctx.ClassName, ctx.Accessibility, properties, collectionFormat, separator, formattable);
+		AppendPartialClass(sb, ctx.ClassName, ctx.Accessibility, properties, collectionFormat, separator, formattable, nullPlaceholder);
 
 		sb.CloseOuterClasses(ctx.OuterClasses);
 		sb.CloseNamespace();
@@ -64,7 +65,7 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 		context.AddSource(hintName, sb.ToString());
 	}
 
-	private static void AppendPartialClass(SourceBuilder sb, string className, string accessibility, ImmutableArray<PropertyDescriptor> properties, CollectionFormat collectionFormat, string separator, bool formattable)
+	private static void AppendPartialClass(SourceBuilder sb, string className, string accessibility, ImmutableArray<PropertyDescriptor> properties, CollectionFormat collectionFormat, string separator, bool formattable, string? nullPlaceholder)
 	{
 		bool hasDictionary = collectionFormat == CollectionFormat.Elements
 			&& properties.Any(static p => p.CollectionKind == CollectionKind.Dictionary);
@@ -100,7 +101,7 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 					sb.AppendLine($"string {prop.Name.ToLowerInvariant()} = {BuildCollectionFormatExpression(prop, collectionFormat)};");
 				}
 
-				sb.AppendLine($"return $\"{className} {{{{ {BuildFormattableFormatString(properties, separator)} }}}}\";");
+				sb.AppendLine($"return $\"{className} {{{{ {BuildFormattableFormatString(properties, separator, nullPlaceholder)} }}}}\";");
 			}
 
 			sb.CloseBrace();
@@ -125,7 +126,7 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 					sb.AppendLine($"string {prop.Name.ToLowerInvariant()} = {BuildCollectionFormatExpression(prop, collectionFormat)};");
 				}
 
-				sb.AppendLine($"return $\"{className} {{{{ {BuildFormatString(properties, separator)} }}}}\";");
+				sb.AppendLine($"return $\"{className} {{{{ {BuildFormatString(properties, separator, nullPlaceholder)} }}}}\";");
 			}
 
 			sb.CloseBrace();
@@ -140,7 +141,7 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 		sb.CloseClass();
 	}
 
-	private static string BuildFormatString(ImmutableArray<PropertyDescriptor> properties, string separator)
+	private static string BuildFormatString(ImmutableArray<PropertyDescriptor> properties, string separator, string? nullPlaceholder)
 	{
 		StringBuilder format = new();
 
@@ -149,11 +150,25 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 			if (i > 0)
 				format.Append(separator);
 
-			string token = properties[i].CollectionKind != CollectionKind.None
-				? $"{properties[i].Name.ToLowerInvariant()}"
-				: properties[i].FormatString is not null
+			string token;
+
+			if (properties[i].CollectionKind != CollectionKind.None)
+			{
+				token = properties[i].Name.ToLowerInvariant();
+			}
+			else if (nullPlaceholder is not null && properties[i].IsNullable)
+			{
+				string escaped = GeneratorHelpers.EscapeString(nullPlaceholder);
+				token = properties[i].FormatString is not null
+					? $"({properties[i].Name}?.ToString(\"{properties[i].FormatString}\") ?? \"{escaped}\")"
+					: $"{properties[i].Name}?.ToString() ?? \"{escaped}\"";
+			}
+			else
+			{
+				token = properties[i].FormatString is not null
 					? $"{properties[i].Name}:{properties[i].FormatString}"
 					: properties[i].Name;
+			}
 
 			format.Append($"{{nameof({properties[i].Name})}} = {{{token}}}");
 		}
@@ -161,7 +176,7 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 		return format.ToString();
 	}
 
-	private static string BuildFormattableFormatString(ImmutableArray<PropertyDescriptor> properties, string separator)
+	private static string BuildFormattableFormatString(ImmutableArray<PropertyDescriptor> properties, string separator, string? nullPlaceholder)
 	{
 		StringBuilder format = new();
 
@@ -178,12 +193,28 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 			}
 			else if (properties[i].IsFormattable)
 			{
-				string nullConditional = properties[i].IsNullable ? "?" : "";
-				format.Append($"{{{properties[i].Name}{nullConditional}.ToString(format, formatProvider)}}");
+				if (nullPlaceholder is not null && properties[i].IsNullable)
+				{
+					string escaped = GeneratorHelpers.EscapeString(nullPlaceholder);
+					format.Append($"{{({properties[i].Name}?.ToString(format, formatProvider) ?? \"{escaped}\")}}");
+				}
+				else
+				{
+					string nullConditional = properties[i].IsNullable ? "?" : "";
+					format.Append($"{{{properties[i].Name}{nullConditional}.ToString(format, formatProvider)}}");
+				}
 			}
 			else
 			{
-				format.Append($"{{{properties[i].Name}}}");
+				if (nullPlaceholder is not null && properties[i].IsNullable)
+				{
+					string escaped = GeneratorHelpers.EscapeString(nullPlaceholder);
+					format.Append($"{{{properties[i].Name}?.ToString() ?? \"{escaped}\"}}");
+				}
+				else
+				{
+					format.Append($"{{{properties[i].Name}}}");
+				}
 			}
 		}
 
@@ -345,5 +376,39 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 		}
 
 		return CollectionFormat.Count;
+	}
+
+	private static string? GetNullPlaceholder(ClassDeclarationSyntax classDeclaration, SemanticModel semanticModel)
+	{
+		foreach (AttributeListSyntax attributeList in classDeclaration.AttributeLists)
+		{
+			foreach (AttributeSyntax attribute in attributeList.Attributes)
+			{
+				string name = attribute.Name.ToString();
+
+				if (name != AttributeNames.ShortName && name != AttributeNames.FullName)
+					continue;
+
+				if (attribute.ArgumentList is null)
+					return null;
+
+				foreach (AttributeArgumentSyntax arg in attribute.ArgumentList.Arguments)
+				{
+					if (arg.NameEquals?.Name.Identifier.Text != nameof(GenerateToStringAttribute.NullPlaceholder))
+						continue;
+
+					Optional<object?> value = semanticModel.GetConstantValue(arg.Expression);
+
+					if (value.HasValue && value.Value is string stringValue)
+						return stringValue;
+
+					break;
+				}
+
+				return null;
+			}
+		}
+
+		return null;
 	}
 }
