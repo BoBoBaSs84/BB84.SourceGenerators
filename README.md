@@ -677,6 +677,7 @@ Generates a `ToString()` override for classes, returning a formatted string cont
 - `excludeProperties` - Optional list of property names to exclude from the generated `ToString()` output
 - `CollectionFormat` - Controls how collection properties are rendered (named argument, default: `CollectionFormat.Count`)
 - `Separator` - Custom separator string between properties (named argument, default: `", "`)
+- `Formattable` - When `true`, generates an `IFormattable` implementation so the class participates in composite formatting with custom `IFormatProvider` support (named argument, default: `false`)
 
 **Per-Property Formatting:**
 
@@ -753,6 +754,15 @@ public partial class Config
     public string Host { get; set; }
     public int Port { get; set; }
 }
+
+// IFormattable implementation for culture-aware formatting
+[GenerateToString(Formattable = true)]
+public partial class Invoice
+{
+    public string Customer { get; set; }
+    public decimal Total { get; set; }
+    public DateTime IssuedAt { get; set; }
+}
 ```
 
 #### Generated Code
@@ -769,6 +779,7 @@ The generator creates a `ToString()` override on the partial class that:
   - `Elements`: `[item1, item2]` for arrays/lists, `{key1: val1, key2: val2}` for dictionaries
   - `TypeAndCount`: `TypeName (Count = N)`
 - For dictionary properties in `Elements` mode, emits a private generic helper `DictionaryToString<TKey, TValue>`
+- When `Formattable = true`, implements `IFormattable` with `ToString(string?, IFormatProvider?)` — properties whose types implement `IFormattable` receive the `formatProvider`; others use their default `ToString()`
 
 #### Usage Example
 
@@ -832,6 +843,20 @@ var config = new Config
 
 Console.WriteLine(config.ToString());
 // Output: Config { Host = localhost | Port = 8080 }
+
+var invoice = new Invoice
+{
+    Customer = "Acme Corp",
+    Total = 1234.56m,
+    IssuedAt = new DateTime(2025, 1, 15)
+};
+
+// IFormattable: pass a custom format provider
+Console.WriteLine(invoice.ToString(null, CultureInfo.InvariantCulture));
+// Output: Invoice { Customer = Acme Corp, Total = 1234.56, IssuedAt = 01/15/2025 00:00:00 }
+
+// Works with string.Format and interpolated strings
+Console.WriteLine(string.Format(CultureInfo.InvariantCulture, "{0}", invoice));
 ```
 
 ### 7. Validator Generator

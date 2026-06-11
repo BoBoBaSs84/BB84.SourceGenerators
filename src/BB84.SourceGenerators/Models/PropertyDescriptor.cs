@@ -9,7 +9,7 @@ namespace BB84.SourceGenerators.Models;
 /// Describes a property discovered during source generation, carrying metadata
 /// needed by multiple generators (Equality, Cloneable, Builder, ToString).
 /// </summary>
-internal sealed record PropertyDescriptor(string Name, string TypeName, bool IsValueType, bool IsNullable, bool IsCloneable, CollectionKind CollectionKind = CollectionKind.None, string? ElementTypeName = null, bool IsElementCloneable = false, string? DictionaryValueTypeName = null, bool IsDictionaryValueCloneable = false, string? FormatString = null)
+internal sealed record PropertyDescriptor(string Name, string TypeName, bool IsValueType, bool IsNullable, bool IsCloneable, CollectionKind CollectionKind = CollectionKind.None, string? ElementTypeName = null, bool IsElementCloneable = false, string? DictionaryValueTypeName = null, bool IsDictionaryValueCloneable = false, string? FormatString = null, bool IsFormattable = false)
 {
 	/// <summary>
 	/// Gets the name of the property.
@@ -74,4 +74,9 @@ internal sealed record PropertyDescriptor(string Name, string TypeName, bool IsV
 	/// When not <see langword="null"/>, the generated <c>ToString()</c> uses this format specifier.
 	/// </summary>
 	public string? FormatString { get; } = FormatString;
+
+	/// <summary>
+	/// Gets a value indicating whether the property type implements <see cref="System.IFormattable"/>.
+	/// </summary>
+	public bool IsFormattable { get; } = IsFormattable;
 }
