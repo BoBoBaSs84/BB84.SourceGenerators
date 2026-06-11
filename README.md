@@ -678,6 +678,7 @@ Generates a `ToString()` override for classes, returning a formatted string cont
 - `CollectionFormat` - Controls how collection properties are rendered (named argument, default: `CollectionFormat.Count`)
 - `Separator` - Custom separator string between properties (named argument, default: `", "`)
 - `Formattable` - When `true`, generates an `IFormattable` implementation so the class participates in composite formatting with custom `IFormatProvider` support (named argument, default: `false`)
+- `NullPlaceholder` - When set, nullable properties with a `null` value render this string instead of an empty string (named argument, default: `null` — empty string behavior). Common values: `"null"`, `"<null>"`
 
 **Per-Property Formatting:**
 
@@ -763,6 +764,15 @@ public partial class Invoice
     public decimal Total { get; set; }
     public DateTime IssuedAt { get; set; }
 }
+
+// Explicit null rendering for nullable properties
+[GenerateToString(NullPlaceholder = "null")]
+public partial class Person
+{
+    public int Id { get; set; }
+    public string? Name { get; set; }
+    public int? Age { get; set; }
+}
 ```
 
 #### Generated Code
@@ -780,6 +790,7 @@ The generator creates a `ToString()` override on the partial class that:
   - `TypeAndCount`: `TypeName (Count = N)`
 - For dictionary properties in `Elements` mode, emits a private generic helper `DictionaryToString<TKey, TValue>`
 - When `Formattable = true`, implements `IFormattable` with `ToString(string?, IFormatProvider?)` — properties whose types implement `IFormattable` receive the `formatProvider`; others use their default `ToString()`
+- When `NullPlaceholder` is set, nullable properties with a `null` value emit `Property?.ToString() ?? "placeholder"` instead of the raw interpolation slot; `[ToStringFormat]` is preserved as an explicit `.ToString("fmt")` call
 
 #### Usage Example
 
@@ -857,6 +868,14 @@ Console.WriteLine(invoice.ToString(null, CultureInfo.InvariantCulture));
 
 // Works with string.Format and interpolated strings
 Console.WriteLine(string.Format(CultureInfo.InvariantCulture, "{0}", invoice));
+
+var person = new Person { Id = 1, Name = null, Age = null };
+Console.WriteLine(person.ToString());
+// Output: Person { Id = 1, Name = null, Age = null }
+
+var personWithValues = new Person { Id = 2, Name = "John", Age = 30 };
+Console.WriteLine(personWithValues.ToString());
+// Output: Person { Id = 2, Name = John, Age = 30 }
 ```
 
 ### 7. Validator Generator

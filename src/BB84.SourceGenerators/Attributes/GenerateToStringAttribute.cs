@@ -66,4 +66,11 @@ internal sealed class GenerateToStringAttribute(params string[] excludePropertie
 	/// Defaults to <see langword="false"/>.
 	/// </summary>
 	public bool Formattable { get; set; }
+
+	/// <summary>
+	/// Gets or sets the placeholder string rendered when a nullable property value is <see langword="null"/>.
+	/// When <see langword="null"/> (the default), null values produce an empty string (standard interpolation behavior).
+	/// Common values: <c>"null"</c>, <c>"&lt;null&gt;"</c>.
+	/// </summary>
+	public string? NullPlaceholder { get; set; }
 }

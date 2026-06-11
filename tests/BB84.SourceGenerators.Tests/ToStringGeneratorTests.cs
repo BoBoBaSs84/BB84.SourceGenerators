@@ -327,6 +327,142 @@ public sealed class ToStringGeneratorTests
 
 		Assert.IsInstanceOfType<IFormattable>(model);
 	}
+
+	[TestMethod]
+	public void ToStringShouldRenderNullPlaceholderForNullableReferenceType()
+	{
+		ToStringNullPlaceholderTestModel model = new()
+		{
+			Id = 1,
+			Name = null,
+			Score = 42
+		};
+
+		string? result = model.ToString();
+		string expected = nameof(ToStringNullPlaceholderTestModel) + " { " +
+			"Id = 1, " +
+			"Name = null, " +
+			"Score = 42 }";
+
+		Assert.AreEqual(expected, result);
+	}
+
+	[TestMethod]
+	public void ToStringShouldRenderNullPlaceholderForNullableValueType()
+	{
+		ToStringNullPlaceholderTestModel model = new()
+		{
+			Id = 1,
+			Name = "Test",
+			Score = null
+		};
+
+		string? result = model.ToString();
+		string expected = nameof(ToStringNullPlaceholderTestModel) + " { " +
+			"Id = 1, " +
+			"Name = Test, " +
+			"Score = null }";
+
+		Assert.AreEqual(expected, result);
+	}
+
+	[TestMethod]
+	public void ToStringShouldNotApplyNullPlaceholderForNonNullValues()
+	{
+		ToStringNullPlaceholderTestModel model = new()
+		{
+			Id = 7,
+			Name = "Jane",
+			Score = 99
+		};
+
+		string? result = model.ToString();
+		string expected = nameof(ToStringNullPlaceholderTestModel) + " { " +
+			"Id = 7, " +
+			"Name = Jane, " +
+			"Score = 99 }";
+
+		Assert.AreEqual(expected, result);
+	}
+
+	[TestMethod]
+	public void ToStringShouldRenderCustomNullPlaceholder()
+	{
+		ToStringCustomNullPlaceholderTestModel model = new()
+		{
+			Tag = null
+		};
+
+		string? result = model.ToString();
+		string expected = nameof(ToStringCustomNullPlaceholderTestModel) + " { " +
+			"Tag = <null> }";
+
+		Assert.AreEqual(expected, result);
+	}
+
+	[TestMethod]
+	public void ToStringShouldRenderNullPlaceholderWithFormatString()
+	{
+		ToStringNullPlaceholderFormatTestModel model = new()
+		{
+			CreatedAt = null
+		};
+
+		string? result = model.ToString();
+		string expected = nameof(ToStringNullPlaceholderFormatTestModel) + " { " +
+			"CreatedAt = null }";
+
+		Assert.AreEqual(expected, result);
+	}
+
+	[TestMethod]
+	public void ToStringShouldRenderFormattedValueWhenNullPlaceholderSetAndValueNotNull()
+	{
+		ToStringNullPlaceholderFormatTestModel model = new()
+		{
+			CreatedAt = new DateTime(2025, 3, 14)
+		};
+
+		string? result = model.ToString();
+		string expected = nameof(ToStringNullPlaceholderFormatTestModel) + " { " +
+			"CreatedAt = 2025-03-14 }";
+
+		Assert.AreEqual(expected, result);
+	}
+
+	[TestMethod]
+	public void ToStringFormattableShouldRenderNullPlaceholderForNullableProperty()
+	{
+		ToStringFormattableNullPlaceholderTestModel model = new()
+		{
+			Name = null,
+			Total = null
+		};
+
+		string? result = model.ToString();
+		string expected = nameof(ToStringFormattableNullPlaceholderTestModel) + " { " +
+			"Name = null, " +
+			"Total = null }";
+
+		Assert.AreEqual(expected, result);
+	}
+
+	[TestMethod]
+	public void ToStringFormattableShouldRenderNullPlaceholderWithFormatProvider()
+	{
+		ToStringFormattableNullPlaceholderTestModel model = new()
+		{
+			Name = null,
+			Total = null
+		};
+
+		string? result = ((IFormattable)model).ToString(null, CultureInfo.InvariantCulture);
+		string expected = nameof(ToStringFormattableNullPlaceholderTestModel) + " { " +
+			"Name = null, " +
+			"Total = null }";
+
+		Assert.AreEqual(expected, result);
+	}
 }
 
 [GenerateToString]
@@ -428,4 +564,32 @@ public partial class ToStringFormattableTestModel
 	public string? Name { get; set; }
 	public decimal Total { get; set; }
 	public DateTime CreatedAt { get; set; }
+}
+
+[GenerateToString(NullPlaceholder = "null")]
+public partial class ToStringNullPlaceholderTestModel
+{
+	public int Id { get; set; }
+	public string? Name { get; set; }
+	public int? Score { get; set; }
+}
+
+[GenerateToString(NullPlaceholder = "<null>")]
+public partial class ToStringCustomNullPlaceholderTestModel
+{
+	public string? Tag { get; set; }
+}
+
+[GenerateToString(NullPlaceholder = "null")]
+public partial class ToStringNullPlaceholderFormatTestModel
+{
+	[ToStringFormat("yyyy-MM-dd")]
+	public DateTime? CreatedAt { get; set; }
+}
+
+[GenerateToString(Formattable = true, NullPlaceholder = "null")]
+public partial class ToStringFormattableNullPlaceholderTestModel
+{
+	public string? Name { get; set; }
+	public decimal? Total { get; set; }
 }
