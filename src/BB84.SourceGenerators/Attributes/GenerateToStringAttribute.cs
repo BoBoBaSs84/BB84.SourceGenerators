@@ -58,4 +58,12 @@ internal sealed class GenerateToStringAttribute(params string[] excludePropertie
 	/// Defaults to <c>", "</c>.
 	/// </summary>
 	public string Separator { get; set; } = ", ";
+
+	/// <summary>
+	/// Gets or sets a value indicating whether to generate an <see cref="IFormattable"/> implementation.
+	/// When <see langword="true"/>, the class implements <see cref="IFormattable"/> and properties whose types
+	/// implement <see cref="IFormattable"/> receive the <c>formatProvider</c> parameter.
+	/// Defaults to <see langword="false"/>.
+	/// </summary>
+	public bool Formattable { get; set; }
 }

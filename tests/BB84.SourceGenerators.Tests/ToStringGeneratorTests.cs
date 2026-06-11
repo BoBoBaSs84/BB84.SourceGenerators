@@ -3,6 +3,8 @@
 //
 // This source code is licensed under the MIT license found in the
 // LICENSE file in the root directory of this source tree.
+using System.Globalization;
+
 using BB84.SourceGenerators.Attributes;
 
 namespace BB84.SourceGenerators.Tests;
@@ -282,6 +284,49 @@ public sealed class ToStringGeneratorTests
 
 		Assert.Contains(", ", result);
 	}
+
+	[TestMethod]
+	public void ToStringFormattableShouldDelegateToParameterlessOverride()
+	{
+		ToStringFormattableTestModel model = new()
+		{
+			Name = "Order",
+			Total = 1234.56m,
+			CreatedAt = new DateTime(2025, 1, 15)
+		};
+
+		string? result = model.ToString();
+		string? formattableResult = ((IFormattable)model).ToString(null, null);
+
+		Assert.AreEqual(result, formattableResult);
+	}
+
+	[TestMethod]
+	public void ToStringFormattableShouldRespectFormatProvider()
+	{
+		ToStringFormattableTestModel model = new()
+		{
+			Name = "Order",
+			Total = 1234.56m,
+			CreatedAt = new DateTime(2025, 1, 15)
+		};
+
+		string? result = model.ToString(null, CultureInfo.InvariantCulture);
+		string expected = nameof(ToStringFormattableTestModel) + " { " +
+			"Name = Order, " +
+			"Total = " + model.Total.ToString(null, CultureInfo.InvariantCulture) + ", " +
+			"CreatedAt = " + model.CreatedAt.ToString(null, CultureInfo.InvariantCulture) + " }";
+
+		Assert.AreEqual(expected, result);
+	}
+
+	[TestMethod]
+	public void ToStringFormattableShouldImplementIFormattable()
+	{
+		ToStringFormattableTestModel model = new();
+
+		Assert.IsInstanceOfType<IFormattable>(model);
+	}
 }
 
 [GenerateToString]
@@ -375,4 +420,12 @@ public partial class ToStringCustomSeparatorTestModel
 {
 	public string? Host { get; set; }
 	public int Port { get; set; }
+}
+
+[GenerateToString(Formattable = true)]
+public partial class ToStringFormattableTestModel
+{
+	public string? Name { get; set; }
+	public decimal Total { get; set; }
+	public DateTime CreatedAt { get; set; }
 }

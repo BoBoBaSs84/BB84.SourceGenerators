@@ -319,6 +319,28 @@ internal static class GeneratorHelpers
 				}
 			}
 
+			bool isFormattable = false;
+
+			if (toStringFormatAttributeName is not null)
+			{
+				ITypeSymbol effectiveType = propertySymbol.Type;
+
+				if (effectiveType.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T
+					&& effectiveType is INamedTypeSymbol namedNullable)
+				{
+					effectiveType = namedNullable.TypeArguments[0];
+				}
+
+				foreach (INamedTypeSymbol iface in effectiveType.AllInterfaces)
+				{
+					if (iface.ToDisplayString() == "System.IFormattable")
+					{
+						isFormattable = true;
+						break;
+					}
+				}
+			}
+
 			// Detect collection types when explicitly requested or when cloneability checks are active
 			if (cloneableAttributeName is not null || detectCollections)
 			{
@@ -326,7 +348,7 @@ internal static class GeneratorHelpers
 					DetectCollectionKind(propertySymbol.Type, cloneableAttributeName);
 			}
 
-			builder.Add(new PropertyDescriptor(propertySymbol.Name, typeName, isValueType, isNullable, isCloneable, collectionKind, elementTypeName, isElementCloneable, dictionaryValueTypeName, isDictionaryValueCloneable, formatString));
+			builder.Add(new PropertyDescriptor(propertySymbol.Name, typeName, isValueType, isNullable, isCloneable, collectionKind, elementTypeName, isElementCloneable, dictionaryValueTypeName, isDictionaryValueCloneable, formatString, isFormattable));
 		}
 
 		return builder.ToImmutable();

@@ -38,6 +38,7 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 
 		CollectionFormat collectionFormat = GetCollectionFormat(ctx.ClassDeclaration, ctx.SemanticModel);
 		string separator = GetSeparator(ctx.ClassDeclaration, ctx.SemanticModel);
+		bool formattable = GetFormattable(ctx.ClassDeclaration, ctx.SemanticModel);
 		HashSet<string> excludedProperties = GeneratorHelpers.GetExcludedProperties(ctx.ClassDeclaration, ctx.SemanticModel, nameof(GenerateToStringAttribute));
 		ImmutableArray<PropertyDescriptor> properties = GeneratorHelpers.GetPropertyDescriptors(ctx.ClassSymbol, excludedProperties, detectCollections: true, toStringFormatAttributeName: ToStringFormatAttributeName);
 
@@ -51,7 +52,7 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 		sb.OpenNamespace(ctx.NamespaceName);
 		sb.OpenOuterClasses(ctx.OuterClasses);
 
-		AppendPartialClass(sb, ctx.ClassName, ctx.Accessibility, properties, collectionFormat, separator);
+		AppendPartialClass(sb, ctx.ClassName, ctx.Accessibility, properties, collectionFormat, separator, formattable);
 
 		sb.CloseOuterClasses(ctx.OuterClasses);
 		sb.CloseNamespace();
@@ -63,34 +64,72 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 		context.AddSource(hintName, sb.ToString());
 	}
 
-	private static void AppendPartialClass(SourceBuilder sb, string className, string accessibility, ImmutableArray<PropertyDescriptor> properties, CollectionFormat collectionFormat, string separator)
+	private static void AppendPartialClass(SourceBuilder sb, string className, string accessibility, ImmutableArray<PropertyDescriptor> properties, CollectionFormat collectionFormat, string separator, bool formattable)
 	{
 		bool hasDictionary = collectionFormat == CollectionFormat.Elements
 			&& properties.Any(static p => p.CollectionKind == CollectionKind.Dictionary);
 
-		sb.OpenClass(accessibility, className);
-		sb.AppendLine("/// <inheritdoc/>");
-		sb.AppendLine("public override string ToString()");
-		sb.OpenBrace();
+		if (formattable)
+			sb.OpenClass(accessibility, className, "IFormattable");
+		else
+			sb.OpenClass(accessibility, className);
 
-		if (properties.Length == 0)
+		if (formattable)
 		{
-			sb.AppendLine($"return \"{className} {{ }}\";");
+			sb.AppendLine("/// <inheritdoc/>");
+			sb.AppendLine("public override string ToString()");
+			sb.Indent();
+			sb.AppendLine("=> ToString(null, null);");
+			sb.Outdent();
+			sb.AppendLine();
+			sb.AppendLine("/// <inheritdoc/>");
+			sb.AppendLine("public string ToString(string? format, IFormatProvider? formatProvider)");
+			sb.OpenBrace();
+
+			if (properties.Length == 0)
+			{
+				sb.AppendLine($"return \"{className} {{ }}\";");
+			}
+			else
+			{
+				foreach (PropertyDescriptor prop in properties)
+				{
+					if (prop.CollectionKind == CollectionKind.None)
+						continue;
+
+					sb.AppendLine($"string {prop.Name.ToLowerInvariant()} = {BuildCollectionFormatExpression(prop, collectionFormat)};");
+				}
+
+				sb.AppendLine($"return $\"{className} {{{{ {BuildFormattableFormatString(properties, separator)} }}}}\";");
+			}
+
+			sb.CloseBrace();
 		}
 		else
 		{
-			foreach (PropertyDescriptor prop in properties)
-			{
-				if (prop.CollectionKind == CollectionKind.None)
-					continue;
+			sb.AppendLine("/// <inheritdoc/>");
+			sb.AppendLine("public override string ToString()");
+			sb.OpenBrace();
 
-				sb.AppendLine($"string {prop.Name.ToLowerInvariant()} = {BuildCollectionFormatExpression(prop, collectionFormat)};");
+			if (properties.Length == 0)
+			{
+				sb.AppendLine($"return \"{className} {{ }}\";");
+			}
+			else
+			{
+				foreach (PropertyDescriptor prop in properties)
+				{
+					if (prop.CollectionKind == CollectionKind.None)
+						continue;
+
+					sb.AppendLine($"string {prop.Name.ToLowerInvariant()} = {BuildCollectionFormatExpression(prop, collectionFormat)};");
+				}
+
+				sb.AppendLine($"return $\"{className} {{{{ {BuildFormatString(properties, separator)} }}}}\";");
 			}
 
-			sb.AppendLine($"return $\"{className} {{{{ {BuildFormatString(properties, separator)} }}}}\";");
+			sb.CloseBrace();
 		}
-
-		sb.CloseBrace();
 
 		if (hasDictionary)
 		{
@@ -117,6 +156,35 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 					: properties[i].Name;
 
 			format.Append($"{{nameof({properties[i].Name})}} = {{{token}}}");
+		}
+
+		return format.ToString();
+	}
+
+	private static string BuildFormattableFormatString(ImmutableArray<PropertyDescriptor> properties, string separator)
+	{
+		StringBuilder format = new();
+
+		for (int i = 0; i < properties.Length; i++)
+		{
+			if (i > 0)
+				format.Append(separator);
+
+			format.Append($"{{nameof({properties[i].Name})}} = ");
+
+			if (properties[i].CollectionKind != CollectionKind.None)
+			{
+				format.Append($"{{{properties[i].Name.ToLowerInvariant()}}}");
+			}
+			else if (properties[i].IsFormattable)
+			{
+				string nullConditional = properties[i].IsNullable ? "?" : "";
+				format.Append($"{{{properties[i].Name}{nullConditional}.ToString(format, formatProvider)}}");
+			}
+			else
+			{
+				format.Append($"{{{properties[i].Name}}}");
+			}
 		}
 
 		return format.ToString();
@@ -175,6 +243,40 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 		sb.Outdent();
 		sb.AppendLine("return \"{\" + string.Join(\", \", parts) + \"}\";");
 		sb.CloseBrace();
+	}
+
+	private static bool GetFormattable(ClassDeclarationSyntax classDeclaration, SemanticModel semanticModel)
+	{
+		foreach (AttributeListSyntax attributeList in classDeclaration.AttributeLists)
+		{
+			foreach (AttributeSyntax attribute in attributeList.Attributes)
+			{
+				string name = attribute.Name.ToString();
+
+				if (name != AttributeNames.ShortName && name != AttributeNames.FullName)
+					continue;
+
+				if (attribute.ArgumentList is null)
+					return false;
+
+				foreach (AttributeArgumentSyntax arg in attribute.ArgumentList.Arguments)
+				{
+					if (arg.NameEquals?.Name.Identifier.Text != nameof(GenerateToStringAttribute.Formattable))
+						continue;
+
+					Optional<object?> value = semanticModel.GetConstantValue(arg.Expression);
+
+					if (value.HasValue && value.Value is bool boolValue)
+						return boolValue;
+
+					break;
+				}
+
+				return false;
+			}
+		}
+
+		return false;
 	}
 
 	private static string GetSeparator(ClassDeclarationSyntax classDeclaration, SemanticModel semanticModel)
