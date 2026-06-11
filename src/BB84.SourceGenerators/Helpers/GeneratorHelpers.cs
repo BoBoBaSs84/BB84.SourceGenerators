@@ -257,13 +257,18 @@ internal static class GeneratorHelpers
 	/// <param name="detectCollections">
 	/// When <see langword="true"/>, detects collection types and sets <see cref="PropertyDescriptor.CollectionKind"/> accordingly.
 	/// </param>
+	/// <param name="toStringFormatAttributeName">
+	/// When not <see langword="null"/>, checks whether the property is decorated with the specified attribute
+	/// and sets <see cref="PropertyDescriptor.FormatString"/> accordingly.
+	/// </param>
 	/// <returns>An immutable array of <see cref="PropertyDescriptor"/> instances.</returns>
 	internal static ImmutableArray<PropertyDescriptor> GetPropertyDescriptors(
 		INamedTypeSymbol classSymbol,
 		HashSet<string>? excludedProperties = null,
 		bool requireSetter = false,
 		string? cloneableAttributeName = null,
-		bool detectCollections = false)
+		bool detectCollections = false,
+		string? toStringFormatAttributeName = null)
 	{
 		ImmutableArray<PropertyDescriptor>.Builder builder = ImmutableArray.CreateBuilder<PropertyDescriptor>();
 
@@ -286,6 +291,7 @@ internal static class GeneratorHelpers
 			bool isElementCloneable = false;
 			string? dictionaryValueTypeName = null;
 			bool isDictionaryValueCloneable = false;
+			string? formatString = null;
 
 			if (cloneableAttributeName is not null)
 			{
@@ -299,6 +305,20 @@ internal static class GeneratorHelpers
 				}
 			}
 
+			if (toStringFormatAttributeName is not null)
+			{
+				foreach (AttributeData attributeData in propertySymbol.GetAttributes())
+				{
+					if (attributeData.AttributeClass?.ToDisplayString() == toStringFormatAttributeName
+						&& attributeData.ConstructorArguments.Length == 1
+						&& attributeData.ConstructorArguments[0].Value is string fmt)
+					{
+						formatString = fmt;
+						break;
+					}
+				}
+			}
+
 			// Detect collection types when explicitly requested or when cloneability checks are active
 			if (cloneableAttributeName is not null || detectCollections)
 			{
@@ -306,7 +326,7 @@ internal static class GeneratorHelpers
 					DetectCollectionKind(propertySymbol.Type, cloneableAttributeName);
 			}
 
-			builder.Add(new PropertyDescriptor(propertySymbol.Name, typeName, isValueType, isNullable, isCloneable, collectionKind, elementTypeName, isElementCloneable, dictionaryValueTypeName, isDictionaryValueCloneable));
+			builder.Add(new PropertyDescriptor(propertySymbol.Name, typeName, isValueType, isNullable, isCloneable, collectionKind, elementTypeName, isElementCloneable, dictionaryValueTypeName, isDictionaryValueCloneable, formatString));
 		}
 
 		return builder.ToImmutable();

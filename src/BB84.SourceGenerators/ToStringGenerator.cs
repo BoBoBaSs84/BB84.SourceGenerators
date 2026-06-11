@@ -25,6 +25,8 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 	private static readonly (string MetadataName, string FullName, string ShortName) AttributeNames =
 		GeneratorHelpers.GetAttributeNames<GenerateToStringAttribute>();
 
+	private static readonly string ToStringFormatAttributeName = typeof(ToStringFormatAttribute).FullName;
+
 	/// <inheritdoc/>
 	public void Initialize(IncrementalGeneratorInitializationContext context)
 		=> GeneratorHelpers.RegisterClassGenerator(context, AttributeNames.MetadataName, Execute);
@@ -36,7 +38,7 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 
 		CollectionFormat collectionFormat = GetCollectionFormat(ctx.ClassDeclaration, ctx.SemanticModel);
 		HashSet<string> excludedProperties = GeneratorHelpers.GetExcludedProperties(ctx.ClassDeclaration, ctx.SemanticModel, nameof(GenerateToStringAttribute));
-		ImmutableArray<PropertyDescriptor> properties = GeneratorHelpers.GetPropertyDescriptors(ctx.ClassSymbol, excludedProperties, detectCollections: true);
+		ImmutableArray<PropertyDescriptor> properties = GeneratorHelpers.GetPropertyDescriptors(ctx.ClassSymbol, excludedProperties, detectCollections: true, toStringFormatAttributeName: ToStringFormatAttributeName);
 
 		SourceBuilder sb = new();
 
@@ -109,7 +111,9 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 
 			string token = properties[i].CollectionKind != CollectionKind.None
 				? $"{properties[i].Name.ToLowerInvariant()}"
-				: properties[i].Name;
+				: properties[i].FormatString is not null
+					? $"{properties[i].Name}:{properties[i].FormatString}"
+					: properties[i].Name;
 
 			format.Append($"{{nameof({properties[i].Name})}} = {{{token}}}");
 		}

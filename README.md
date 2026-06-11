@@ -669,12 +669,17 @@ Generates a `ToString()` override for classes, returning a formatted string cont
 
 ```csharp
 [GenerateToString(params string[] excludeProperties)]
+[ToStringFormat(string format)]  // per-property
 ```
 
 **Parameters:**
 
 - `excludeProperties` - Optional list of property names to exclude from the generated `ToString()` output
 - `CollectionFormat` - Controls how collection properties are rendered (named argument, default: `CollectionFormat.Count`)
+
+**Per-Property Formatting:**
+
+- `[ToStringFormat("format")]` - Applied to individual properties to specify a custom format string. The format is passed to the property's `ToString(string)` method at runtime (e.g., `"yyyy-MM-dd"` for dates, `"C2"` for currency, `"F2"` for fixed-point).
 
 **Collection Format Modes:**
 
@@ -726,6 +731,19 @@ public partial class TeamSummary
     public string Name { get; set; }
     public List<string> Members { get; set; }
 }
+
+// Per-property format specifiers
+[GenerateToString]
+public partial class Order
+{
+    public int Id { get; set; }
+
+    [ToStringFormat("yyyy-MM-dd")]
+    public DateTime CreatedAt { get; set; }
+
+    [ToStringFormat("C2")]
+    public decimal Total { get; set; }
+}
 ```
 
 #### Generated Code
@@ -736,6 +754,7 @@ The generator creates a `ToString()` override on the partial class that:
 - Excludes properties specified in the attribute parameter
 - Formats output as `ClassName { Prop1 = val1, Prop2 = val2 }`
 - Returns `ClassName { }` when all properties are excluded
+- For properties decorated with `[ToStringFormat]`, uses the format specifier in the interpolated string (e.g., `{CreatedAt:yyyy-MM-dd}`)
 - For collection properties, emits inline formatting based on `CollectionFormat`:
   - `Count`: `Count = N`
   - `Elements`: `[item1, item2]` for arrays/lists, `{key1: val1, key2: val2}` for dictionaries
@@ -785,6 +804,16 @@ var summary = new TeamSummary
 
 Console.WriteLine(summary.ToString());
 // Output: TeamSummary { Name = Beta, Members = Count = 3 }
+
+var order = new Order
+{
+    Id = 1,
+    CreatedAt = new DateTime(2025, 1, 15),
+    Total = 1234.56m
+};
+
+Console.WriteLine(order.ToString());
+// Output: Order { Id = 1, CreatedAt = 2025-01-15, Total = $1,234.56 }
 ```
 
 ### 7. Validator Generator

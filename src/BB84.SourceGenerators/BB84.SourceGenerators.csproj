@@ -52,6 +52,7 @@
 		<EmbeddedResource Include="Attributes\GenerateSingletonAttribute.cs" LogicalName="GenerateSingletonAttribute.cs" />
 		<EmbeddedResource Include="Attributes\GenerateToStringAttribute.cs" LogicalName="GenerateToStringAttribute.cs" />
 		<EmbeddedResource Include="Attributes\GenerateValidatorAttribute.cs" LogicalName="GenerateValidatorAttribute.cs" />
+		<EmbeddedResource Include="Attributes\ToStringFormatAttribute.cs" LogicalName="ToStringFormatAttribute.cs" />
 		<EmbeddedResource Include="Attributes\PropertyMappingAttribute.cs" LogicalName="PropertyMappingAttribute.cs" />
 	</ItemGroup>
 	<ItemGroup>

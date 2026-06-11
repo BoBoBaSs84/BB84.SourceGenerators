@@ -212,6 +212,42 @@ public sealed class ToStringGeneratorTests
 
 		Assert.AreEqual(expected, result);
 	}
+
+	[TestMethod]
+	public void ToStringShouldApplyCustomFormatSpecifiers()
+	{
+		ToStringFormatTestModel model = new()
+		{
+			CreatedAt = new DateTime(2025, 1, 15),
+			Total = 1234.56m
+		};
+
+		string? result = model.ToString();
+		string expected = nameof(ToStringFormatTestModel) + " { " +
+			"CreatedAt = 2025-01-15, " +
+			"Total = " + $"{model.Total:F2}" + " }";
+
+		Assert.AreEqual(expected, result);
+	}
+
+	[TestMethod]
+	public void ToStringShouldMixFormattedAndUnformattedProperties()
+	{
+		ToStringMixedFormatTestModel model = new()
+		{
+			Name = "Order",
+			Amount = 99.5m,
+			Created = new DateTime(2025, 6, 1, 14, 30, 0)
+		};
+
+		string? result = model.ToString();
+		string expected = nameof(ToStringMixedFormatTestModel) + " { " +
+			"Name = Order, " +
+			"Amount = " + $"{model.Amount:C2}" + ", " +
+			"Created = 2025-06-01 }";
+
+		Assert.AreEqual(expected, result);
+	}
 }
 
 [GenerateToString]
@@ -276,4 +312,26 @@ public partial class ToStringArrayTestModel
 {
 	public string? Name { get; set; }
 	public string[]? Tags { get; set; }
+}
+
+[GenerateToString]
+public partial class ToStringFormatTestModel
+{
+	[ToStringFormat("yyyy-MM-dd")]
+	public DateTime CreatedAt { get; set; }
+
+	[ToStringFormat("F2")]
+	public decimal Total { get; set; }
+}
+
+[GenerateToString]
+public partial class ToStringMixedFormatTestModel
+{
+	public string? Name { get; set; }
+
+	[ToStringFormat("C2")]
+	public decimal Amount { get; set; }
+
+	[ToStringFormat("yyyy-MM-dd")]
+	public DateTime Created { get; set; }
 }
