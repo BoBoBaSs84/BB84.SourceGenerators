@@ -254,12 +254,16 @@ internal static class GeneratorHelpers
 	/// When not <see langword="null"/>, checks whether the property type is decorated with the specified attribute
 	/// and sets <see cref="PropertyDescriptor.IsCloneable"/> accordingly.
 	/// </param>
+	/// <param name="detectCollections">
+	/// When <see langword="true"/>, detects collection types and sets <see cref="PropertyDescriptor.CollectionKind"/> accordingly.
+	/// </param>
 	/// <returns>An immutable array of <see cref="PropertyDescriptor"/> instances.</returns>
 	internal static ImmutableArray<PropertyDescriptor> GetPropertyDescriptors(
 		INamedTypeSymbol classSymbol,
 		HashSet<string>? excludedProperties = null,
 		bool requireSetter = false,
-		string? cloneableAttributeName = null)
+		string? cloneableAttributeName = null,
+		bool detectCollections = false)
 	{
 		ImmutableArray<PropertyDescriptor>.Builder builder = ImmutableArray.CreateBuilder<PropertyDescriptor>();
 
@@ -293,8 +297,11 @@ internal static class GeneratorHelpers
 						break;
 					}
 				}
+			}
 
-				// Detect collection types
+			// Detect collection types when explicitly requested or when cloneability checks are active
+			if (cloneableAttributeName is not null || detectCollections)
+			{
 				(collectionKind, elementTypeName, isElementCloneable, dictionaryValueTypeName, isDictionaryValueCloneable) =
 					DetectCollectionKind(propertySymbol.Type, cloneableAttributeName);
 			}
@@ -309,7 +316,8 @@ internal static class GeneratorHelpers
 	/// Detects the collection kind of a type symbol and extracts element type information.
 	/// </summary>
 	private static (CollectionKind Kind, string? ElementTypeName, bool IsElementCloneable, string? DictionaryValueTypeName, bool IsDictionaryValueCloneable) DetectCollectionKind(
-		ITypeSymbol typeSymbol, string cloneableAttributeName)
+		ITypeSymbol typeSymbol,
+		string? cloneableAttributeName)
 	{
 		// Unwrap nullable
 		if (typeSymbol is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T } nullable)
@@ -319,7 +327,7 @@ internal static class GeneratorHelpers
 		if (typeSymbol is IArrayTypeSymbol arrayType)
 		{
 			string elementType = arrayType.ElementType.ToFullyQualifiedDisplayString();
-			bool elementCloneable = HasAttribute(arrayType.ElementType, cloneableAttributeName);
+			bool elementCloneable = cloneableAttributeName is not null && HasAttribute(arrayType.ElementType, cloneableAttributeName);
 			return (CollectionKind.Array, elementType, elementCloneable, null, false);
 		}
 
@@ -332,7 +340,7 @@ internal static class GeneratorHelpers
 			{
 				string keyType = namedType.TypeArguments[0].ToFullyQualifiedDisplayString();
 				string valueType = namedType.TypeArguments[1].ToFullyQualifiedDisplayString();
-				bool valueCloneable = HasAttribute(namedType.TypeArguments[1], cloneableAttributeName);
+				bool valueCloneable = cloneableAttributeName is not null && HasAttribute(namedType.TypeArguments[1], cloneableAttributeName);
 				return (CollectionKind.Dictionary, keyType, false, valueType, valueCloneable);
 			}
 
@@ -340,7 +348,7 @@ internal static class GeneratorHelpers
 			if (originalDef == "System.Collections.Generic.List<T>")
 			{
 				string elementType = namedType.TypeArguments[0].ToFullyQualifiedDisplayString();
-				bool elementCloneable = HasAttribute(namedType.TypeArguments[0], cloneableAttributeName);
+				bool elementCloneable = cloneableAttributeName is not null && HasAttribute(namedType.TypeArguments[0], cloneableAttributeName);
 				return (CollectionKind.List, elementType, elementCloneable, null, false);
 			}
 
@@ -348,7 +356,7 @@ internal static class GeneratorHelpers
 			if (originalDef == "System.Collections.Immutable.ImmutableArray<T>")
 			{
 				string elementType = namedType.TypeArguments[0].ToFullyQualifiedDisplayString();
-				bool elementCloneable = HasAttribute(namedType.TypeArguments[0], cloneableAttributeName);
+				bool elementCloneable = cloneableAttributeName is not null && HasAttribute(namedType.TypeArguments[0], cloneableAttributeName);
 				return (CollectionKind.ImmutableArray, elementType, elementCloneable, null, false);
 			}
 
@@ -358,7 +366,7 @@ internal static class GeneratorHelpers
 				or "System.Collections.Generic.IReadOnlyCollection<T>")
 			{
 				string elementType = namedType.TypeArguments[0].ToFullyQualifiedDisplayString();
-				bool elementCloneable = HasAttribute(namedType.TypeArguments[0], cloneableAttributeName);
+				bool elementCloneable = cloneableAttributeName is not null && HasAttribute(namedType.TypeArguments[0], cloneableAttributeName);
 				return (CollectionKind.ReadOnlyCollection, elementType, elementCloneable, null, false);
 			}
 		}
