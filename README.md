@@ -663,7 +663,7 @@ UserProfile second = builder.WithId(2).Build();
 
 ### 6. ToString Generator
 
-Generates a `ToString()` override for classes, returning a formatted string containing the class name and all (or selected) public readable property values in the format `ClassName { Prop1 = val1, Prop2 = val2 }`.
+Generates a `ToString()` override for classes, returning a formatted string containing the class name and all (or selected) public readable property values in the format `ClassName { Prop1 = val1, Prop2 = val2 }`. Collection properties (lists, arrays, dictionaries) are rendered with configurable formatting instead of the default type name.
 
 #### Attribute
 
@@ -674,6 +674,17 @@ Generates a `ToString()` override for classes, returning a formatted string cont
 **Parameters:**
 
 - `excludeProperties` - Optional list of property names to exclude from the generated `ToString()` output
+- `CollectionFormat` - Controls how collection properties are rendered (named argument, default: `CollectionFormat.Count`)
+
+**Collection Format Modes:**
+
+| Mode                                 | Description                                                             | Example output                 |
+| ------------------------------------ | ----------------------------------------------------------------------- | ------------------------------ |
+| `CollectionFormat.Count` _(default)_ | Shows element count only                                                | `Count = 3`                    |
+| `CollectionFormat.Elements`          | Inline elements for lists/arrays; `{key: value}` pairs for dictionaries | `[Alice, Bob]` / `{Alice: 10}` |
+| `CollectionFormat.TypeAndCount`      | Shows runtime type name and element count                               | `List\`1 (Count = 3)`          |
+
+`null` collections are always rendered as `null` regardless of the format mode.
 
 #### Example
 
@@ -698,6 +709,23 @@ public partial class User
     public string PasswordHash { get; set; }
     public string InternalNotes { get; set; }
 }
+
+// Collection properties — explicit Elements mode for full display
+[GenerateToString(CollectionFormat = CollectionFormat.Elements)]
+public partial class Team
+{
+    public string Name { get; set; }
+    public List<string> Members { get; set; }
+    public Dictionary<string, int> Scores { get; set; }
+}
+
+// Collection properties — Count mode
+[GenerateToString(CollectionFormat = CollectionFormat.Count)]
+public partial class TeamSummary
+{
+    public string Name { get; set; }
+    public List<string> Members { get; set; }
+}
 ```
 
 #### Generated Code
@@ -708,6 +736,11 @@ The generator creates a `ToString()` override on the partial class that:
 - Excludes properties specified in the attribute parameter
 - Formats output as `ClassName { Prop1 = val1, Prop2 = val2 }`
 - Returns `ClassName { }` when all properties are excluded
+- For collection properties, emits inline formatting based on `CollectionFormat`:
+  - `Count`: `Count = N`
+  - `Elements`: `[item1, item2]` for arrays/lists, `{key1: val1, key2: val2}` for dictionaries
+  - `TypeAndCount`: `TypeName (Count = N)`
+- For dictionary properties in `Elements` mode, emits a private generic helper `DictionaryToString<TKey, TValue>`
 
 #### Usage Example
 
@@ -733,6 +766,25 @@ var user = new User
 
 Console.WriteLine(user.ToString());
 // Output: User { Id = 42, Name = John Doe }
+
+var team = new Team
+{
+    Name = "Alpha",
+    Members = new List<string> { "Alice", "Bob", "Charlie" },
+    Scores = new Dictionary<string, int> { ["Alice"] = 10, ["Bob"] = 20 }
+};
+
+Console.WriteLine(team.ToString());
+// Output: Team { Name = Alpha, Members = [Alice, Bob, Charlie], Scores = {Alice: 10, Bob: 20} }
+
+var summary = new TeamSummary
+{
+    Name = "Beta",
+    Members = new List<string> { "Alice", "Bob", "Charlie" }
+};
+
+Console.WriteLine(summary.ToString());
+// Output: TeamSummary { Name = Beta, Members = Count = 3 }
 ```
 
 ### 7. Validator Generator
