@@ -4,7 +4,6 @@
 // This source code is licensed under the MIT license found in the
 // LICENSE file in the root directory of this source tree.
 using System.Collections.Immutable;
-using System.Text;
 
 using BB84.SourceGenerators.Attributes;
 using BB84.SourceGenerators.Helpers;
@@ -87,24 +86,7 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 			sb.AppendLine("/// <inheritdoc/>");
 			sb.AppendLine("public string ToString(string? format, IFormatProvider? formatProvider)");
 			sb.OpenBrace();
-
-			if (properties.Length == 0)
-			{
-				sb.AppendLine($"return \"{className} {{ }}\";");
-			}
-			else
-			{
-				foreach (PropertyDescriptor prop in properties)
-				{
-					if (prop.CollectionKind == CollectionKind.None)
-						continue;
-
-					sb.AppendLine($"string {prop.Name.ToLowerInvariant()} = {BuildCollectionFormatExpression(prop, collectionFormat)};");
-				}
-
-				sb.AppendLine($"return $\"{className} {{{{ {BuildFormattableFormatString(properties, separator, nullPlaceholder)} }}}}\";");
-			}
-
+			AppendToStringBody(sb, className, properties, collectionFormat, separator, nullPlaceholder, formattable: true);
 			sb.CloseBrace();
 		}
 		else
@@ -112,24 +94,7 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 			sb.AppendLine("/// <inheritdoc/>");
 			sb.AppendLine("public override string ToString()");
 			sb.OpenBrace();
-
-			if (properties.Length == 0)
-			{
-				sb.AppendLine($"return \"{className} {{ }}\";");
-			}
-			else
-			{
-				foreach (PropertyDescriptor prop in properties)
-				{
-					if (prop.CollectionKind == CollectionKind.None)
-						continue;
-
-					sb.AppendLine($"string {prop.Name.ToLowerInvariant()} = {BuildCollectionFormatExpression(prop, collectionFormat)};");
-				}
-
-				sb.AppendLine($"return $\"{className} {{{{ {BuildFormatString(properties, separator, nullPlaceholder)} }}}}\";");
-			}
-
+			AppendToStringBody(sb, className, properties, collectionFormat, separator, nullPlaceholder, formattable: false);
 			sb.CloseBrace();
 		}
 
@@ -142,84 +107,68 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 		sb.CloseClass();
 	}
 
-	private static string BuildFormatString(ImmutableArray<PropertyDescriptor> properties, string separator, string? nullPlaceholder)
+	private static void AppendToStringBody(SourceBuilder sb, string className, ImmutableArray<PropertyDescriptor> properties, CollectionFormat collectionFormat, string separator, string? nullPlaceholder, bool formattable)
 	{
-		StringBuilder format = new();
+		if (properties.Length == 0)
+		{
+			sb.AppendLine($"return \"{className} {{ }}\";");
+			return;
+		}
+
+		foreach (PropertyDescriptor prop in properties)
+		{
+			if (prop.CollectionKind == CollectionKind.None)
+				continue;
+			sb.AppendLine($"string {prop.Name.ToLowerInvariant()} = {BuildCollectionFormatExpression(prop, collectionFormat)};");
+		}
+
+		string escapedSeparator = GeneratorHelpers.EscapeString(separator);
+		sb.AppendLine("System.Text.StringBuilder sb = new();");
+		sb.AppendLine($"sb.Append(\"{className} {{ \");");
 
 		for (int i = 0; i < properties.Length; i++)
 		{
 			if (i > 0)
-				format.Append(separator);
+				sb.AppendLine($"sb.Append(\"{escapedSeparator}\");");
 
-			string token;
-
-			if (properties[i].CollectionKind != CollectionKind.None)
-			{
-				token = properties[i].Name.ToLowerInvariant();
-			}
-			else if (nullPlaceholder is not null && properties[i].IsNullable)
-			{
-				string escaped = GeneratorHelpers.EscapeString(nullPlaceholder);
-				token = properties[i].FormatString is not null
-					? $"({properties[i].Name}?.ToString(\"{properties[i].FormatString}\") ?? \"{escaped}\")"
-					: $"{properties[i].Name}?.ToString() ?? \"{escaped}\"";
-			}
-			else
-			{
-				token = properties[i].FormatString is not null
-					? $"{properties[i].Name}:{properties[i].FormatString}"
-					: properties[i].Name;
-			}
-
-			format.Append($"{{nameof({properties[i].Name})}} = {{{token}}}");
+			PropertyDescriptor prop = properties[i];
+			sb.AppendLine($"sb.Append($\"{{nameof({prop.Name})}} = \");");
+			sb.AppendLine($"sb.Append({GetValueExpression(prop, nullPlaceholder, formattable)});");
 		}
 
-		return format.ToString();
+		sb.AppendLine("sb.Append(\" }\");");
+		sb.AppendLine("return sb.ToString();");
 	}
 
-	private static string BuildFormattableFormatString(ImmutableArray<PropertyDescriptor> properties, string separator, string? nullPlaceholder)
+	private static string GetValueExpression(PropertyDescriptor prop, string? nullPlaceholder, bool formattable)
 	{
-		StringBuilder format = new();
+		if (prop.CollectionKind != CollectionKind.None)
+			return prop.Name.ToLowerInvariant();
 
-		for (int i = 0; i < properties.Length; i++)
+		if (formattable && prop.IsFormattable)
 		{
-			if (i > 0)
-				format.Append(separator);
-
-			format.Append($"{{nameof({properties[i].Name})}} = ");
-
-			if (properties[i].CollectionKind != CollectionKind.None)
+			if (nullPlaceholder is not null && prop.IsNullable)
 			{
-				format.Append($"{{{properties[i].Name.ToLowerInvariant()}}}");
+				string escaped = GeneratorHelpers.EscapeString(nullPlaceholder);
+				return $"({prop.Name}?.ToString(format, formatProvider) ?? \"{escaped}\")";
 			}
-			else if (properties[i].IsFormattable)
-			{
-				if (nullPlaceholder is not null && properties[i].IsNullable)
-				{
-					string escaped = GeneratorHelpers.EscapeString(nullPlaceholder);
-					format.Append($"{{({properties[i].Name}?.ToString(format, formatProvider) ?? \"{escaped}\")}}");
-				}
-				else
-				{
-					string nullConditional = properties[i].IsNullable ? "?" : "";
-					format.Append($"{{{properties[i].Name}{nullConditional}.ToString(format, formatProvider)}}");
-				}
-			}
-			else
-			{
-				if (nullPlaceholder is not null && properties[i].IsNullable)
-				{
-					string escaped = GeneratorHelpers.EscapeString(nullPlaceholder);
-					format.Append($"{{{properties[i].Name}?.ToString() ?? \"{escaped}\"}}");
-				}
-				else
-				{
-					format.Append($"{{{properties[i].Name}}}");
-				}
-			}
+			string nullConditional = prop.IsNullable ? "?" : "";
+			return $"{prop.Name}{nullConditional}.ToString(format, formatProvider)";
 		}
 
-		return format.ToString();
+		if (nullPlaceholder is not null && prop.IsNullable)
+		{
+			string escaped = GeneratorHelpers.EscapeString(nullPlaceholder);
+			return prop.FormatString is not null
+				? $"({prop.Name}?.ToString(\"{prop.FormatString}\") ?? \"{escaped}\")"
+				: $"({prop.Name}?.ToString() ?? \"{escaped}\")";
+		}
+
+		return prop.FormatString is not null
+			? prop.IsNullable
+				? $"{prop.Name}?.ToString(\"{prop.FormatString}\")"
+				: $"{prop.Name}.ToString(\"{prop.FormatString}\")"
+			: prop.Name;
 	}
 
 	private static string BuildCollectionFormatExpression(PropertyDescriptor prop, CollectionFormat format)
