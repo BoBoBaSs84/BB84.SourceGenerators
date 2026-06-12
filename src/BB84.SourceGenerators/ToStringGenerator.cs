@@ -40,8 +40,9 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 		string separator = GetSeparator(ctx.ClassDeclaration, ctx.SemanticModel);
 		bool formattable = GetFormattable(ctx.ClassDeclaration, ctx.SemanticModel);
 		string? nullPlaceholder = GetNullPlaceholder(ctx.ClassDeclaration, ctx.SemanticModel);
+		bool includeInherited = GetIncludeInherited(ctx.ClassDeclaration, ctx.SemanticModel);
 		HashSet<string> excludedProperties = GeneratorHelpers.GetExcludedProperties(ctx.ClassDeclaration, ctx.SemanticModel, nameof(GenerateToStringAttribute));
-		ImmutableArray<PropertyDescriptor> properties = GeneratorHelpers.GetPropertyDescriptors(ctx.ClassSymbol, excludedProperties, detectCollections: true, toStringFormatAttributeName: ToStringFormatAttributeName, toStringOrderAttributeName: ToStringOrderAttributeName);
+		ImmutableArray<PropertyDescriptor> properties = GeneratorHelpers.GetPropertyDescriptors(ctx.ClassSymbol, excludedProperties, detectCollections: true, toStringFormatAttributeName: ToStringFormatAttributeName, toStringOrderAttributeName: ToStringOrderAttributeName, includeInherited: includeInherited);
 
 		SourceBuilder sb = new();
 
@@ -237,4 +238,7 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 
 	private static string? GetNullPlaceholder(ClassDeclarationSyntax classDeclaration, SemanticModel semanticModel)
 		=> GeneratorHelpers.GetNamedArgumentValue<string?>(classDeclaration, semanticModel, AttributeNames.ShortName, AttributeNames.FullName, nameof(GenerateToStringAttribute.NullPlaceholder), null);
+
+	private static bool GetIncludeInherited(ClassDeclarationSyntax classDeclaration, SemanticModel semanticModel)
+		=> GeneratorHelpers.GetNamedArgumentValue(classDeclaration, semanticModel, AttributeNames.ShortName, AttributeNames.FullName, nameof(GenerateToStringAttribute.IncludeInherited), false);
 }

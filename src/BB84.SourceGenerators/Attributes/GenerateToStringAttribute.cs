@@ -73,4 +73,13 @@ internal sealed class GenerateToStringAttribute(params string[] excludePropertie
 	/// Common values: <c>"null"</c>, <c>"&lt;null&gt;"</c>.
 	/// </summary>
 	public string? NullPlaceholder { get; set; }
+
+	/// <summary>
+	/// Gets or sets a value indicating whether to include inherited public properties from base classes
+	/// in the generated <c>ToString()</c> output.
+	/// When <see langword="true"/>, the generator walks the base type hierarchy and appends inherited properties
+	/// after the declared properties. The <c>excludeProperties</c> list applies to inherited members as well.
+	/// Defaults to <see langword="false"/>.
+	/// </summary>
+	public bool IncludeInherited { get; set; }
 }

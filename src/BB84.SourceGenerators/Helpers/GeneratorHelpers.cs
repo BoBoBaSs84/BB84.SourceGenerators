@@ -336,6 +336,10 @@ internal static class GeneratorHelpers
 	/// and sets <see cref="PropertyDescriptor.Order"/> accordingly. Properties with an explicit order are
 	/// sorted first (ascending), followed by unordered properties in declaration order.
 	/// </param>
+	/// <param name="includeInherited">
+	/// When <see langword="true"/>, also includes public properties from base types (excluding <see cref="object"/>).
+	/// The <paramref name="excludedProperties"/> set applies to inherited members as well.
+	/// </param>
 	/// <returns>An immutable array of <see cref="PropertyDescriptor"/> instances.</returns>
 	internal static ImmutableArray<PropertyDescriptor> GetPropertyDescriptors(
 		INamedTypeSymbol classSymbol,
@@ -344,11 +348,12 @@ internal static class GeneratorHelpers
 		string? cloneableAttributeName = null,
 		bool detectCollections = false,
 		string? toStringFormatAttributeName = null,
-		string? toStringOrderAttributeName = null)
+		string? toStringOrderAttributeName = null,
+		bool includeInherited = false)
 	{
 		ImmutableArray<PropertyDescriptor>.Builder builder = ImmutableArray.CreateBuilder<PropertyDescriptor>();
 
-		foreach (IPropertySymbol propertySymbol in GetPublicPropertySymbols(classSymbol, requireGetter: true, requireSetter: requireSetter))
+		foreach (IPropertySymbol propertySymbol in GetPublicPropertySymbols(classSymbol, includeInherited: includeInherited, requireGetter: true, requireSetter: requireSetter))
 		{
 			if (propertySymbol.IsWriteOnly)
 				continue;
