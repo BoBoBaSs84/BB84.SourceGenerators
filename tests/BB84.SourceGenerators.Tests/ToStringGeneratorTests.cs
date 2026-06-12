@@ -469,6 +469,60 @@ public sealed class ToStringGeneratorTests
 	}
 
 	[TestMethod]
+	public void ToStringShouldIncludeInheritedPropertiesWhenEnabled()
+	{
+		ToStringInheritedTestModel model = new()
+		{
+			Id = 7,
+			Name = "Base",
+			Extra = "Derived"
+		};
+
+		string? result = model.ToString();
+		string expected = $"{nameof(ToStringInheritedTestModel)} {{ " +
+			$"{nameof(model.Extra)} = {model.Extra}, " +
+			$"{nameof(model.Id)} = {model.Id}, " +
+			$"{nameof(model.Name)} = {model.Name} }}";
+
+		Assert.AreEqual(expected, result);
+	}
+
+	[TestMethod]
+	public void ToStringShouldNotIncludeInheritedPropertiesByDefault()
+	{
+		ToStringNoInheritTestModel model = new()
+		{
+			Id = 3,
+			Name = "Base",
+			Extra = "Derived"
+		};
+
+		string? result = model.ToString();
+		string expected = $"{nameof(ToStringNoInheritTestModel)} {{ " +
+			$"{nameof(model.Extra)} = {model.Extra} }}";
+
+		Assert.AreEqual(expected, result);
+	}
+
+	[TestMethod]
+	public void ToStringShouldRespectExcludedPropertiesForInheritedMembers()
+	{
+		ToStringInheritedExcludeTestModel model = new()
+		{
+			Id = 5,
+			Name = "Base",
+			Extra = "Derived"
+		};
+
+		string? result = model.ToString();
+		string expected = $"{nameof(ToStringInheritedExcludeTestModel)} {{ " +
+			$"{nameof(model.Extra)} = {model.Extra}, " +
+			$"{nameof(model.Id)} = {model.Id} }}";
+
+		Assert.AreEqual(expected, result);
+	}
+
+	[TestMethod]
 	public void ToStringFormattableShouldRenderNullPlaceholderForNullableProperty()
 	{
 		ToStringFormattableNullPlaceholderTestModel model = new()
@@ -654,4 +708,28 @@ public partial class ToStringPartialOrderTestModel
 	public string? A { get; set; }
 
 	public string? Middle { get; set; }
+}
+
+public class ToStringBaseModel
+{
+	public int Id { get; set; }
+	public string? Name { get; set; }
+}
+
+[GenerateToString(IncludeInherited = true)]
+public partial class ToStringInheritedTestModel : ToStringBaseModel
+{
+	public string? Extra { get; set; }
+}
+
+[GenerateToString]
+public partial class ToStringNoInheritTestModel : ToStringBaseModel
+{
+	public string? Extra { get; set; }
+}
+
+[GenerateToString("Name", IncludeInherited = true)]
+public partial class ToStringInheritedExcludeTestModel : ToStringBaseModel
+{
+	public string? Extra { get; set; }
 }

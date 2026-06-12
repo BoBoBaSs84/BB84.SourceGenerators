@@ -680,6 +680,7 @@ Generates a `ToString()` override for classes, returning a formatted string cont
 - `Separator` - Custom separator string between properties (named argument, default: `", "`)
 - `Formattable` - When `true`, generates an `IFormattable` implementation so the class participates in composite formatting with custom `IFormatProvider` support (named argument, default: `false`)
 - `NullPlaceholder` - When set, nullable properties with a `null` value render this string instead of an empty string (named argument, default: `null` — empty string behavior). Common values: `"null"`, `"<null>"`
+- `IncludeInherited` - When `true`, public properties from base classes (up to but not including `object`) are also included in the output after the declared properties. The `excludeProperties` list applies to inherited members as well (named argument, default: `false`)
 
 **Per-Property Formatting:**
 
@@ -788,6 +789,20 @@ public partial class Contact
 
     public int Age { get; set; }
 }
+
+// Include inherited properties from base classes
+public class EntityBase
+{
+    public int Id { get; set; }
+    public string? CreatedBy { get; set; }
+}
+
+[GenerateToString(IncludeInherited = true)]
+public partial class Order : EntityBase
+{
+    public decimal Total { get; set; }
+    public string? Reference { get; set; }
+}
 ```
 
 #### Generated Code
@@ -807,6 +822,7 @@ The generator creates a `ToString()` override on the partial class that:
 - When `Formattable = true`, implements `IFormattable` with `ToString(string?, IFormatProvider?)` — properties whose types implement `IFormattable` receive the `formatProvider`; others use their default `ToString()`
 - When `NullPlaceholder` is set, nullable properties with a `null` value emit `Property?.ToString() ?? "placeholder"` instead of the raw interpolation slot; `[ToStringFormat]` is preserved as an explicit `.ToString("fmt")` call
 - When any property carries `[ToStringOrder(n)]`, properties are reordered: those with an explicit order appear first (ascending by value), followed by unordered properties in their original declaration order
+- When `IncludeInherited = true`, public readable properties from all base classes (up to but not including `object`) are appended after the declared properties; `excludeProperties` applies to inherited members as well
 
 #### Usage Example
 
