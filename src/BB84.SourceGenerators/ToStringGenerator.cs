@@ -227,138 +227,14 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 	}
 
 	private static bool GetFormattable(ClassDeclarationSyntax classDeclaration, SemanticModel semanticModel)
-	{
-		foreach (AttributeListSyntax attributeList in classDeclaration.AttributeLists)
-		{
-			foreach (AttributeSyntax attribute in attributeList.Attributes)
-			{
-				string name = attribute.Name.ToString();
-
-				if (name != AttributeNames.ShortName && name != AttributeNames.FullName)
-					continue;
-
-				if (attribute.ArgumentList is null)
-					return false;
-
-				foreach (AttributeArgumentSyntax arg in attribute.ArgumentList.Arguments)
-				{
-					if (arg.NameEquals?.Name.Identifier.Text != nameof(GenerateToStringAttribute.Formattable))
-						continue;
-
-					Optional<object?> value = semanticModel.GetConstantValue(arg.Expression);
-
-					if (value.HasValue && value.Value is bool boolValue)
-						return boolValue;
-
-					break;
-				}
-
-				return false;
-			}
-		}
-
-		return false;
-	}
+		=> GeneratorHelpers.GetNamedArgumentValue(classDeclaration, semanticModel, AttributeNames.ShortName, AttributeNames.FullName, nameof(GenerateToStringAttribute.Formattable), false);
 
 	private static string GetSeparator(ClassDeclarationSyntax classDeclaration, SemanticModel semanticModel)
-	{
-		foreach (AttributeListSyntax attributeList in classDeclaration.AttributeLists)
-		{
-			foreach (AttributeSyntax attribute in attributeList.Attributes)
-			{
-				string name = attribute.Name.ToString();
-
-				if (name != AttributeNames.ShortName && name != AttributeNames.FullName)
-					continue;
-
-				if (attribute.ArgumentList is null)
-					return ", ";
-
-				foreach (AttributeArgumentSyntax arg in attribute.ArgumentList.Arguments)
-				{
-					if (arg.NameEquals?.Name.Identifier.Text != nameof(GenerateToStringAttribute.Separator))
-						continue;
-
-					Optional<object?> value = semanticModel.GetConstantValue(arg.Expression);
-
-					if (value.HasValue && value.Value is string stringValue)
-						return stringValue;
-
-					break;
-				}
-
-				return ", ";
-			}
-		}
-
-		return ", ";
-	}
+		=> GeneratorHelpers.GetNamedArgumentValue(classDeclaration, semanticModel, AttributeNames.ShortName, AttributeNames.FullName, nameof(GenerateToStringAttribute.Separator), ", ");
 
 	private static CollectionFormat GetCollectionFormat(ClassDeclarationSyntax classDeclaration, SemanticModel semanticModel)
-	{
-		foreach (AttributeListSyntax attributeList in classDeclaration.AttributeLists)
-		{
-			foreach (AttributeSyntax attribute in attributeList.Attributes)
-			{
-				string name = attribute.Name.ToString();
-
-				if (name != AttributeNames.ShortName && name != AttributeNames.FullName)
-					continue;
-
-				if (attribute.ArgumentList is null)
-					return CollectionFormat.Count;
-
-				foreach (AttributeArgumentSyntax arg in attribute.ArgumentList.Arguments)
-				{
-					if (arg.NameEquals?.Name.Identifier.Text != nameof(GenerateToStringAttribute.CollectionFormat))
-						continue;
-
-					Optional<object?> value = semanticModel.GetConstantValue(arg.Expression);
-
-					if (value.HasValue && value.Value is int intValue)
-						return (CollectionFormat)intValue;
-
-					break;
-				}
-
-				return CollectionFormat.Count;
-			}
-		}
-
-		return CollectionFormat.Count;
-	}
+		=> (CollectionFormat)GeneratorHelpers.GetNamedArgumentValue(classDeclaration, semanticModel, AttributeNames.ShortName, AttributeNames.FullName, nameof(GenerateToStringAttribute.CollectionFormat), (int)CollectionFormat.Count);
 
 	private static string? GetNullPlaceholder(ClassDeclarationSyntax classDeclaration, SemanticModel semanticModel)
-	{
-		foreach (AttributeListSyntax attributeList in classDeclaration.AttributeLists)
-		{
-			foreach (AttributeSyntax attribute in attributeList.Attributes)
-			{
-				string name = attribute.Name.ToString();
-
-				if (name != AttributeNames.ShortName && name != AttributeNames.FullName)
-					continue;
-
-				if (attribute.ArgumentList is null)
-					return null;
-
-				foreach (AttributeArgumentSyntax arg in attribute.ArgumentList.Arguments)
-				{
-					if (arg.NameEquals?.Name.Identifier.Text != nameof(GenerateToStringAttribute.NullPlaceholder))
-						continue;
-
-					Optional<object?> value = semanticModel.GetConstantValue(arg.Expression);
-
-					if (value.HasValue && value.Value is string stringValue)
-						return stringValue;
-
-					break;
-				}
-
-				return null;
-			}
-		}
-
-		return null;
-	}
+		=> GeneratorHelpers.GetNamedArgumentValue<string?>(classDeclaration, semanticModel, AttributeNames.ShortName, AttributeNames.FullName, nameof(GenerateToStringAttribute.NullPlaceholder), null);
 }

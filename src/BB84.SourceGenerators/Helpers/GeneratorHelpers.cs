@@ -84,19 +84,6 @@ internal static class GeneratorHelpers
 	}
 
 	/// <summary>
-	/// Gets the set of excluded property names from an attribute's constructor arguments.
-	/// </summary>
-	/// <param name="classDeclaration">The class declaration syntax.</param>
-	/// <param name="semanticModel">The semantic model.</param>
-	/// <param name="attributeFullName">The full name of the attribute (e.g., "GenerateToStringAttribute").</param>
-	/// <returns>A set of excluded property names.</returns>
-	internal static HashSet<string> GetExcludedProperties(
-		ClassDeclarationSyntax classDeclaration,
-		SemanticModel semanticModel,
-		string attributeFullName)
-		=> GetExcludedProperties((TypeDeclarationSyntax)classDeclaration, semanticModel, attributeFullName);
-
-	/// <summary>
 	/// Gets the set of excluded property names from an attribute's constructor arguments on a type declaration.
 	/// </summary>
 	/// <param name="typeDeclaration">The type declaration syntax (class or struct).</param>
@@ -147,6 +134,89 @@ internal static class GeneratorHelpers
 			: attributeName;
 
 	/// <summary>
+	/// Gets the value of a named argument from an attribute on a type declaration.
+	/// Searches the attribute lists for an attribute matching <paramref name="attributeShortName"/> or
+	/// <paramref name="attributeFullName"/>, then looks for a named argument with the given <paramref name="propertyName"/>.
+	/// </summary>
+	/// <typeparam name="T">The expected type of the argument value.</typeparam>
+	/// <param name="typeDeclaration">The type declaration syntax.</param>
+	/// <param name="semanticModel">The semantic model.</param>
+	/// <param name="attributeShortName">The short name of the attribute.</param>
+	/// <param name="attributeFullName">The full name of the attribute.</param>
+	/// <param name="propertyName">The name of the named argument to extract.</param>
+	/// <param name="defaultValue">The default value to return if the argument is not found.</param>
+	/// <returns>The extracted value, or <paramref name="defaultValue"/> if not found.</returns>
+	internal static T GetNamedArgumentValue<T>(
+		TypeDeclarationSyntax typeDeclaration,
+		SemanticModel semanticModel,
+		string attributeShortName,
+		string attributeFullName,
+		string propertyName,
+		T defaultValue)
+	{
+		foreach (AttributeListSyntax attributeList in typeDeclaration.AttributeLists)
+		{
+			foreach (AttributeSyntax attribute in attributeList.Attributes)
+			{
+				string name = attribute.Name.ToString();
+
+				if (name != attributeShortName && name != attributeFullName)
+					continue;
+
+				if (attribute.ArgumentList is null)
+					return defaultValue;
+
+				foreach (AttributeArgumentSyntax arg in attribute.ArgumentList.Arguments)
+				{
+					if (arg.NameEquals?.Name.Identifier.Text != propertyName)
+						continue;
+
+					Optional<object?> value = semanticModel.GetConstantValue(arg.Expression);
+
+					if (value.HasValue && value.Value is T typedValue)
+						return typedValue;
+
+					break;
+				}
+
+				return defaultValue;
+			}
+		}
+
+		return defaultValue;
+	}
+
+	/// <summary>
+	/// Gets the value of a positional constructor argument from an attribute on a type symbol.
+	/// Searches the attributes of <paramref name="typeSymbol"/> for one whose class name matches
+	/// <paramref name="attributeFullName"/>, then returns the constructor argument at <paramref name="index"/>.
+	/// </summary>
+	/// <typeparam name="T">The expected type of the constructor argument value.</typeparam>
+	/// <param name="typeSymbol">The type symbol to inspect.</param>
+	/// <param name="attributeFullName">The simple type name of the attribute (e.g., "GenerateIniFileAttribute").</param>
+	/// <param name="index">The zero-based index of the constructor argument.</param>
+	/// <param name="defaultValue">The default value to return if the argument is not found.</param>
+	/// <returns>The extracted value, or <paramref name="defaultValue"/> if not found.</returns>
+	internal static T GetConstructorArgumentValue<T>(
+		INamedTypeSymbol typeSymbol,
+		string attributeFullName,
+		int index,
+		T defaultValue)
+	{
+		foreach (AttributeData attributeData in typeSymbol.GetAttributes())
+		{
+			if (attributeData.AttributeClass?.Name != attributeFullName)
+				continue;
+
+			return attributeData.ConstructorArguments.Length > index && attributeData.ConstructorArguments[index].Value is T typedValue
+				? typedValue
+				: defaultValue;
+		}
+
+		return defaultValue;
+	}
+
+	/// <summary>
 	/// Returns the fully-qualified metadata name, the simple full name, and the short name
 	/// (without the "Attribute" suffix) for the given attribute type.
 	/// </summary>
@@ -185,7 +255,7 @@ internal static class GeneratorHelpers
 	/// <param name="context">The generator attribute syntax context.</param>
 	/// <returns>A tuple of class declaration syntax and semantic model, or null if the target node is not a class declaration.</returns>
 	internal static (ClassDeclarationSyntax ClassSyntax, SemanticModel SemanticModel)? TransformClassSyntax(GeneratorAttributeSyntaxContext context)
-		=> context.TargetNode is not ClassDeclarationSyntax classSyntax ? null : ((ClassDeclarationSyntax ClassSyntax, SemanticModel SemanticModel)?)(classSyntax, context.SemanticModel);
+		=> context.TargetNode is not ClassDeclarationSyntax classSyntax ? null : (classSyntax, context.SemanticModel);
 
 	/// <summary>
 	/// Registers a class-based incremental source generator pipeline that filters for classes

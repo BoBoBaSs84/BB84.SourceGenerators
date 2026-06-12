@@ -32,7 +32,9 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 		if (!GeneratorHelpers.TryCreateContext(input, out GeneratorContext ctx))
 			return;
 
-		(bool generatePropertyChanged, bool generatePropertyChanging, bool generateHasChanged) = GetAttributeOptions(ctx.ClassDeclaration);
+		bool generatePropertyChanged = GetPropertyChanged(ctx.ClassSymbol);
+		bool generatePropertyChanging = GetPropertyChanging(ctx.ClassSymbol);
+		bool generateHasChanged = GetHasChanged(ctx.ClassSymbol);
 
 		if (!generatePropertyChanged && !generatePropertyChanging)
 			return;
@@ -69,62 +71,14 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 		context.AddSource(hintName, sb.ToString());
 	}
 
-	private static (bool propertyChanged, bool propertyChanging, bool hasChanged) GetAttributeOptions(ClassDeclarationSyntax classDeclaration)
-	{
-		bool propertyChanged = true;
-		bool propertyChanging = true;
-		bool hasChanged = false;
+	private static bool GetPropertyChanged(INamedTypeSymbol namedTypeSymbol)
+		=> GeneratorHelpers.GetConstructorArgumentValue(namedTypeSymbol, AttributeNames.FullName, 0, true);
 
-		foreach (AttributeListSyntax attributeList in classDeclaration.AttributeLists)
-		{
-			foreach (AttributeSyntax attribute in attributeList.Attributes)
-			{
-				string name = attribute.Name.ToString();
+	private static bool GetPropertyChanging(INamedTypeSymbol namedTypeSymbol)
+		=> GeneratorHelpers.GetConstructorArgumentValue(namedTypeSymbol, AttributeNames.FullName, 1, true);
 
-				if (name != AttributeNames.ShortName && name != AttributeNames.FullName)
-					continue;
-
-				if (attribute.ArgumentList is null || attribute.ArgumentList.Arguments.Count == 0)
-					return (propertyChanged, propertyChanging, hasChanged);
-
-				foreach (AttributeArgumentSyntax argument in attribute.ArgumentList.Arguments)
-				{
-					string? paramName = argument.NameColon?.Name.Identifier.Text;
-					string argText = argument.Expression.ToString();
-
-					if (!bool.TryParse(argText, out bool value))
-						continue;
-
-					switch (paramName)
-					{
-						case "propertyChanged":
-							propertyChanged = value;
-							break;
-						case "propertyChanging":
-							propertyChanging = value;
-							break;
-						case "hasChanged":
-							hasChanged = value;
-							break;
-						default:
-							// Positional: first=propertyChanged, second=propertyChanging, third=hasChanged
-							int index = attribute.ArgumentList.Arguments.IndexOf(argument);
-							if (index == 0)
-								propertyChanged = value;
-							else if (index == 1)
-								propertyChanging = value;
-							else if (index == 2)
-								hasChanged = value;
-							break;
-					}
-				}
-
-				return (propertyChanged, propertyChanging, hasChanged);
-			}
-		}
-
-		return (propertyChanged, propertyChanging, hasChanged);
-	}
+	private static bool GetHasChanged(INamedTypeSymbol namedTypeSymbol)
+		=> GeneratorHelpers.GetConstructorArgumentValue(namedTypeSymbol, AttributeNames.FullName, 2, false);
 
 	private static void AppendClassStart(SourceBuilder sb, string className, string accessibility, bool propertyChanged, bool propertyChanging, bool hasChanged)
 	{
