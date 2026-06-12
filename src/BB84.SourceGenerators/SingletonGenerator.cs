@@ -58,7 +58,7 @@ public sealed class SingletonGenerator : IIncrementalGenerator
 			}
 		}
 
-		bool useLazy = GetUseLazy(ctx.ClassDeclaration);
+		bool useLazy = GetUseLazy(ctx.ClassSymbol);
 		string instanceTypeName = GetFirstInterfaceName(ctx.ClassSymbol) ?? ctx.ClassName;
 
 		SourceBuilder sb = new();
@@ -113,31 +113,9 @@ public sealed class SingletonGenerator : IIncrementalGenerator
 		sb.CloseClass();
 	}
 
-	private static bool GetUseLazy(ClassDeclarationSyntax classDeclaration)
-	{
-		foreach (AttributeListSyntax attributeList in classDeclaration.AttributeLists)
-		{
-			foreach (AttributeSyntax attribute in attributeList.Attributes)
-			{
-				string name = attribute.Name.ToString();
-
-				if (name != AttributeNames.ShortName && name != AttributeNames.FullName)
-					continue;
-
-				if (attribute.ArgumentList is null || attribute.ArgumentList.Arguments.Count == 0)
-					return true;
-
-				AttributeArgumentSyntax firstArg = attribute.ArgumentList.Arguments[0];
-				string argText = firstArg.Expression.ToString();
-
-				if (bool.TryParse(argText, out bool result))
-					return result;
-			}
-		}
-
-		return true;
-	}
-
+	private static bool GetUseLazy(INamedTypeSymbol namedTypeSymbol)
+		=> GeneratorHelpers.GetConstructorArgumentValue(namedTypeSymbol, AttributeNames.FullName, 0, true);
+	
 	private static string? GetFirstInterfaceName(INamedTypeSymbol classSymbol)
 		=> classSymbol.Interfaces.FirstOrDefault()?.Name;
 }

@@ -37,7 +37,8 @@ public sealed class DisposableGenerator : IIncrementalGenerator
 		if (!GeneratorHelpers.TryCreateContext(input, out GeneratorContext ctx))
 			return;
 
-		(bool generateFinalizer, bool generateAsync) = GetAttributeOptions(ctx.ClassDeclaration);
+		bool generateFinalizer = GetGenerateFinalizer(ctx.ClassSymbol);
+		bool generateAsync = GetGenerateAsync(ctx.ClassSymbol);
 
 		// Check if IAsyncDisposable is available in the target framework
 		if (generateAsync)
@@ -97,55 +98,11 @@ public sealed class DisposableGenerator : IIncrementalGenerator
 		context.AddSource(hintName, sb.ToString());
 	}
 
-	private static (bool generateFinalizer, bool generateAsync) GetAttributeOptions(ClassDeclarationSyntax classDeclaration)
-	{
-		bool generateFinalizer = false;
-		bool generateAsync = false;
+	private static bool GetGenerateFinalizer(INamedTypeSymbol namedTypeSymbol)
+		=> GeneratorHelpers.GetConstructorArgumentValue(namedTypeSymbol, AttributeNames.FullName, 0, false);
 
-		foreach (AttributeListSyntax attributeList in classDeclaration.AttributeLists)
-		{
-			foreach (AttributeSyntax attribute in attributeList.Attributes)
-			{
-				string name = attribute.Name.ToString();
-
-				if (name != AttributeNames.ShortName && name != AttributeNames.FullName)
-					continue;
-
-				if (attribute.ArgumentList is null || attribute.ArgumentList.Arguments.Count == 0)
-					return (generateFinalizer, generateAsync);
-
-				foreach (AttributeArgumentSyntax argument in attribute.ArgumentList.Arguments)
-				{
-					string? paramName = argument.NameColon?.Name.Identifier.Text;
-					string argText = argument.Expression.ToString();
-
-					if (!bool.TryParse(argText, out bool value))
-						continue;
-
-					switch (paramName)
-					{
-						case "generateFinalizer":
-							generateFinalizer = value;
-							break;
-						case "async":
-							generateAsync = value;
-							break;
-						default:
-							int index = attribute.ArgumentList.Arguments.IndexOf(argument);
-							if (index == 0)
-								generateFinalizer = value;
-							else if (index == 1)
-								generateAsync = value;
-							break;
-					}
-				}
-
-				return (generateFinalizer, generateAsync);
-			}
-		}
-
-		return (generateFinalizer, generateAsync);
-	}
+	private static bool GetGenerateAsync(INamedTypeSymbol namedTypeSymbol)
+		=> GeneratorHelpers.GetConstructorArgumentValue(namedTypeSymbol, AttributeNames.FullName, 1, false);
 
 	private static ImmutableArray<(string FieldName, int Order, int SourceIndex)> GetDisposableFields(ClassDeclarationSyntax classDeclaration)
 	{

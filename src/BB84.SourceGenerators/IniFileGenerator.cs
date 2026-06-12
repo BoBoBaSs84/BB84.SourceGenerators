@@ -39,9 +39,9 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 		if (!GeneratorHelpers.TryCreateContext(input, out GeneratorContext ctx))
 			return;
 
-		string stringComparison = GetStringComparison(ctx.ClassDeclaration, ctx.SemanticModel);
-		string sectionDelimiter = GetSectionDelimiter(ctx.ClassDeclaration, ctx.SemanticModel);
-		bool serializeComments = GetSerializeComments(ctx.ClassDeclaration);
+		string stringComparison = GetStringComparison(ctx.ClassSymbol).ToString();
+		string sectionDelimiter = GetSectionDelimiter(ctx.ClassSymbol);
+		bool serializeComments = GetSerializeComments(ctx.ClassDeclaration, ctx.SemanticModel);
 
 		List<SectionInfo> sections = GetSections(ctx.ClassDeclaration, ctx.SemanticModel, sectionDelimiter, serializeComments);
 
@@ -595,74 +595,14 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 			};
 	}
 
-	private static string GetStringComparison(ClassDeclarationSyntax classDeclaration, SemanticModel semanticModel)
-	{
-		INamedTypeSymbol? classSymbol = semanticModel.GetDeclaredSymbol(classDeclaration);
+	private static StringComparison GetStringComparison(INamedTypeSymbol classSymbol)
+		=> (StringComparison)GeneratorHelpers.GetConstructorArgumentValue(classSymbol, AttributeNames.FullName, 0, (int)StringComparison.OrdinalIgnoreCase);
 
-		if (classSymbol is null)
-			return nameof(StringComparison.OrdinalIgnoreCase);
+	private static string GetSectionDelimiter(INamedTypeSymbol classSymbol)
+		=> GeneratorHelpers.GetConstructorArgumentValue(classSymbol, AttributeNames.FullName, 1, ".");
 
-		AttributeData? attributeData = FindGeneratorAttribute(classSymbol);
-
-		return attributeData is not null
-			&& attributeData.ConstructorArguments.Length > 0
-			&& attributeData.ConstructorArguments[0].Value is int comparisonValue
-				? comparisonValue switch
-				{
-					0 => nameof(StringComparison.CurrentCulture),
-					1 => nameof(StringComparison.CurrentCultureIgnoreCase),
-					2 => nameof(StringComparison.InvariantCulture),
-					3 => nameof(StringComparison.InvariantCultureIgnoreCase),
-					4 => nameof(StringComparison.Ordinal),
-					5 => nameof(StringComparison.OrdinalIgnoreCase),
-					_ => nameof(StringComparison.OrdinalIgnoreCase)
-				}
-				: nameof(StringComparison.OrdinalIgnoreCase);
-	}
-
-	private static string GetSectionDelimiter(ClassDeclarationSyntax classDeclaration, SemanticModel semanticModel)
-	{
-		INamedTypeSymbol? classSymbol = semanticModel.GetDeclaredSymbol(classDeclaration);
-		if (classSymbol is null)
-			return ".";
-
-		AttributeData? attributeData = FindGeneratorAttribute(classSymbol);
-
-		return attributeData is not null
-			&& attributeData.ConstructorArguments.Length > 1
-			&& attributeData.ConstructorArguments[1].Value is string delimiterValue
-				? delimiterValue
-				: ".";
-	}
-
-	private static bool GetSerializeComments(ClassDeclarationSyntax classDeclaration)
-	{
-		foreach (AttributeListSyntax attributeList in classDeclaration.AttributeLists)
-		{
-			foreach (AttributeSyntax attribute in attributeList.Attributes)
-			{
-				string name = attribute.Name.ToString();
-
-				if (name != AttributeNames.ShortName && name != AttributeNames.FullName)
-					continue;
-
-				if (attribute.ArgumentList is null)
-					continue;
-
-				foreach (AttributeArgumentSyntax argument in attribute.ArgumentList.Arguments)
-				{
-					if (argument.NameEquals?.Name.Identifier.Text == "SerializeComments")
-					{
-						string expressionText = argument.Expression.ToString();
-						if (expressionText == "true")
-							return true;
-					}
-				}
-			}
-		}
-
-		return false;
-	}
+	private static bool GetSerializeComments(ClassDeclarationSyntax classDeclaration, SemanticModel semanticModel)
+		=> GeneratorHelpers.GetNamedArgumentValue(classDeclaration, semanticModel, AttributeNames.ShortName, AttributeNames.FullName, nameof(GenerateIniFileAttribute.SerializeComments), false);
 
 	private static string? GetXmlSummaryComment(ISymbol symbol)
 	{
@@ -810,17 +750,6 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 			typeName = typeName[..^1];
 
 		return typeName;
-	}
-
-	private static AttributeData? FindGeneratorAttribute(INamedTypeSymbol classSymbol)
-	{
-		foreach (AttributeData attr in classSymbol.GetAttributes())
-		{
-			if (attr.AttributeClass?.ToDisplayString() == AttributeNames.MetadataName)
-				return attr;
-		}
-
-		return null;
 	}
 
 	private sealed record SectionInfo(
