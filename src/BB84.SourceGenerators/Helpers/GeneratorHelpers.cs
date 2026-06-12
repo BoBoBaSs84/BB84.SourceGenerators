@@ -261,6 +261,11 @@ internal static class GeneratorHelpers
 	/// When not <see langword="null"/>, checks whether the property is decorated with the specified attribute
 	/// and sets <see cref="PropertyDescriptor.FormatString"/> accordingly.
 	/// </param>
+	/// <param name="toStringOrderAttributeName">
+	/// When not <see langword="null"/>, checks whether the property is decorated with the specified attribute
+	/// and sets <see cref="PropertyDescriptor.Order"/> accordingly. Properties with an explicit order are
+	/// sorted first (ascending), followed by unordered properties in declaration order.
+	/// </param>
 	/// <returns>An immutable array of <see cref="PropertyDescriptor"/> instances.</returns>
 	internal static ImmutableArray<PropertyDescriptor> GetPropertyDescriptors(
 		INamedTypeSymbol classSymbol,
@@ -268,7 +273,8 @@ internal static class GeneratorHelpers
 		bool requireSetter = false,
 		string? cloneableAttributeName = null,
 		bool detectCollections = false,
-		string? toStringFormatAttributeName = null)
+		string? toStringFormatAttributeName = null,
+		string? toStringOrderAttributeName = null)
 	{
 		ImmutableArray<PropertyDescriptor>.Builder builder = ImmutableArray.CreateBuilder<PropertyDescriptor>();
 
@@ -292,6 +298,7 @@ internal static class GeneratorHelpers
 			string? dictionaryValueTypeName = null;
 			bool isDictionaryValueCloneable = false;
 			string? formatString = null;
+			int? order = null;
 
 			if (cloneableAttributeName is not null)
 			{
@@ -314,6 +321,20 @@ internal static class GeneratorHelpers
 						&& attributeData.ConstructorArguments[0].Value is string fmt)
 					{
 						formatString = fmt;
+						break;
+					}
+				}
+			}
+
+			if (toStringOrderAttributeName is not null)
+			{
+				foreach (AttributeData attributeData in propertySymbol.GetAttributes())
+				{
+					if (attributeData.AttributeClass?.ToDisplayString() == toStringOrderAttributeName
+						&& attributeData.ConstructorArguments.Length == 1
+						&& attributeData.ConstructorArguments[0].Value is int ord)
+					{
+						order = ord;
 						break;
 					}
 				}
@@ -348,10 +369,16 @@ internal static class GeneratorHelpers
 					DetectCollectionKind(propertySymbol.Type, cloneableAttributeName);
 			}
 
-			builder.Add(new PropertyDescriptor(propertySymbol.Name, typeName, isValueType, isNullable, isCloneable, collectionKind, elementTypeName, isElementCloneable, dictionaryValueTypeName, isDictionaryValueCloneable, formatString, isFormattable));
+			builder.Add(new PropertyDescriptor(propertySymbol.Name, typeName, isValueType, isNullable, isCloneable, collectionKind, elementTypeName, isElementCloneable, dictionaryValueTypeName, isDictionaryValueCloneable, formatString, isFormattable, order));
 		}
 
-		return builder.ToImmutable();
+		if (toStringOrderAttributeName is null)
+			return builder.ToImmutable();
+
+		// Ordered properties first (ascending), then unordered in declaration order (stable sort).
+		return [.. builder
+			.OrderBy(static p => p.Order.HasValue ? 0 : 1)
+			.ThenBy(static p => p.Order ?? int.MaxValue)];
 	}
 
 	/// <summary>
