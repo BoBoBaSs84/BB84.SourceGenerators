@@ -431,6 +431,44 @@ public sealed class ToStringGeneratorTests
 	}
 
 	[TestMethod]
+	public void ToStringShouldRespectExplicitPropertyOrder()
+	{
+		ToStringOrderTestModel model = new()
+		{
+			LastName = "Doe",
+			FirstName = "John",
+			Age = 30
+		};
+
+		string? result = model.ToString();
+		string expected = $"{nameof(ToStringOrderTestModel)} {{ " +
+			$"FirstName = John, " +
+			$"LastName = Doe, " +
+			$"Age = 30 }}";
+
+		Assert.AreEqual(expected, result);
+	}
+
+	[TestMethod]
+	public void ToStringShouldPlaceUnorderedPropertiesAfterOrderedOnes()
+	{
+		ToStringPartialOrderTestModel model = new()
+		{
+			Z = "z",
+			A = "a",
+			Middle = "m"
+		};
+
+		string? result = model.ToString();
+		string expected = $"{nameof(ToStringPartialOrderTestModel)} {{ " +
+			$"A = a, " +
+			$"Z = z, " +
+			$"Middle = m }}";
+
+		Assert.AreEqual(expected, result);
+	}
+
+	[TestMethod]
 	public void ToStringFormattableShouldRenderNullPlaceholderForNullableProperty()
 	{
 		ToStringFormattableNullPlaceholderTestModel model = new()
@@ -592,4 +630,28 @@ public partial class ToStringFormattableNullPlaceholderTestModel
 {
 	public string? Name { get; set; }
 	public decimal? Total { get; set; }
+}
+
+[GenerateToString]
+public partial class ToStringOrderTestModel
+{
+	[ToStringOrder(2)]
+	public string? LastName { get; set; }
+
+	[ToStringOrder(1)]
+	public string? FirstName { get; set; }
+
+	public int Age { get; set; }
+}
+
+[GenerateToString]
+public partial class ToStringPartialOrderTestModel
+{
+	[ToStringOrder(2)]
+	public string? Z { get; set; }
+
+	[ToStringOrder(1)]
+	public string? A { get; set; }
+
+	public string? Middle { get; set; }
 }

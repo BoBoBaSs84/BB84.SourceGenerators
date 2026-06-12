@@ -54,6 +54,7 @@ public sealed class AttributeSourceGeneratorAttributeCoverageTests
 			nameof(GenerateAutoMapperAttribute),
 			nameof(PropertyMappingAttribute),
 			nameof(ToStringFormatAttribute),
+			nameof(ToStringOrderAttribute)
 		];
 
 		Assert.HasCount(expectedAttributeClassNames.Length, GeneratedAttributeSources,

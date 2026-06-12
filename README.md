@@ -670,6 +670,7 @@ Generates a `ToString()` override for classes, returning a formatted string cont
 ```csharp
 [GenerateToString(params string[] excludeProperties)]
 [ToStringFormat(string format)]  // per-property
+[ToStringOrder(int order)]       // per-property
 ```
 
 **Parameters:**
@@ -683,6 +684,7 @@ Generates a `ToString()` override for classes, returning a formatted string cont
 **Per-Property Formatting:**
 
 - `[ToStringFormat("format")]` - Applied to individual properties to specify a custom format string. The format is passed to the property's `ToString(string)` method at runtime (e.g., `"yyyy-MM-dd"` for dates, `"C2"` for currency, `"F2"` for fixed-point).
+- `[ToStringOrder(n)]` - Controls the position of a property in the generated output. Properties with an explicit order appear first in ascending order, followed by unordered properties in their natural declaration order. Can be combined with `[ToStringFormat]` and works alongside `excludeProperties`.
 
 **Collection Format Modes:**
 
@@ -773,6 +775,19 @@ public partial class Person
     public string? Name { get; set; }
     public int? Age { get; set; }
 }
+
+// Explicit property ordering — ordered properties first, then unordered in declaration order
+[GenerateToString]
+public partial class Contact
+{
+    [ToStringOrder(2)]
+    public string? LastName { get; set; }
+
+    [ToStringOrder(1)]
+    public string? FirstName { get; set; }
+
+    public int Age { get; set; }
+}
 ```
 
 #### Generated Code
@@ -791,6 +806,7 @@ The generator creates a `ToString()` override on the partial class that:
 - For dictionary properties in `Elements` mode, emits a private generic helper `DictionaryToString<TKey, TValue>`
 - When `Formattable = true`, implements `IFormattable` with `ToString(string?, IFormatProvider?)` — properties whose types implement `IFormattable` receive the `formatProvider`; others use their default `ToString()`
 - When `NullPlaceholder` is set, nullable properties with a `null` value emit `Property?.ToString() ?? "placeholder"` instead of the raw interpolation slot; `[ToStringFormat]` is preserved as an explicit `.ToString("fmt")` call
+- When any property carries `[ToStringOrder(n)]`, properties are reordered: those with an explicit order appear first (ascending by value), followed by unordered properties in their original declaration order
 
 #### Usage Example
 
@@ -876,6 +892,10 @@ Console.WriteLine(person.ToString());
 var personWithValues = new Person { Id = 2, Name = "John", Age = 30 };
 Console.WriteLine(personWithValues.ToString());
 // Output: Person { Id = 2, Name = John, Age = 30 }
+
+var contact = new Contact { LastName = "Doe", FirstName = "John", Age = 30 };
+Console.WriteLine(contact.ToString());
+// Output: Contact { FirstName = John, LastName = Doe, Age = 30 }
 ```
 
 ### 7. Validator Generator

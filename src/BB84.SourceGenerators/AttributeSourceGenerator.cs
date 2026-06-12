@@ -81,6 +81,9 @@ public sealed class AttributeSourceGenerator : IIncrementalGenerator
 	private static readonly string ToStringFormatAttributeSource =
 		AttributeSourceRewriter.ReadAndTransform("ToStringFormatAttribute.cs");
 
+	private static readonly string ToStringOrderAttributeSource =
+		AttributeSourceRewriter.ReadAndTransform("ToStringOrderAttribute.cs");
+
 	private static readonly string GenerateValidatorAttributeSource =
 		AttributeSourceRewriter.ReadAndTransform("GenerateValidatorAttribute.cs");
 
@@ -117,6 +120,7 @@ public sealed class AttributeSourceGenerator : IIncrementalGenerator
 			ctx.AddSource("GenerateToStringAttribute.g.cs", GenerateToStringAttributeSource);
 			ctx.AddSource("GenerateValidatorAttribute.g.cs", GenerateValidatorAttributeSource);
 			ctx.AddSource("ToStringFormatAttribute.g.cs", ToStringFormatAttributeSource);
+			ctx.AddSource("ToStringOrderAttribute.g.cs", ToStringOrderAttributeSource);
 			ctx.AddSource("PropertyMappingAttribute.g.cs", PropertyMappingAttributeSource);
 		});
 	}

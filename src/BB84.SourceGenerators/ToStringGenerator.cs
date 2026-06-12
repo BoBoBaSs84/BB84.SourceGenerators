@@ -26,6 +26,7 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 		GeneratorHelpers.GetAttributeNames<GenerateToStringAttribute>();
 
 	private static readonly string ToStringFormatAttributeName = typeof(ToStringFormatAttribute).FullName;
+	private static readonly string ToStringOrderAttributeName = typeof(ToStringOrderAttribute).FullName;
 
 	/// <inheritdoc/>
 	public void Initialize(IncrementalGeneratorInitializationContext context)
@@ -41,7 +42,7 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 		bool formattable = GetFormattable(ctx.ClassDeclaration, ctx.SemanticModel);
 		string? nullPlaceholder = GetNullPlaceholder(ctx.ClassDeclaration, ctx.SemanticModel);
 		HashSet<string> excludedProperties = GeneratorHelpers.GetExcludedProperties(ctx.ClassDeclaration, ctx.SemanticModel, nameof(GenerateToStringAttribute));
-		ImmutableArray<PropertyDescriptor> properties = GeneratorHelpers.GetPropertyDescriptors(ctx.ClassSymbol, excludedProperties, detectCollections: true, toStringFormatAttributeName: ToStringFormatAttributeName);
+		ImmutableArray<PropertyDescriptor> properties = GeneratorHelpers.GetPropertyDescriptors(ctx.ClassSymbol, excludedProperties, detectCollections: true, toStringFormatAttributeName: ToStringFormatAttributeName, toStringOrderAttributeName: ToStringOrderAttributeName);
 
 		SourceBuilder sb = new();
 
