@@ -1,6 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 	<PropertyGroup>
 		<AppendTargetFrameworkToOutputPath>True</AppendTargetFrameworkToOutputPath>
+		<EmitCompilerGeneratedFiles>True</EmitCompilerGeneratedFiles>
 		<IsPackable>False</IsPackable>
 		<IsTestProject>True</IsTestProject>
 		<NoWarn>$(NoWarn);CA1859;CS1591;CA1711;CA1816</NoWarn>
