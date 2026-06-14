@@ -937,6 +937,36 @@ public sealed class IniFileGeneratorTests
 		Assert.Contains("[General]", result);
 		Assert.Contains("AppName=StreamWrite", result);
 	}
+
+	[TestMethod]
+	public async Task ReadAsyncShouldDeserializeFromFilePath()
+	{
+		string content = "[General]\r\nAppName=FileApp\r\nVersion=11\r\nEnabled=True\r\n";
+		string filePath = Path.GetTempFileName();
+		try
+		{
+			File.WriteAllText(filePath, content, Encoding.UTF8);
+
+#if NET5_0_OR_GREATER
+			TestIniFile result = await TestIniFile
+				.ReadAsync(filePath, _testToken)
+				.ConfigureAwait(false);
+#else
+			TestIniFile result = await TestIniFile
+				.ReadAsync(filePath)
+				.ConfigureAwait(false);
+#endif
+
+			Assert.IsNotNull(result.General);
+			Assert.AreEqual("FileApp", result.General.AppName);
+			Assert.AreEqual(11, result.General.Version);
+			Assert.IsTrue(result.General.Enabled);
+		}
+		finally
+		{
+			File.Delete(filePath);
+		}
+	}
 }
 
 #region Test Types

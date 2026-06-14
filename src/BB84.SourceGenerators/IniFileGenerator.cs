@@ -218,6 +218,40 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 	private static void AppendReadAsyncMethod(SourceBuilder sb, string className)
 	{
 		sb.AppendLine();
+		sb.AppendLine("#if NET5_0_OR_GREATER");
+		sb.AppendLine("/// <summary>");
+		sb.AppendLine($"/// Asynchronously reads INI file content from the specified file and deserializes it");
+		sb.AppendLine($"/// into a new instance of <see cref=\"{className}\"/>.");
+		sb.AppendLine("/// </summary>");
+		sb.AppendLine("/// <param name=\"filePath\">The path to the INI file to read.</param>");
+		sb.AppendLine("/// <param name=\"cancellationToken\">A cancellation token that can be used to cancel the asynchronous operation.</param>");
+		sb.AppendLine($"/// <returns>A task representing the asynchronous operation, containing the deserialized <see cref=\"{className}\"/> instance.</returns>");
+		sb.AppendLine($"public static async Task<{className}> ReadAsync(string filePath, CancellationToken cancellationToken = default)");
+		sb.AppendLine("#else");
+		sb.AppendLine("/// <summary>");
+		sb.AppendLine($"/// Asynchronously reads INI file content from the specified file and deserializes it");
+		sb.AppendLine($"/// into a new instance of <see cref=\"{className}\"/>.");
+		sb.AppendLine("/// </summary>");
+		sb.AppendLine("/// <param name=\"filePath\">The path to the INI file to read.</param>");
+		sb.AppendLine($"/// <returns>A task representing the asynchronous operation, containing the deserialized <see cref=\"{className}\"/> instance.</returns>");
+		sb.AppendLine($"public static async Task<{className}> ReadAsync(string filePath)");
+		sb.AppendLine("#endif");
+		sb.OpenBrace();
+		sb.AppendLine("using StreamReader reader = new StreamReader(filePath, Encoding.UTF8);");
+		sb.AppendLine("StringBuilder sb = new StringBuilder();");
+		sb.AppendLine("string? line;");
+		sb.AppendLine("#if NET5_0_OR_GREATER");
+		sb.AppendLine("while ((line = await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false)) != null)");
+		sb.AppendLine("#else");
+		sb.AppendLine("while ((line = await reader.ReadLineAsync().ConfigureAwait(false)) != null)");
+		sb.AppendLine("#endif");
+		sb.Indent();
+		sb.AppendLine("sb.AppendLine(line);");
+		sb.Outdent();
+		sb.AppendLine("return Read(sb.ToString());");
+		sb.CloseBrace();
+		sb.AppendLine();
+		sb.AppendLine("#if NET5_0_OR_GREATER");
 		sb.AppendLine("/// <summary>");
 		sb.AppendLine($"/// Asynchronously reads INI file content from the specified <see cref=\"TextReader\"/> and deserializes it");
 		sb.AppendLine($"/// into a new instance of <see cref=\"{className}\"/>.");
@@ -225,9 +259,14 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 		sb.AppendLine("/// <param name=\"reader\">The <see cref=\"TextReader\"/> to read from.</param>");
 		sb.AppendLine("/// <param name=\"cancellationToken\">A cancellation token that can be used to cancel the asynchronous operation.</param>");
 		sb.AppendLine($"/// <returns>A task representing the asynchronous operation, containing the deserialized <see cref=\"{className}\"/> instance.</returns>");
-		sb.AppendLine("#if NET5_0_OR_GREATER");
 		sb.AppendLine($"public static async Task<{className}> ReadAsync(TextReader reader, CancellationToken cancellationToken = default)");
 		sb.AppendLine("#else");
+		sb.AppendLine("/// <summary>");
+		sb.AppendLine($"/// Asynchronously reads INI file content from the specified <see cref=\"TextReader\"/> and deserializes it");
+		sb.AppendLine($"/// into a new instance of <see cref=\"{className}\"/>.");
+		sb.AppendLine("/// </summary>");
+		sb.AppendLine("/// <param name=\"reader\">The <see cref=\"TextReader\"/> to read from.</param>");
+		sb.AppendLine($"/// <returns>A task representing the asynchronous operation, containing the deserialized <see cref=\"{className}\"/> instance.</returns>");
 		sb.AppendLine($"public static async Task<{className}> ReadAsync(TextReader reader)");
 		sb.AppendLine("#endif");
 		sb.OpenBrace();
@@ -239,6 +278,7 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 		sb.AppendLine("return Read(content);");
 		sb.CloseBrace();
 		sb.AppendLine();
+		sb.AppendLine("#if NET5_0_OR_GREATER");
 		sb.AppendLine("/// <summary>");
 		sb.AppendLine($"/// Asynchronously reads INI file content from the specified <see cref=\"Stream\"/> and deserializes it");
 		sb.AppendLine($"/// into a new instance of <see cref=\"{className}\"/>.");
@@ -246,9 +286,14 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 		sb.AppendLine("/// <param name=\"stream\">The <see cref=\"Stream\"/> to read from.</param>");
 		sb.AppendLine("/// <param name=\"cancellationToken\">A cancellation token that can be used to cancel the asynchronous operation.</param>");
 		sb.AppendLine($"/// <returns>A task representing the asynchronous operation, containing the deserialized <see cref=\"{className}\"/> instance.</returns>");
-		sb.AppendLine("#if NET5_0_OR_GREATER");
 		sb.AppendLine($"public static async Task<{className}> ReadAsync(Stream stream, CancellationToken cancellationToken = default)");
 		sb.AppendLine("#else");
+		sb.AppendLine("/// <summary>");
+		sb.AppendLine($"/// Asynchronously reads INI file content from the specified <see cref=\"Stream\"/> and deserializes it");
+		sb.AppendLine($"/// into a new instance of <see cref=\"{className}\"/>.");
+		sb.AppendLine("/// </summary>");
+		sb.AppendLine("/// <param name=\"stream\">The <see cref=\"Stream\"/> to read from.</param>");
+		sb.AppendLine($"/// <returns>A task representing the asynchronous operation, containing the deserialized <see cref=\"{className}\"/> instance.</returns>");
 		sb.AppendLine($"public static async Task<{className}> ReadAsync(Stream stream)");
 		sb.AppendLine("#endif");
 		sb.OpenBrace();
@@ -264,6 +309,7 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 	private static void AppendWriteAsyncMethod(SourceBuilder sb, string className)
 	{
 		sb.AppendLine();
+		sb.AppendLine("#if NET5_0_OR_GREATER");
 		sb.AppendLine("/// <summary>");
 		sb.AppendLine($"/// Asynchronously writes the specified <see cref=\"{className}\"/> instance to the specified <see cref=\"TextWriter\"/>.");
 		sb.AppendLine("/// </summary>");
@@ -271,9 +317,14 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 		sb.AppendLine("/// <param name=\"writer\">The <see cref=\"TextWriter\"/> to write to.</param>");
 		sb.AppendLine("/// <param name=\"cancellationToken\">A cancellation token that can be used to cancel the asynchronous operation.</param>");
 		sb.AppendLine("/// <returns>A task representing the asynchronous operation.</returns>");
-		sb.AppendLine("#if NET5_0_OR_GREATER");
 		sb.AppendLine($"public static async Task WriteAsync({className} instance, TextWriter writer, CancellationToken cancellationToken = default)");
 		sb.AppendLine("#else");
+		sb.AppendLine("/// <summary>");
+		sb.AppendLine($"/// Asynchronously writes the specified <see cref=\"{className}\"/> instance to the specified <see cref=\"TextWriter\"/>.");
+		sb.AppendLine("/// </summary>");
+		sb.AppendLine($"/// <param name=\"instance\">The <see cref=\"{className}\"/> instance to serialize.</param>");
+		sb.AppendLine("/// <param name=\"writer\">The <see cref=\"TextWriter\"/> to write to.</param>");
+		sb.AppendLine("/// <returns>A task representing the asynchronous operation.</returns>");
 		sb.AppendLine($"public static async Task WriteAsync({className} instance, TextWriter writer)");
 		sb.AppendLine("#endif");
 		sb.OpenBrace();
@@ -286,6 +337,7 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 		sb.AppendLine("#endif");
 		sb.CloseBrace();
 		sb.AppendLine();
+		sb.AppendLine("#if NET5_0_OR_GREATER");
 		sb.AppendLine("/// <summary>");
 		sb.AppendLine($"/// Asynchronously writes the specified <see cref=\"{className}\"/> instance to the specified <see cref=\"Stream\"/>.");
 		sb.AppendLine("/// </summary>");
@@ -293,9 +345,14 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 		sb.AppendLine("/// <param name=\"stream\">The <see cref=\"Stream\"/> to write to.</param>");
 		sb.AppendLine("/// <param name=\"cancellationToken\">A cancellation token that can be used to cancel the asynchronous operation.</param>");
 		sb.AppendLine("/// <returns>A task representing the asynchronous operation.</returns>");
-		sb.AppendLine("#if NET5_0_OR_GREATER");
 		sb.AppendLine($"public static async Task WriteAsync({className} instance, Stream stream, CancellationToken cancellationToken = default)");
 		sb.AppendLine("#else");
+		sb.AppendLine("/// <summary>");
+		sb.AppendLine($"/// Asynchronously writes the specified <see cref=\"{className}\"/> instance to the specified <see cref=\"Stream\"/>.");
+		sb.AppendLine("/// </summary>");
+		sb.AppendLine($"/// <param name=\"instance\">The <see cref=\"{className}\"/> instance to serialize.</param>");
+		sb.AppendLine("/// <param name=\"stream\">The <see cref=\"Stream\"/> to write to.</param>");
+		sb.AppendLine("/// <returns>A task representing the asynchronous operation.</returns>");
 		sb.AppendLine($"public static async Task WriteAsync({className} instance, Stream stream)");
 		sb.AppendLine("#endif");
 		sb.OpenBrace();

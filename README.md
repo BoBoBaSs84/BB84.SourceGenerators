@@ -383,6 +383,7 @@ The generator creates the following methods on the decorated class:
 - `Read(string content)` - Static method that parses an INI file string and returns a deserialized instance
 - `TryRead(string content, out T? result)` - Static method that attempts to parse an INI file string, returning `true` on success or `false` on failure without throwing exceptions
 - `Write(TClass instance)` - Static method that serializes an instance into an INI file string
+- `ReadAsync(string filePath)` - Static async method that reads a file line-by-line via `ReadLineAsync` and deserializes INI content; truly non-blocking I/O
 - `ReadAsync(TextReader reader)` - Static async method that reads and deserializes INI content from a `TextReader`
 - `ReadAsync(Stream stream)` - Static async method that reads and deserializes INI content from a `Stream`
 - `WriteAsync(TClass instance, TextWriter writer)` - Static async method that serializes an instance and writes it to a `TextWriter`
@@ -421,9 +422,12 @@ else
     Console.WriteLine("Failed to parse INI content");
 }
 
+// Async reading from a file path (line-by-line, truly non-blocking)
+AppConfig asyncConfig = await AppConfig.ReadAsync("config.ini");
+
 // Async reading from a stream
 using FileStream fs = File.OpenRead("config.ini");
-AppConfig asyncConfig = await AppConfig.ReadAsync(fs);
+AppConfig asyncConfigFromStream = await AppConfig.ReadAsync(fs);
 
 // Async writing to a stream
 using FileStream outFs = File.Create("output.ini");
@@ -1913,7 +1917,7 @@ The generated enum extension methods provide significant performance improvement
 - Uses `CultureInfo.InvariantCulture` for consistent cross-platform formatting
 - Supports `Guid`, `TimeSpan`, `DateTimeOffset`, and collection types (`List<T>`, `T[]`)
 - Provides `TryRead` for safe parsing without exceptions
-- Provides async `ReadAsync`/`WriteAsync` for non-blocking I/O with `Stream` and `TextReader`/`TextWriter`
+- Provides async `ReadAsync`/`WriteAsync` for non-blocking I/O with file path (line-by-line via `ReadLineAsync`), `Stream`, and `TextReader`/`TextWriter`
 
 ### Builder Pattern
 
