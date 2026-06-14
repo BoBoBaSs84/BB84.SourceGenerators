@@ -188,6 +188,12 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 			case ValidationKind.Compare:
 				AppendCompareValidation(sb, propertyName, rule);
 				break;
+			case ValidationKind.AllowedValues:
+				AppendAllowedValuesValidation(sb, propertyName, rule);
+				break;
+			case ValidationKind.DeniedValues:
+				AppendDeniedValuesValidation(sb, propertyName, rule);
+				break;
 			case ValidationKind.CustomValidation:
 				AppendCustomValidation(sb, propertyName, rule);
 				break;
@@ -309,6 +315,24 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 		AppendAddError(sb, propertyName, message);
 	}
 
+	private static void AppendAllowedValuesValidation(SourceBuilder sb, string propertyName, ValidationRule rule)
+	{
+		string message = rule.ErrorMessage ?? $"The field {propertyName} does not contain an allowed value.";
+		string conditions = string.Join(" && ", rule.Values!.Value.Select(v => $"!Equals({propertyName}, {v})"));
+
+		sb.AppendLine($"if ({conditions})");
+		AppendAddError(sb, propertyName, message);
+	}
+
+	private static void AppendDeniedValuesValidation(SourceBuilder sb, string propertyName, ValidationRule rule)
+	{
+		string message = rule.ErrorMessage ?? $"The field {propertyName} contains a denied value.";
+		string conditions = string.Join(" || ", rule.Values!.Value.Select(v => $"Equals({propertyName}, {v})"));
+
+		sb.AppendLine($"if ({conditions})");
+		AppendAddError(sb, propertyName, message);
+	}
+
 	private static void AppendCustomValidation(SourceBuilder sb, string propertyName, ValidationRule rule)
 	{
 		string attributeTypeName = rule.CustomAttributeTypeName!;
@@ -361,6 +385,8 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 					DataAnnotationNames.Phone => ParseSimpleAttribute(attribute, ValidationKind.Phone),
 					DataAnnotationNames.CreditCard => ParseSimpleAttribute(attribute, ValidationKind.CreditCard),
 					DataAnnotationNames.Compare => ParseCompareAttribute(attribute),
+					DataAnnotationNames.AllowedValues => ParseAllowedValuesAttribute(attribute),
+					DataAnnotationNames.DeniedValues => ParseDeniedValuesAttribute(attribute),
 					_ => TryParseCustomValidationAttribute(attribute)
 				};
 
@@ -499,6 +525,60 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 		return new ValidationRule(ValidationKind.Compare) { CompareProperty = otherProperty, ErrorMessage = errorMessage };
 	}
 
+	private static ValidationRule? ParseAllowedValuesAttribute(AttributeData attribute)
+	{
+		ImmutableArray<TypedConstant> args = attribute.ConstructorArguments;
+
+		if (args.Length < 1 || args[0].Kind != TypedConstantKind.Array)
+			return null;
+
+		ImmutableArray<string> values = [.. args[0].Values
+			.Select(FormatConstantValue)
+			.Where(v => v is not null)
+			.Select(v => v!)];
+
+		if (values.IsEmpty)
+			return null;
+
+		string? errorMessage = GetNamedArgumentValue<string>(attribute, "ErrorMessage");
+
+		return new ValidationRule(ValidationKind.AllowedValues) { Values = values, ErrorMessage = errorMessage };
+	}
+
+	private static ValidationRule? ParseDeniedValuesAttribute(AttributeData attribute)
+	{
+		ImmutableArray<TypedConstant> args = attribute.ConstructorArguments;
+
+		if (args.Length < 1 || args[0].Kind != TypedConstantKind.Array)
+			return null;
+
+		ImmutableArray<string> values = [.. args[0].Values
+			.Select(FormatConstantValue)
+			.Where(v => v is not null)
+			.Select(v => v!)];
+
+		if (values.IsEmpty)
+			return null;
+
+		string? errorMessage = GetNamedArgumentValue<string>(attribute, "ErrorMessage");
+
+		return new ValidationRule(ValidationKind.DeniedValues) { Values = values, ErrorMessage = errorMessage };
+	}
+
+	private static string? FormatConstantValue(TypedConstant constant)
+	{
+		if (constant.IsNull)
+			return "null";
+
+		return constant.Value switch
+		{
+			string str => $"\"{GeneratorHelpers.EscapeString(str)}\"",
+			char c => $"'{c}'",
+			bool b => b ? "true" : "false",
+			_ => constant.Value?.ToString()
+		};
+	}
+
 	private static ValidationRule? TryParseCustomValidationAttribute(AttributeData attribute)
 	{
 		if (attribute.AttributeClass is null)
@@ -580,6 +660,8 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 		Phone,
 		CreditCard,
 		Compare,
+		AllowedValues,
+		DeniedValues,
 		CustomValidation
 	}
 
@@ -592,6 +674,7 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 		public string? ErrorMessage { get; set; }
 		public string? CompareProperty { get; set; }
 		public string? CustomAttributeTypeName { get; set; }
+		public ImmutableArray<string>? Values { get; set; }
 	}
 
 	private readonly struct PropertyValidationInfo(string name, string typeName, bool isCollection, bool isArray, ImmutableArray<ValidatorGenerator.ValidationRule> rules)

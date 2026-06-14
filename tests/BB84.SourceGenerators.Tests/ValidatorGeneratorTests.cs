@@ -649,6 +649,95 @@ public sealed class ValidatorGeneratorTests
 
 		Assert.IsEmpty(errors);
 	}
+
+#if NET8_0_OR_GREATER
+	[TestMethod]
+	public void ValidateShouldPassAllowedValuesWhenValueInList()
+	{
+		ValidatorAllowedValuesTestModel model = new() { Status = "foo", Code = 2 };
+
+		Dictionary<string, List<string>> errors = model.Validate();
+
+		Assert.IsFalse(errors.ContainsKey("Status"));
+		Assert.IsFalse(errors.ContainsKey("Code"));
+	}
+
+	[TestMethod]
+	public void ValidateShouldDetectAllowedValuesViolationForString()
+	{
+		ValidatorAllowedValuesTestModel model = new() { Status = "unknown", Code = 1 };
+
+		Dictionary<string, List<string>> errors = model.Validate();
+
+		Assert.IsTrue(errors.ContainsKey("Status"));
+		Assert.IsFalse(errors.ContainsKey("Code"));
+	}
+
+	[TestMethod]
+	public void ValidateShouldDetectAllowedValuesViolationForInt()
+	{
+		ValidatorAllowedValuesTestModel model = new() { Status = "bar", Code = 99 };
+
+		Dictionary<string, List<string>> errors = model.Validate();
+
+		Assert.IsFalse(errors.ContainsKey("Status"));
+		Assert.IsTrue(errors.ContainsKey("Code"));
+	}
+
+	[TestMethod]
+	public void ValidateShouldAllowNullForAllowedValuesWhenNullNotInList()
+	{
+		ValidatorAllowedValuesTestModel model = new() { Status = null, Code = 1 };
+
+		Dictionary<string, List<string>> errors = model.Validate();
+
+		Assert.IsTrue(errors.ContainsKey("Status"));
+	}
+
+	[TestMethod]
+	public void ValidateShouldPassDeniedValuesWhenValueNotInList()
+	{
+		ValidatorDeniedValuesTestModel model = new() { Username = "alice", Level = 5 };
+
+		Dictionary<string, List<string>> errors = model.Validate();
+
+		Assert.IsFalse(errors.ContainsKey("Username"));
+		Assert.IsFalse(errors.ContainsKey("Level"));
+	}
+
+	[TestMethod]
+	public void ValidateShouldDetectDeniedValuesViolationForString()
+	{
+		ValidatorDeniedValuesTestModel model = new() { Username = "admin", Level = 5 };
+
+		Dictionary<string, List<string>> errors = model.Validate();
+
+		Assert.IsTrue(errors.ContainsKey("Username"));
+		Assert.IsFalse(errors.ContainsKey("Level"));
+	}
+
+	[TestMethod]
+	public void ValidateShouldDetectDeniedValuesViolationForInt()
+	{
+		ValidatorDeniedValuesTestModel model = new() { Username = "alice", Level = 0 };
+
+		Dictionary<string, List<string>> errors = model.Validate();
+
+		Assert.IsFalse(errors.ContainsKey("Username"));
+		Assert.IsTrue(errors.ContainsKey("Level"));
+	}
+
+	[TestMethod]
+	public void ValidateShouldUseCustomErrorMessageForAllowedValues()
+	{
+		ValidatorAllowedValuesCustomMessageTestModel model = new() { Status = "pending" };
+
+		Dictionary<string, List<string>> errors = model.Validate();
+
+		Assert.IsTrue(errors.ContainsKey("Status"));
+		Assert.IsTrue(errors["Status"].Exists(e => e == "Status must be active or inactive."));
+	}
+#endif
 }
 
 [GenerateValidator]
@@ -758,3 +847,32 @@ public partial class ValidatorValidatableObjectTestModel : IValidatableObject
 			yield return new ValidationResult("End must be after Start.", [nameof(End)]);
 	}
 }
+
+#if NET8_0_OR_GREATER
+[GenerateValidator]
+public partial class ValidatorAllowedValuesTestModel
+{
+	[AllowedValues("foo", "bar", "baz")]
+	public string? Status { get; set; }
+
+	[AllowedValues(1, 2, 3)]
+	public int Code { get; set; }
+}
+
+[GenerateValidator]
+public partial class ValidatorDeniedValuesTestModel
+{
+	[DeniedValues("admin", "root")]
+	public string? Username { get; set; }
+
+	[DeniedValues(0, -1)]
+	public int Level { get; set; }
+}
+
+[GenerateValidator]
+public partial class ValidatorAllowedValuesCustomMessageTestModel
+{
+	[AllowedValues("active", "inactive", ErrorMessage = "Status must be active or inactive.")]
+	public string? Status { get; set; }
+}
+#endif

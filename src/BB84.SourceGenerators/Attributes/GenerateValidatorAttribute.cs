@@ -12,17 +12,19 @@ namespace BB84.SourceGenerators.Attributes;
 /// <para>
 /// Supported data annotation attributes:
 /// <list type="bullet">
-/// <item><c>RequiredAttribute</c></item>
-/// <item><c>RangeAttribute</c></item>
-/// <item><c>StringLengthAttribute</c></item>
-/// <item><c>MinLengthAttribute</c></item>
-/// <item><c>MaxLengthAttribute</c></item>
-/// <item><c>RegularExpressionAttribute</c></item>
-/// <item><c>EmailAddressAttribute</c></item>
-/// <item><c>UrlAttribute</c></item>
-/// <item><c>PhoneAttribute</c></item>
-/// <item><c>CreditCardAttribute</c></item>
+/// <item><c>AllowedValuesAttribute</c> (.NET 8+) — emits inline membership check</item>
 /// <item><c>CompareAttribute</c></item>
+/// <item><c>CreditCardAttribute</c></item>
+/// <item><c>DeniedValuesAttribute</c> (.NET 8+) — emits inline exclusion check</item>
+/// <item><c>EmailAddressAttribute</c></item>
+/// <item><c>MaxLengthAttribute</c></item>
+/// <item><c>MinLengthAttribute</c></item>
+/// <item><c>PhoneAttribute</c></item>
+/// <item><c>RangeAttribute</c></item>
+/// <item><c>RegularExpressionAttribute</c></item>
+/// <item><c>RequiredAttribute</c></item>
+/// <item><c>StringLengthAttribute</c></item>
+/// <item><c>UrlAttribute</c></item>
 /// <item>Any custom <c>ValidationAttribute</c> subclass (via <c>IsValid</c> call)</item>
 /// </list>
 /// </para>

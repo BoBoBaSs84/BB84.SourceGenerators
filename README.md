@@ -937,6 +937,8 @@ Generates a `Validate()` method for classes, scanning properties for data annota
 - `[Phone]` - Validates that a string is a valid phone number format
 - `[CreditCard]` - Validates that a string passes the Luhn algorithm (credit card check)
 - `[Compare("OtherProperty")]` - Validates that the property value matches another property's value
+- `[AllowedValues(v1, v2, ...)]` (.NET 8+) - Emits an inline membership check; fails if the property value is not one of the listed values
+- `[DeniedValues(v1, v2, ...)]` (.NET 8+) - Emits an inline exclusion check; fails if the property value equals any of the listed values
 - **Custom `ValidationAttribute` subclasses** - Any attribute inheriting from `ValidationAttribute` is automatically detected and validated via `IsValid()` delegation
 
 **IValidatableObject Integration:**
@@ -1098,6 +1100,19 @@ public partial class DateRangeModel : IValidatableObject
         if (End <= Start)
             yield return new ValidationResult("End must be after Start.", new[] { nameof(End) });
     }
+}
+
+// AllowedValues / DeniedValues (.NET 8+) — inline membership/exclusion checks
+[GenerateValidator]
+public partial class OrderModel
+{
+    // Emits: if (!Equals(Status, "pending") && !Equals(Status, "shipped") && !Equals(Status, "delivered"))
+    [AllowedValues("pending", "shipped", "delivered", ErrorMessage = "Invalid order status.")]
+    public string? Status { get; set; }
+
+    // Emits: if (Equals(Priority, 0) || Equals(Priority, -1))
+    [DeniedValues(0, -1, ErrorMessage = "Priority must be positive.")]
+    public int Priority { get; set; }
 }
 ```
 
