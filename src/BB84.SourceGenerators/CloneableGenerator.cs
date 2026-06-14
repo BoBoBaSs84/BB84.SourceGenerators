@@ -152,8 +152,7 @@ public sealed class CloneableGenerator : IIncrementalGenerator
 
 	private static void AppendPartialStruct(SourceBuilder sb, string structName, string accessibility, ImmutableArray<PropertyDescriptor> properties)
 	{
-		sb.AppendLine($"{accessibility} partial struct {structName} : ICloneable");
-		sb.OpenBrace();
+		sb.OpenStruct(accessibility, structName, "ICloneable");
 
 		AppendCloneMethod(sb, structName, properties, isStruct: true);
 		sb.AppendLine();
@@ -161,7 +160,7 @@ public sealed class CloneableGenerator : IIncrementalGenerator
 		sb.AppendLine();
 		AppendICloneableClone(sb);
 
-		sb.CloseBrace();
+		sb.CloseStruct();
 	}
 
 	private static void AppendCloneMethod(SourceBuilder sb, string typeName, ImmutableArray<PropertyDescriptor> properties, bool isStruct)
