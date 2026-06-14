@@ -138,10 +138,15 @@ internal sealed class SourceBuilder
 	/// </summary>
 	/// <param name="accessibility">The accessibility modifier.</param>
 	/// <param name="className">The class name.</param>
+	/// <param name="baseTypes">Optional base types / interfaces to implement.</param>
 	/// <returns>The current <see cref="SourceBuilder"/> instance.</returns>
-	public SourceBuilder OpenSealedClass(string accessibility, string className)
+	public SourceBuilder OpenSealedClass(string accessibility, string className, string? baseTypes = null)
 	{
-		AppendLine($"{accessibility} sealed class {className}");
+		if (baseTypes is not null)
+			AppendLine($"{accessibility} sealed class {className} : {baseTypes}");
+		else
+			AppendLine($"{accessibility} sealed class {className}");
+
 		OpenBrace();
 		return this;
 	}
@@ -151,6 +156,108 @@ internal sealed class SourceBuilder
 	/// </summary>
 	/// <returns>The current <see cref="SourceBuilder"/> instance.</returns>
 	public SourceBuilder CloseClass()
+	{
+		CloseBrace();
+		return this;
+	}
+
+	/// <summary>
+	/// Opens a struct declaration.
+	/// </summary>
+	/// <param name="accessibility">The accessibility modifier.</param>
+	/// <param name="structName">The struct name.</param>
+	/// <param name="baseTypes">Optional base types / interfaces to implement.</param>
+	/// <returns>The current <see cref="SourceBuilder"/> instance.</returns>
+	public SourceBuilder OpenStruct(string accessibility, string structName, string? baseTypes = null)
+	{
+		if (baseTypes is not null)
+			AppendLine($"{accessibility} partial struct {structName} : {baseTypes}");
+		else
+			AppendLine($"{accessibility} partial struct {structName}");
+
+		OpenBrace();
+		return this;
+	}
+
+	/// <summary>
+	/// Closes the current struct block.
+	/// </summary>
+	/// <returns>The current <see cref="SourceBuilder"/> instance.</returns>
+	public SourceBuilder CloseStruct()
+	{
+		CloseBrace();
+		return this;
+	}
+
+	/// <summary>
+	/// Opens a record declaration.
+	/// </summary>
+	/// <param name="accessibility">The accessibility modifier.</param>
+	/// <param name="recordName">The record name.</param>
+	/// <param name="baseTypes">Optional base types / interfaces to implement.</param>
+	/// <returns>The current <see cref="SourceBuilder"/> instance.</returns>
+	public SourceBuilder OpenRecord(string accessibility, string recordName, string? baseTypes = null)
+	{
+		if (baseTypes is not null)
+			AppendLine($"{accessibility} partial record {recordName} : {baseTypes}");
+		else
+			AppendLine($"{accessibility} partial record {recordName}");
+
+		OpenBrace();
+		return this;
+	}
+
+	/// <summary>
+	/// Opens a sealed record declaration.
+	/// </summary>
+	/// <param name="accessibility">The accessibility modifier.</param>
+	/// <param name="recordName">The record name.</param>
+	/// <param name="baseTypes">Optional base types / interfaces to implement.</param>
+	/// <returns>The current <see cref="SourceBuilder"/> instance.</returns>
+	public SourceBuilder OpenSealedRecord(string accessibility, string recordName, string? baseTypes = null)
+	{
+		if (baseTypes is not null)
+			AppendLine($"{accessibility} sealed partial record {recordName} : {baseTypes}");
+		else
+			AppendLine($"{accessibility} sealed partial record {recordName}");
+
+		OpenBrace();
+		return this;
+	}
+
+	/// <summary>
+	/// Closes the current record block.
+	/// </summary>
+	/// <returns>The current <see cref="SourceBuilder"/> instance.</returns>
+	public SourceBuilder CloseRecord()
+	{
+		CloseBrace();
+		return this;
+	}
+
+	/// <summary>
+	/// Opens a record struct declaration.
+	/// </summary>
+	/// <param name="accessibility">The accessibility modifier.</param>
+	/// <param name="recordStructName">The record struct name.</param>
+	/// <param name="baseTypes">Optional base types / interfaces to implement.</param>
+	/// <returns>The current <see cref="SourceBuilder"/> instance.</returns>
+	public SourceBuilder OpenRecordStruct(string accessibility, string recordStructName, string? baseTypes = null)
+	{
+		if (baseTypes is not null)
+			AppendLine($"{accessibility} partial record struct {recordStructName} : {baseTypes}");
+		else
+			AppendLine($"{accessibility} partial record struct {recordStructName}");
+
+		OpenBrace();
+		return this;
+	}
+
+	/// <summary>
+	/// Closes the current record struct block.
+	/// </summary>
+	/// <returns>The current <see cref="SourceBuilder"/> instance.</returns>
+	public SourceBuilder CloseRecordStruct()
 	{
 		CloseBrace();
 		return this;
