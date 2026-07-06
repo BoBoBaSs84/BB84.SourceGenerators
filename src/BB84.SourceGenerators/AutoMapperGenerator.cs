@@ -30,7 +30,7 @@ public sealed class AutoMapperGenerator : IIncrementalGenerator
 	/// <inheritdoc/>
 	public void Initialize(IncrementalGeneratorInitializationContext context)
 	{
-		IncrementalValuesProvider<AutoMapperRequest?> provider =
+		IncrementalValuesProvider<AutoMapperResult?> provider =
 			context.SyntaxProvider
 				.ForAttributeWithMetadataName(
 					fullyQualifiedMetadataName: GeneratorAttributeName,
@@ -41,7 +41,7 @@ public sealed class AutoMapperGenerator : IIncrementalGenerator
 		context.RegisterSourceOutput(provider, Execute);
 	}
 
-	private static AutoMapperRequest? TransformMethod(GeneratorAttributeSyntaxContext context)
+	private static AutoMapperResult? TransformMethod(GeneratorAttributeSyntaxContext context)
 	{
 		if (context.TargetNode is not MethodDeclarationSyntax methodSyntax)
 			return null;
@@ -51,9 +51,12 @@ public sealed class AutoMapperGenerator : IIncrementalGenerator
 		if (semanticModel.GetDeclaredSymbol(methodSyntax) is not IMethodSymbol methodSymbol)
 			return null;
 
+		string methodName = methodSymbol.Name;
+		string containingTypeName = methodSymbol.ContainingType?.Name ?? string.Empty;
+
 		// Must be a partial method
 		if (!methodSyntax.Modifiers.Any(SyntaxKind.PartialKeyword))
-			return null;
+			return AutoMapperResult.ForDiagnostic(AutoMapperDiagnosticKind.NonPartialMethod, methodName, containingTypeName);
 
 		// Must have exactly one parameter (the source)
 		if (methodSymbol.Parameters.Length != 1)
@@ -75,7 +78,7 @@ public sealed class AutoMapperGenerator : IIncrementalGenerator
 			return null;
 
 		if (!containingClassSyntax.Modifiers.Any(SyntaxKind.PartialKeyword))
-			return null;
+			return AutoMapperResult.ForDiagnostic(AutoMapperDiagnosticKind.NonPartialContainingType, methodName, containingType.Name);
 
 		// Gather property mappings from [PropertyMapping] attributes
 		Dictionary<string, string> customMappings = GetCustomPropertyMappings(methodSymbol);
@@ -114,7 +117,7 @@ public sealed class AutoMapperGenerator : IIncrementalGenerator
 			methodIdentifierSpan.End
 			);
 
-		return autoMapperRequest;
+		return AutoMapperResult.ForRequest(autoMapperRequest);
 	}
 
 	private static List<(string Accessibility, string Name, bool IsStatic)> GetOuterClassesWithStatic(ClassDeclarationSyntax classDeclaration)
@@ -228,10 +231,30 @@ public sealed class AutoMapperGenerator : IIncrementalGenerator
 	private static IEnumerable<IPropertySymbol> GetReadableProperties(ITypeSymbol type)
 		=> GeneratorHelpers.GetPublicPropertySymbols(type, includeInherited: true, requireGetter: true, requireSetter: false);
 
-	private void Execute(SourceProductionContext context, AutoMapperRequest? request)
+	private void Execute(SourceProductionContext context, AutoMapperResult? result)
 	{
-		if (request is null)
+		if (result is null)
 			return;
+
+		switch (result.DiagnosticKind)
+		{
+			case AutoMapperDiagnosticKind.NonPartialMethod:
+				context.ReportDiagnostic(Diagnostic.Create(
+					DiagnosticDescriptors.AutoMapperRequiresPartialMethodDiagnostic,
+					Location.None,
+					result.MethodName));
+				return;
+
+			case AutoMapperDiagnosticKind.NonPartialContainingType:
+				context.ReportDiagnostic(Diagnostic.Create(
+					DiagnosticDescriptors.AutoMapperRequiresPartialClassDiagnostic,
+					Location.None,
+					result.MethodName,
+					result.ContainingTypeName));
+				return;
+		}
+
+		AutoMapperRequest request = result.Request!;
 
 		// Report diagnostics for unmapped properties
 		foreach (string unmappedProperty in request.UnmappedProperties)
@@ -311,5 +334,37 @@ public sealed class AutoMapperGenerator : IIncrementalGenerator
 			: $"{request.ContainingTypeName}.{request.MethodName}.AutoMapper.g.cs";
 
 		context.AddSource(hintName, sb.ToString());
+	}
+
+	/// <summary>
+	/// Classifies why the <see cref="AutoMapperGenerator"/> could not emit a mapping, so the
+	/// corresponding diagnostic can be reported from the source-output stage.
+	/// </summary>
+	private enum AutoMapperDiagnosticKind
+	{
+		/// <summary>No violation; a valid <see cref="AutoMapperRequest"/> is present.</summary>
+		None,
+		/// <summary>The annotated method is not declared <c>partial</c> (BB84SG0010).</summary>
+		NonPartialMethod,
+		/// <summary>The method's containing class is not declared <c>partial</c> (BB84SG0009).</summary>
+		NonPartialContainingType
+	}
+
+	/// <summary>
+	/// Carries either a valid <see cref="AutoMapperRequest"/> or a diagnostic to report through the
+	/// incremental pipeline. Diagnostics cannot be raised from the transform stage, so they are
+	/// deferred to <see cref="Execute"/> which has access to the <see cref="SourceProductionContext"/>.
+	/// </summary>
+	private sealed record AutoMapperResult(
+		AutoMapperRequest? Request,
+		AutoMapperDiagnosticKind DiagnosticKind,
+		string MethodName,
+		string ContainingTypeName)
+	{
+		public static AutoMapperResult ForRequest(AutoMapperRequest request)
+			=> new(request, AutoMapperDiagnosticKind.None, request.MethodName, request.ContainingTypeName);
+
+		public static AutoMapperResult ForDiagnostic(AutoMapperDiagnosticKind kind, string methodName, string containingTypeName)
+			=> new(null, kind, methodName, containingTypeName);
 	}
 }
