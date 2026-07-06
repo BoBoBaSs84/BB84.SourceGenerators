@@ -134,10 +134,11 @@ namespace TestNamespace
 	}
 
 #if NETFRAMEWORK
-	// System.IAsyncDisposable does not exist in the .NET Framework BCL, so a compilation whose
-	// references are the plain framework facades reproduces the "not available" scenario exactly —
-	// no synthetic assembly tricks required. On modern targets corlib always provides the type, so
-	// this branch cannot occur there and the test is compiled only for .NET Framework.
+	// System.IAsyncDisposable does not exist in the .NET Framework mscorlib, so a compilation
+	// referencing only mscorlib reproduces the "not available" scenario. On modern targets corlib
+	// always provides the type, so this branch cannot occur there and the test is compiled only for
+	// .NET Framework. (The shared References cannot be reused here: their netstandard facade forwards
+	// IAsyncDisposable on hosts running this build under Mono, which would suppress the diagnostic.)
 	[TestMethod]
 	public void AsyncOptionWithoutIAsyncDisposableShouldReportDiagnosticAndSkipAsync()
 	{
@@ -153,7 +154,16 @@ namespace TestNamespace
 		private readonly System.IDisposable _resource;
 	}
 }";
-		(ImmutableArray<Diagnostic> diagnostics, string[] generated) = RunGenerator(source);
+		// Use a bare mscorlib-only reference set so System.IAsyncDisposable is genuinely absent.
+		// The shared References include the netstandard facade, which forwards IAsyncDisposable on
+		// hosts running the .NET Framework build under Mono - resolving the type and suppressing the
+		// diagnostic. mscorlib (the .NET Framework corlib) never declares IAsyncDisposable.
+		MetadataReference[] references =
+		[
+			MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
+			MetadataReference.CreateFromFile(typeof(Attribute).Assembly.Location),
+		];
+		(ImmutableArray<Diagnostic> diagnostics, string[] generated) = RunGeneratorWithReferences(source, references);
 
 		ImmutableArray<Diagnostic> warnings = [.. diagnostics.Where(d => d.Id == "BB84SG0006")];
 		Assert.IsNotEmpty(warnings);
@@ -244,13 +254,17 @@ namespace TestNamespace
 
 	private static (ImmutableArray<Diagnostic> Diagnostics, string[] GeneratedSources) RunGenerator(
 		string source, params MetadataReference[] extraReferences)
+		=> RunGeneratorWithReferences(source, [.. References, .. extraReferences]);
+
+	private static (ImmutableArray<Diagnostic> Diagnostics, string[] GeneratedSources) RunGeneratorWithReferences(
+		string source, MetadataReference[] references)
 	{
 		SyntaxTree syntaxTree = CSharpSyntaxTree.ParseText(source);
 
 		CSharpCompilation compilation = CSharpCompilation.Create(
 			assemblyName: "DisposableDriverTestAssembly",
 			syntaxTrees: [syntaxTree],
-			references: [.. References, .. extraReferences],
+			references: references,
 			options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
 		IIncrementalGenerator[] generators = [new AttributeSourceGenerator(), new DisposableGenerator()];

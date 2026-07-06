@@ -14,6 +14,10 @@
 	<ItemGroup Condition="$(TargetFrameworkIdentifier) == '.NETFramework'">
 		<PackageReference Include="PolySharp" />
 		<PackageReference Include="System.ComponentModel.Annotations" />
+		<!-- Pin System.ValueTuple so its identity unifies with the netstandard2.0 generator assembly.
+		     Under Mono (used to run these targets on Linux CI) the in-box ValueTuple does not unify with
+		     the generator's, throwing MissingMethodException when calling tuple-returning helpers. -->
+		<PackageReference Include="System.ValueTuple" />
 	</ItemGroup>
 	<ItemGroup>
 		<ProjectReference Include="..\..\src\BB84.SourceGenerators\BB84.SourceGenerators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="True" />
