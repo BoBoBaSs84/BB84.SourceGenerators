@@ -1164,6 +1164,66 @@ namespace TestNamespace
 	}
 
 	[TestMethod]
+	public void AutoMapperGeneratorShouldReportDiagnosticForNonPartialMethod()
+	{
+		string source = @"
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+	public class SourceDto
+	{
+		public int Id { get; set; }
+	}
+
+	public class TargetModel
+	{
+		public int Id { get; set; }
+	}
+
+	public partial class OrderMapper
+	{
+		[GenerateAutoMapper]
+		public TargetModel Map(SourceDto source) => new TargetModel();
+	}
+}";
+
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources) = RunGenerator<AutoMapperGenerator>(source);
+
+		Assert.IsNotEmpty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error && d.Id == "BB84SG0010"));
+	}
+
+	[TestMethod]
+	public void AutoMapperGeneratorShouldReportDiagnosticForNonPartialContainingClass()
+	{
+		string source = @"
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+	public class SourceDto
+	{
+		public int Id { get; set; }
+	}
+
+	public class TargetModel
+	{
+		public int Id { get; set; }
+	}
+
+	public class OrderMapper
+	{
+		[GenerateAutoMapper]
+		public partial TargetModel Map(SourceDto source);
+	}
+}";
+
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources) = RunGenerator<AutoMapperGenerator>(source);
+
+		Assert.IsNotEmpty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error && d.Id == "BB84SG0009"));
+	}
+
+	[TestMethod]
 	public void AutoMapperGeneratorShouldMapInheritedProperties()
 	{
 		string source = @"
