@@ -7,6 +7,5 @@
     <PackageVersion Include="MSTest" Version="4.2.3" />
     <PackageVersion Include="PolySharp" Version="1.16.0" />
     <PackageVersion Include="System.ComponentModel.Annotations" Version="5.0.0" />
-    <PackageVersion Include="System.ValueTuple" Version="4.6.1" />
   </ItemGroup>
 </Project>

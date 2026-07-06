@@ -57,6 +57,12 @@ public sealed class GeneratorHelpersTests
 	public void EscapeVerbatimStringShouldDoubleQuotesOnly()
 		=> Assert.AreEqual("a\\b\"\"c", GeneratorHelpers.EscapeVerbatimString("a\\b\"c"));
 
+	// NOTE: The helpers guarded by "#if !NETFRAMEWORK" below return or accept System.ValueTuple.
+	// Invoking them across the netstandard2.0 -> net4x assembly boundary throws MissingMethodException
+	// under Mono (the Linux CI host for the .NET Framework targets), whose ValueTuple identity does not
+	// unify with the generator assembly's. The logic is runtime-independent and fully covered by the
+	// modern-.NET run, so these cases are excluded on .NET Framework.
+#if !NETFRAMEWORK
 	[TestMethod]
 	public void GetAttributeNamesShouldReturnMetadataFullAndShortNames()
 	{
@@ -66,6 +72,7 @@ public sealed class GeneratorHelpersTests
 		Assert.AreEqual("SampleWidgetAttribute", fullName);
 		Assert.AreEqual("SampleWidget", shortName);
 	}
+#endif
 
 	#endregion
 
@@ -85,6 +92,7 @@ class BareType { }";
 		Assert.AreEqual("internal", GeneratorHelpers.GetAccessibility(FindClass(compilation, "BareType").Syntax));
 	}
 
+#if !NETFRAMEWORK // See the ValueTuple/Mono note above.
 	[TestMethod]
 	public void GetOuterClassesShouldReturnNestingChainFromOutermostToInnermost()
 	{
@@ -112,6 +120,7 @@ public class Outer
 
 		Assert.IsEmpty(GeneratorHelpers.GetOuterClasses(FindClass(compilation, "TopLevel").Syntax));
 	}
+#endif
 
 	#endregion
 
@@ -197,6 +206,7 @@ public class Target { }";
 
 	#region Context creation
 
+#if !NETFRAMEWORK // See the ValueTuple/Mono note above.
 	[TestMethod]
 	public void TryCreateContextShouldReturnFalseForNullInput()
 	{
@@ -222,6 +232,7 @@ namespace My.Space
 		Assert.AreEqual("My.Space", context.NamespaceName);
 		Assert.AreEqual("internal", context.Accessibility);
 	}
+#endif
 
 	#endregion
 
@@ -363,7 +374,9 @@ public sealed class CollectionModel
 	#endregion
 }
 
+#if !NETFRAMEWORK // Only referenced by the ValueTuple-guarded GetAttributeNames test above.
 /// <summary>A local attribute used to exercise <c>GetAttributeNames</c> without touching injected attribute types.</summary>
 #pragma warning disable CA1018 // Mark attributes with AttributeUsageAttribute
 internal sealed class SampleWidgetAttribute : Attribute { }
 #pragma warning restore CA1018 // Mark attributes with AttributeUsageAttribute
+#endif

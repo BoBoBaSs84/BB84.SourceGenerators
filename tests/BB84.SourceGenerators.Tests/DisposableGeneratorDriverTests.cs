@@ -134,11 +134,11 @@ namespace TestNamespace
 	}
 
 #if NETFRAMEWORK
-	// System.IAsyncDisposable does not exist in the .NET Framework mscorlib, so a compilation
-	// referencing only mscorlib reproduces the "not available" scenario. On modern targets corlib
-	// always provides the type, so this branch cannot occur there and the test is compiled only for
-	// .NET Framework. (The shared References cannot be reused here: their netstandard facade forwards
-	// IAsyncDisposable on hosts running this build under Mono, which would suppress the diagnostic.)
+	// The generator only reports BB84SG0006 when the compilation cannot resolve System.IAsyncDisposable.
+	// That type is absent from the genuine .NET Framework mscorlib but present on modern .NET (hence the
+	// #if guard) and, crucially, in Mono's core library - which hosts the .NET Framework targets on the
+	// Linux CI. Since the branch cannot be reproduced against a BCL that ships the type, probe the
+	// constructed compilation and mark the test inconclusive (not failed) when the host provides it.
 	[TestMethod]
 	public void AsyncOptionWithoutIAsyncDisposableShouldReportDiagnosticAndSkipAsync()
 	{
@@ -154,16 +154,28 @@ namespace TestNamespace
 		private readonly System.IDisposable _resource;
 	}
 }";
-		// Use a bare mscorlib-only reference set so System.IAsyncDisposable is genuinely absent.
-		// The shared References include the netstandard facade, which forwards IAsyncDisposable on
-		// hosts running the .NET Framework build under Mono - resolving the type and suppressing the
-		// diagnostic. mscorlib (the .NET Framework corlib) never declares IAsyncDisposable.
+		// Bare mscorlib-only reference set: the smallest set that still lets attributes resolve while
+		// keeping System.IAsyncDisposable out of the reference graph on a genuine .NET Framework host.
 		MetadataReference[] references =
 		[
 			MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
 			MetadataReference.CreateFromFile(typeof(Attribute).Assembly.Location),
 		];
-		(ImmutableArray<Diagnostic> diagnostics, string[] generated) = RunGeneratorWithReferences(source, references);
+
+		SyntaxTree syntaxTree = CSharpSyntaxTree.ParseText(source);
+		CSharpCompilation compilation = CSharpCompilation.Create(
+			assemblyName: "DisposableDriverTestAssembly",
+			syntaxTrees: [syntaxTree],
+			references: references,
+			options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+
+		if (compilation.GetTypeByMetadataName("System.IAsyncDisposable") is not null)
+			Assert.Inconclusive("Host BCL provides System.IAsyncDisposable; the 'type unavailable' branch cannot be exercised here.");
+
+		IIncrementalGenerator[] generators = [new AttributeSourceGenerator(), new DisposableGenerator()];
+		GeneratorDriver driver = CSharpGeneratorDriver.Create(generators);
+		driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out _, out ImmutableArray<Diagnostic> diagnostics);
+		string[] generated = [.. driver.GetRunResult().GeneratedTrees.Select(t => t.GetText().ToString())];
 
 		ImmutableArray<Diagnostic> warnings = [.. diagnostics.Where(d => d.Id == "BB84SG0006")];
 		Assert.IsNotEmpty(warnings);
