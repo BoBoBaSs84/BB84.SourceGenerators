@@ -143,6 +143,25 @@ public sealed class ToStringGeneratorDriverTests
 	}
 
 	[TestMethod]
+	public void ConstructorExcludedPropertiesShouldNotBeEmitted()
+	{
+		string src = Generate(@"
+	[GenerateToString(""Secret"", nameof(ExcludeModel.Internal))]
+	public partial class ExcludeModel
+	{
+		public int Id { get; set; }
+		public string Name { get; set; }
+		public string Secret { get; set; }
+		public string Internal { get; set; }
+	}", "partial class ExcludeModel");
+
+		Assert.Contains("nameof(Id)", src);
+		Assert.Contains("nameof(Name)", src);
+		Assert.DoesNotContain("Secret", src);
+		Assert.DoesNotContain("Internal", src);
+	}
+
+	[TestMethod]
 	public void IncludeInheritedShouldAppendBaseProperties()
 	{
 		string src = Generate(@"
