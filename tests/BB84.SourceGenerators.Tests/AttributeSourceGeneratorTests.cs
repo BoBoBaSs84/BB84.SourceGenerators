@@ -68,6 +68,16 @@ public sealed class AttributeSourceGeneratorAttributeCoverageTests
 		}
 	}
 
+	[TestMethod]
+	public void AttributeSourceGeneratorShouldExcludeAllGeneratedAttributesFromCodeCoverage()
+	{
+		foreach (string source in GeneratedAttributeSources)
+		{
+			Assert.Contains("[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]", source,
+				"Every generated attribute must be excluded from code coverage.");
+		}
+	}
+
 	private static string[] RunAttributeGenerator()
 	{
 		const string source = "namespace TestNamespace { public sealed class Marker { } }";

@@ -43,6 +43,14 @@ public sealed class AttributeSourceRewriterTests
 	}
 
 	[TestMethod]
+	public void TransformShouldMarkAttributeTypeAsExcludedFromCodeCoverage()
+	{
+		string result = AttributeSourceRewriter.ReadAndTransform(EqualityResource);
+
+		Assert.Contains("[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]", result);
+	}
+
+	[TestMethod]
 	public void TransformShouldFullyQualifyKnownSystemTypes()
 	{
 		string result = AttributeSourceRewriter.ReadAndTransform(EqualityResource);
@@ -76,6 +84,7 @@ public sealed class AttributeSourceRewriterTests
 		Assert.IsFalse(string.IsNullOrWhiteSpace(result));
 		Assert.Contains("internal", result);
 		Assert.Contains("namespace BB84.SourceGenerators.Attributes", result);
+		Assert.Contains("[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]", result);
 		Assert.DoesNotContain("using ", result);
 	}
 }
