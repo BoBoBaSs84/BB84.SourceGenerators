@@ -22,6 +22,7 @@ public sealed class AutoMapperGeneratorDriverTests
 	[
 		MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
 		MetadataReference.CreateFromFile(typeof(Attribute).Assembly.Location),
+		MetadataReference.CreateFromFile(typeof(ExcludeFromCodeCoverageAttribute).Assembly.Location),
 		MetadataReference.CreateFromFile(Assembly.Load("System.Runtime").Location),
 		MetadataReference.CreateFromFile(Assembly.Load("netstandard").Location),
 	];
