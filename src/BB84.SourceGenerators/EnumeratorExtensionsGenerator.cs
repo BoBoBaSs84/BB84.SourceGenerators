@@ -85,7 +85,7 @@ public sealed class EnumeratorExtensionsGenerator : IIncrementalGenerator
 		sb.AppendLine("/// <summary>");
 		sb.AppendLine($"/// The <see cref=\"{enumName}Extensions\"/> class provides extension methods for the <see cref=\"{enumName}\"/> enumeration.");
 		sb.AppendLine("/// </summary>");
-		sb.AppendLine($"public static class {enumName}Extensions");
+		sb.AppendLine($"public static partial class {enumName}Extensions");
 		sb.OpenBrace();
 	}
 

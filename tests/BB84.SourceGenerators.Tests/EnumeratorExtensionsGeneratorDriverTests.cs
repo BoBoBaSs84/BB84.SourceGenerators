@@ -83,6 +83,7 @@ namespace TestNamespace
 		Assert.IsEmpty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
 		Assert.IsNotEmpty(generatedSources);
 		string generated = generatedSources.First(s => s.Contains("MyEnumExtensions"));
+		Assert.Contains("public static partial class MyEnumExtensions", generated);
 		Assert.Contains("ToStringFast", generated);
 		Assert.Contains("IsDefinedFast", generated);
 		Assert.Contains("GetNamesFast", generated);
