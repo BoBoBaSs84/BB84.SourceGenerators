@@ -75,9 +75,7 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 		sb.CloseOuterClasses(ctx.OuterClasses);
 		sb.CloseNamespace();
 
-		string hintName = ctx.OuterClasses.Count > 0
-			? $"{string.Join(".", ctx.OuterClasses.Select(o => o.Name))}.{ctx.ClassName}.g.cs"
-			: $"{ctx.ClassName}.g.cs";
+		string hintName = GeneratorHelpers.BuildHintName(ctx.OuterClasses, ctx.ClassName);
 
 		context.AddSource(hintName, sb.ToString());
 	}

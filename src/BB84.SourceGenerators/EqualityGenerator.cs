@@ -75,9 +75,7 @@ public sealed class EqualityGenerator : IIncrementalGenerator
 		sb.CloseOuterClasses(ctx.OuterClasses);
 		sb.CloseNamespace();
 
-		string hintName = ctx.OuterClasses.Count > 0
-			? $"{string.Join(".", ctx.OuterClasses.Select(o => o.Name))}.{ctx.ClassName}.Equality.g.cs"
-			: $"{ctx.ClassName}.Equality.g.cs";
+		string hintName = GeneratorHelpers.BuildHintName(ctx.OuterClasses, ctx.ClassName, "Equality");
 
 		context.AddSource(hintName, sb.ToString());
 	}

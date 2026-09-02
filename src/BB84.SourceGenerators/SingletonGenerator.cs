@@ -74,9 +74,7 @@ public sealed class SingletonGenerator : IIncrementalGenerator
 		sb.CloseOuterClasses(ctx.OuterClasses);
 		sb.CloseNamespace();
 
-		string hintName = ctx.OuterClasses.Count > 0
-			? $"{string.Join(".", ctx.OuterClasses.Select(o => o.Name))}.{ctx.ClassName}.Singleton.g.cs"
-			: $"{ctx.ClassName}.Singleton.g.cs";
+		string hintName = GeneratorHelpers.BuildHintName(ctx.OuterClasses, ctx.ClassName, "Singleton");
 
 		context.AddSource(hintName, sb.ToString());
 	}
