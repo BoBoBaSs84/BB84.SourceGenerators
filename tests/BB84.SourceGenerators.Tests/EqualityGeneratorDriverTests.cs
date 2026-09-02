@@ -154,6 +154,34 @@ namespace TestNamespace
 		Assert.Contains("Name", generated);
 	}
 
+	[TestMethod]
+	public void ShouldEmitElementWiseComparisonForCollections()
+	{
+		string source = @"
+using System.Collections.Generic;
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+  [GenerateEquality]
+  public partial class CollectionModel
+  {
+    public List<string> Tags { get; set; }
+    public int[] Codes { get; set; }
+    public Dictionary<string, int> Scores { get; set; }
+  }
+}";
+
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources) = RunGenerator(source);
+
+		Assert.IsEmpty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+		string generated = generatedSources.First(s => s.Contains("partial class CollectionModel"));
+		Assert.Contains("CollectionEquals(Tags, other.Tags)", generated);
+		Assert.Contains("CollectionEquals(Codes, other.Codes)", generated);
+		Assert.Contains("DictionaryEquals(Scores, other.Scores)", generated);
+		Assert.Contains("SequenceEqual", generated);
+	}
+
 	private static (ImmutableArray<Diagnostic> Diagnostics, string[] GeneratedSources) RunGenerator(string source)
 	{
 		SyntaxTree syntaxTree = CSharpSyntaxTree.ParseText(source);

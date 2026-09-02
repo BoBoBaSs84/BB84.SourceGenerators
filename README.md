@@ -1169,6 +1169,14 @@ The generator creates the following members on the partial class:
 - `GetHashCode()` override — produces a consistent hash from all (or selected) public properties
 - `operator ==` and `operator !=` — delegates to `Equals`
 
+**Collection Properties:**
+
+Sequence-like collection properties (`T[]`, `List<T>`, `ImmutableArray<T>`, `ReadOnlyCollection<T>`,
+`IReadOnlyList<T>`, `IReadOnlyCollection<T>`) are compared **element-wise** via `SequenceEqual`, and
+`Dictionary<TKey, TValue>` properties are compared **order-independently** by key/value. `GetHashCode()`
+derives its contribution from the collection contents. `null` and reference-equal collections are
+handled. Two instances holding distinct-but-equal collections therefore compare as equal.
+
 #### Usage Example
 
 ```csharp
