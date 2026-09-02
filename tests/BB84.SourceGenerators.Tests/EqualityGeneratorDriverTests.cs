@@ -98,6 +98,62 @@ namespace TestNamespace
 		Assert.DoesNotContain("Secret", generated);
 	}
 
+	[TestMethod]
+	public void ShouldIncludeInheritedPropertiesWhenRequested()
+	{
+		string source = @"
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+  public class BaseModel
+  {
+    public int BaseId { get; set; }
+  }
+
+  [GenerateEquality(IncludeInherited = true)]
+  public partial class DerivedModel : BaseModel
+  {
+    public string Name { get; set; }
+  }
+}";
+
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources) = RunGenerator(source);
+
+		Assert.IsEmpty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+		string generated = generatedSources.First(s => s.Contains("partial class DerivedModel"));
+		Assert.Contains("BaseId", generated);
+		Assert.Contains("Name", generated);
+	}
+
+	[TestMethod]
+	public void ShouldNotIncludeInheritedPropertiesByDefault()
+	{
+		string source = @"
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+  public class BaseModel
+  {
+    public int BaseId { get; set; }
+  }
+
+  [GenerateEquality]
+  public partial class DerivedModel : BaseModel
+  {
+    public string Name { get; set; }
+  }
+}";
+
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources) = RunGenerator(source);
+
+		Assert.IsEmpty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+		string generated = generatedSources.First(s => s.Contains("partial class DerivedModel"));
+		Assert.DoesNotContain("BaseId", generated);
+		Assert.Contains("Name", generated);
+	}
+
 	private static (ImmutableArray<Diagnostic> Diagnostics, string[] GeneratedSources) RunGenerator(string source)
 	{
 		SyntaxTree syntaxTree = CSharpSyntaxTree.ParseText(source);

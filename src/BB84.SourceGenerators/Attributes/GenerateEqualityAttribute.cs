@@ -24,4 +24,14 @@ internal sealed class GenerateEqualityAttribute(params string[] excludePropertie
 	/// Gets the property names to exclude from the generated equality comparison.
 	/// </summary>
 	public string[] ExcludeProperties => excludeProperties;
+
+	/// <summary>
+	/// Gets or sets a value indicating whether to include inherited public properties from base classes
+	/// in the generated equality comparison.
+	/// When <see langword="true"/>, the generator walks the base type hierarchy (up to but not including
+	/// <see cref="object"/>) and includes inherited properties alongside the declared ones.
+	/// The <c>excludeProperties</c> list applies to inherited members as well.
+	/// Defaults to <see langword="true"/>.
+	/// </summary>
+	public bool IncludeInherited { get; set; } = true;
 }

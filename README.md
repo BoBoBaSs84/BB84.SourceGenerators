@@ -1133,6 +1133,7 @@ Generates `Equals(object)`, `Equals(T)`, `GetHashCode()`, `operator ==`, and `op
 **Parameters:**
 
 - `excludeProperties` - Optional list of property names to exclude from the generated equality comparison
+- `IncludeInherited` - When `true`, public properties from base classes (up to but not including `object`) are also included in the equality comparison and hash code. The `excludeProperties` list applies to inherited members as well (named argument, default: `true`)
 
 #### Example
 
