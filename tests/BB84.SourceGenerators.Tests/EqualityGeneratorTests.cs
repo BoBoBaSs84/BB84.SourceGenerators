@@ -155,6 +155,60 @@ public sealed class EqualityGeneratorTests
 
 		Assert.IsInstanceOfType<IEquatable<EqualityTestModel>>(model);
 	}
+
+	[TestMethod]
+	public void EqualsShouldIgnoreInheritedPropertiesByDefault()
+	{
+		EqualityDerivedModel a = new() { BaseId = 1, Name = "John" };
+		EqualityDerivedModel b = new() { BaseId = 2, Name = "John" };
+
+		Assert.IsTrue(a.Equals(b));
+		Assert.AreEqual(a.GetHashCode(), b.GetHashCode());
+	}
+
+	[TestMethod]
+	public void EqualsShouldIncludeInheritedPropertiesWhenRequested()
+	{
+		EqualityInheritedModel a = new() { BaseId = 1, Name = "John" };
+		EqualityInheritedModel b = new() { BaseId = 2, Name = "John" };
+		EqualityInheritedModel c = new() { BaseId = 1, Name = "John" };
+
+		Assert.IsFalse(a.Equals(b));
+		Assert.IsTrue(a.Equals(c));
+		Assert.AreEqual(a.GetHashCode(), c.GetHashCode());
+	}
+
+	[TestMethod]
+	public void EqualsShouldExcludeInheritedPropertyByName()
+	{
+		EqualityInheritedExcludeModel a = new() { BaseId = 1, Name = "John" };
+		EqualityInheritedExcludeModel b = new() { BaseId = 2, Name = "John" };
+
+		Assert.IsTrue(a.Equals(b));
+	}
+}
+
+public abstract class EqualityModelBase
+{
+	public int BaseId { get; set; }
+}
+
+[GenerateEquality]
+public partial class EqualityDerivedModel : EqualityModelBase
+{
+	public string? Name { get; set; }
+}
+
+[GenerateEquality(IncludeInherited = true)]
+public partial class EqualityInheritedModel : EqualityModelBase
+{
+	public string? Name { get; set; }
+}
+
+[GenerateEquality(nameof(EqualityModelBase.BaseId), IncludeInherited = true)]
+public partial class EqualityInheritedExcludeModel : EqualityModelBase
+{
+	public string? Name { get; set; }
 }
 
 [GenerateEquality]

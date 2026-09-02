@@ -24,19 +24,21 @@ namespace BB84.SourceGenerators;
 [Generator(LanguageNames.CSharp)]
 public sealed class EqualityGenerator : IIncrementalGenerator
 {
-	private static readonly string GeneratorAttributeName = typeof(GenerateEqualityAttribute).FullName;
+	private static readonly (string MetadataName, string FullName, string ShortName) AttributeNames =
+		GeneratorHelpers.GetAttributeNames<GenerateEqualityAttribute>();
 
 	/// <inheritdoc/>
 	public void Initialize(IncrementalGeneratorInitializationContext context)
-		=> GeneratorHelpers.RegisterClassGenerator(context, GeneratorAttributeName, Execute);
+		=> GeneratorHelpers.RegisterClassGenerator(context, AttributeNames.MetadataName, Execute);
 
 	private void Execute(SourceProductionContext context, (ClassDeclarationSyntax ClassSyntax, SemanticModel SemanticModel)? input)
 	{
 		if (!GeneratorHelpers.TryCreateContext(input, out GeneratorContext ctx))
 			return;
 
+		bool includeInherited = GetIncludeInherited(ctx.ClassDeclaration, ctx.SemanticModel);
 		HashSet<string> excludedProperties = GeneratorHelpers.GetExcludedProperties(ctx.ClassDeclaration, ctx.SemanticModel, nameof(GenerateEqualityAttribute));
-		ImmutableArray<PropertyDescriptor> properties = GeneratorHelpers.GetPropertyDescriptors(ctx.ClassSymbol, excludedProperties);
+		ImmutableArray<PropertyDescriptor> properties = GeneratorHelpers.GetPropertyDescriptors(ctx.ClassSymbol, excludedProperties, includeInherited: includeInherited);
 
 		SourceBuilder sb = new();
 
@@ -179,4 +181,7 @@ public sealed class EqualityGenerator : IIncrementalGenerator
 		sb.AppendLine("=> !Equals(left, right);");
 		sb.Outdent();
 	}
+
+	private static bool GetIncludeInherited(ClassDeclarationSyntax classDeclaration, SemanticModel semanticModel)
+		=> GeneratorHelpers.GetNamedArgumentValue(classDeclaration, semanticModel, AttributeNames.ShortName, AttributeNames.FullName, nameof(GenerateEqualityAttribute.IncludeInherited), false);
 }
