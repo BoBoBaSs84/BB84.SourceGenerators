@@ -186,6 +186,49 @@ public sealed class EqualityGeneratorTests
 
 		Assert.IsTrue(a.Equals(b));
 	}
+
+	[TestMethod]
+	public void EqualsShouldCompareCollectionContentsNotReferences()
+	{
+		EqualityCollectionModel a = new()
+		{
+			Tags = ["a", "b"],
+			Codes = [1, 2, 3],
+			Scores = new() { ["x"] = 1, ["y"] = 2 },
+		};
+		EqualityCollectionModel b = new()
+		{
+			Tags = ["a", "b"],
+			Codes = [1, 2, 3],
+			Scores = new() { ["y"] = 2, ["x"] = 1 },
+		};
+
+		Assert.IsTrue(a.Equals(b));
+		Assert.AreEqual(a.GetHashCode(), b.GetHashCode());
+	}
+
+	[TestMethod]
+	public void EqualsShouldReturnFalseForDifferentCollectionContents()
+	{
+		EqualityCollectionModel a = new() { Tags = ["a", "b"], Codes = [1, 2], Scores = new() };
+		EqualityCollectionModel b = new() { Tags = ["a", "c"], Codes = [1, 2], Scores = new() };
+		EqualityCollectionModel c = new() { Tags = ["a", "b"], Codes = [1, 2], Scores = new() { ["x"] = 1 } };
+
+		Assert.IsFalse(a.Equals(b));
+		Assert.IsFalse(a.Equals(c));
+	}
+
+	[TestMethod]
+	public void EqualsShouldHandleNullCollections()
+	{
+		EqualityCollectionModel a = new() { Tags = null, Codes = null, Scores = null };
+		EqualityCollectionModel b = new() { Tags = null, Codes = null, Scores = null };
+		EqualityCollectionModel c = new() { Tags = ["a"], Codes = null, Scores = null };
+
+		Assert.IsTrue(a.Equals(b));
+		Assert.AreEqual(a.GetHashCode(), b.GetHashCode());
+		Assert.IsFalse(a.Equals(c));
+	}
 }
 
 public abstract class EqualityModelBase
@@ -209,6 +252,14 @@ public partial class EqualityInheritedModel : EqualityModelBase
 public partial class EqualityInheritedExcludeModel : EqualityModelBase
 {
 	public string? Name { get; set; }
+}
+
+[GenerateEquality]
+public partial class EqualityCollectionModel
+{
+	public List<string>? Tags { get; set; }
+	public int[]? Codes { get; set; }
+	public Dictionary<string, int>? Scores { get; set; }
 }
 
 [GenerateEquality]
