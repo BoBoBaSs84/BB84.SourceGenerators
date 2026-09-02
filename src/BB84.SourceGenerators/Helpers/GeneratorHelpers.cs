@@ -234,6 +234,29 @@ internal static class GeneratorHelpers
 	}
 
 	/// <summary>
+	/// Builds the hint name for a generated source file, in the form
+	/// <c>{Outer.Classes.}{TypeName}{.Feature}.g.cs</c>.
+	/// </summary>
+	/// <param name="outerClasses">The outer (nesting) classes, from outermost to innermost.</param>
+	/// <param name="typeName">The name of the generated or extended type.</param>
+	/// <param name="feature">The optional feature suffix (e.g., "Equality").</param>
+	/// <returns>The hint name to pass to <see cref="SourceProductionContext.AddSource(string, string)"/>.</returns>
+	internal static string BuildHintName(List<(string Accessibility, string Name)> outerClasses, string typeName, string? feature = null)
+		=> BuildHintName(outerClasses.Select(static o => o.Name), outerClasses.Count, typeName, feature);
+
+	/// <inheritdoc cref="BuildHintName(List{ValueTuple{string, string}}, string, string?)"/>
+	internal static string BuildHintName(List<(string Accessibility, string Name, bool IsStatic)> outerClasses, string typeName, string? feature = null)
+		=> BuildHintName(outerClasses.Select(static o => o.Name), outerClasses.Count, typeName, feature);
+
+	private static string BuildHintName(IEnumerable<string> outerClassNames, int outerClassCount, string typeName, string? feature)
+	{
+		string prefix = outerClassCount > 0 ? $"{string.Join(".", outerClassNames)}." : string.Empty;
+		string suffix = feature is null ? string.Empty : $".{feature}";
+
+		return $"{prefix}{typeName}{suffix}.g.cs";
+	}
+
+	/// <summary>
 	/// Escapes a string for use in a regular string literal.
 	/// </summary>
 	/// <param name="value">The string value to escape.</param>

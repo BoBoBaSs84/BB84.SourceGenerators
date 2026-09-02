@@ -59,9 +59,7 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 		sb.CloseOuterClasses(ctx.OuterClasses);
 		sb.CloseNamespace();
 
-		string hintName = ctx.OuterClasses.Count > 0
-			? $"{string.Join(".", ctx.OuterClasses.Select(o => o.Name))}.{ctx.ClassName}.ToString.g.cs"
-			: $"{ctx.ClassName}.ToString.g.cs";
+		string hintName = GeneratorHelpers.BuildHintName(ctx.OuterClasses, ctx.ClassName, "ToString");
 
 		context.AddSource(hintName, sb.ToString());
 	}

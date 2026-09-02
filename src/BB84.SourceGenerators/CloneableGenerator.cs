@@ -71,9 +71,7 @@ public sealed class CloneableGenerator : IIncrementalGenerator
 		sb.CloseOuterClasses(ctx.OuterClasses);
 		sb.CloseNamespace();
 
-		string hintName = ctx.OuterClasses.Count > 0
-			? $"{string.Join(".", ctx.OuterClasses.Select(o => o.Name))}.{ctx.ClassName}.Cloneable.g.cs"
-			: $"{ctx.ClassName}.Cloneable.g.cs";
+		string hintName = GeneratorHelpers.BuildHintName(ctx.OuterClasses, ctx.ClassName, "Cloneable");
 
 		context.AddSource(hintName, sb.ToString());
 	}

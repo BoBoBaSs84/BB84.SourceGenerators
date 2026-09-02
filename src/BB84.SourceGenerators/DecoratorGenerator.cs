@@ -66,9 +66,7 @@ public sealed class DecoratorGenerator : IIncrementalGenerator
 		sb.CloseOuterClasses(ctx.OuterClasses);
 		sb.CloseNamespace();
 
-		string hintName = ctx.OuterClasses.Count > 0
-			? $"{string.Join(".", ctx.OuterClasses.Select(o => o.Name))}.{ctx.ClassName}.Decorator.g.cs"
-			: $"{ctx.ClassName}.Decorator.g.cs";
+		string hintName = GeneratorHelpers.BuildHintName(ctx.OuterClasses, ctx.ClassName, "Decorator");
 
 		context.AddSource(hintName, sb.ToString());
 	}

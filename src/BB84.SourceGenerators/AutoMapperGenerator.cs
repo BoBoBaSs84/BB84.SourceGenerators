@@ -329,9 +329,7 @@ public sealed class AutoMapperGenerator : IIncrementalGenerator
 
 		sb.CloseNamespace();
 
-		string hintName = request.OuterClasses.Count > 0
-			? $"{string.Join(".", request.OuterClasses.Select(o => o.Name))}.{request.ContainingTypeName}.{request.MethodName}.AutoMapper.g.cs"
-			: $"{request.ContainingTypeName}.{request.MethodName}.AutoMapper.g.cs";
+		string hintName = GeneratorHelpers.BuildHintName(request.OuterClasses, $"{request.ContainingTypeName}.{request.MethodName}", "AutoMapper");
 
 		context.AddSource(hintName, sb.ToString());
 	}
