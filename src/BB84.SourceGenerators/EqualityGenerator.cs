@@ -24,8 +24,29 @@ namespace BB84.SourceGenerators;
 [Generator(LanguageNames.CSharp)]
 public sealed class EqualityGenerator : IIncrementalGenerator
 {
+	private const int HashSeed = 17;
+	private const int HashFactor = 31;
+	private const string EnumerableTypeName = NamespaceNames.SystemCollectionsGeneric + ".IEnumerable";
+	private const string ReadOnlyDictionaryTypeName = NamespaceNames.SystemCollectionsGeneric + ".IReadOnlyDictionary";
+	private const string KeyValuePairTypeName = NamespaceNames.SystemCollectionsGeneric + ".KeyValuePair";
+
 	private static readonly (string MetadataName, string FullName, string ShortName) AttributeNames =
 		GeneratorHelpers.GetAttributeNames<GenerateEqualityAttribute>();
+
+	/// <summary>
+	/// Describes how a property is compared and hashed in the generated members.
+	/// </summary>
+	private enum EqualityStrategy
+	{
+		/// <summary>Compared with <c>Equals(left, right)</c>.</summary>
+		Direct,
+		/// <summary>Compared element-wise as a sequence.</summary>
+		Sequence,
+		/// <summary>A nullable <c>ImmutableArray&lt;T&gt;</c>, compared element-wise after conversion to a sequence.</summary>
+		NullableImmutableArray,
+		/// <summary>Compared key/value-wise as a dictionary.</summary>
+		Dictionary
+	}
 
 	/// <inheritdoc/>
 	public void Initialize(IncrementalGeneratorInitializationContext context)
@@ -75,17 +96,27 @@ public sealed class EqualityGenerator : IIncrementalGenerator
 		sb.AppendLine();
 		AppendOperatorNotEquals(sb, className);
 
-		bool needsSequenceHelpers = properties.Any(static p => IsSequenceCollection(p.CollectionKind));
-		bool needsDictionaryHelpers = properties.Any(static p => p.CollectionKind == CollectionKind.Dictionary);
+		if (properties.Any(static p => GetStrategy(p) is EqualityStrategy.Sequence or EqualityStrategy.NullableImmutableArray))
+			AppendSequenceHelpers(sb);
 
-		if (needsSequenceHelpers || needsDictionaryHelpers)
-			AppendCollectionHelpers(sb, needsSequenceHelpers, needsDictionaryHelpers);
+		if (properties.Any(static p => GetStrategy(p) is EqualityStrategy.Dictionary))
+			AppendDictionaryHelpers(sb);
 
 		sb.CloseClass();
 	}
 
-	private static bool IsSequenceCollection(CollectionKind kind)
-		=> kind is CollectionKind.List or CollectionKind.Array or CollectionKind.ImmutableArray or CollectionKind.ReadOnlyCollection;
+	/// <summary>
+	/// Determines how the given property is compared and hashed.
+	/// A non-nullable <c>ImmutableArray&lt;T&gt;</c> converts implicitly to a sequence, while a
+	/// nullable one (<see cref="PropertyDescriptor.IsValueType"/> is <see langword="false"/>) does not.
+	/// </summary>
+	private static EqualityStrategy GetStrategy(PropertyDescriptor property) => property.CollectionKind switch
+	{
+		CollectionKind.Dictionary => EqualityStrategy.Dictionary,
+		CollectionKind.ImmutableArray when !property.IsValueType => EqualityStrategy.NullableImmutableArray,
+		CollectionKind.List or CollectionKind.Array or CollectionKind.ImmutableArray or CollectionKind.ReadOnlyCollection => EqualityStrategy.Sequence,
+		_ => EqualityStrategy.Direct
+	};
 
 	private static void AppendEqualsObject(SourceBuilder sb, string className)
 	{
@@ -152,10 +183,10 @@ public sealed class EqualityGenerator : IIncrementalGenerator
 		{
 			sb.AppendLine("unchecked");
 			sb.OpenBrace();
-			sb.AppendLine("int hash = 17;");
+			sb.AppendLine($"int hash = {HashSeed};");
 
 			foreach (PropertyDescriptor property in properties)
-				sb.AppendLine($"hash = hash * 31 + {BuildHashCodeExpression(property)};");
+				sb.AppendLine($"hash = hash * {HashFactor} + {BuildHashCodeExpression(property)};");
 
 			sb.AppendLine("return hash;");
 			sb.CloseBrace();
@@ -186,127 +217,103 @@ public sealed class EqualityGenerator : IIncrementalGenerator
 		sb.Outdent();
 	}
 
-	private static string BuildEqualsExpression(PropertyDescriptor property)
+	private static string BuildEqualsExpression(PropertyDescriptor property) => GetStrategy(property) switch
 	{
-		switch (property.CollectionKind)
-		{
-			case CollectionKind.Dictionary:
-				return $"DictionaryEquals({property.Name}, other.{property.Name})";
-			case CollectionKind.List:
-			case CollectionKind.Array:
-			case CollectionKind.ReadOnlyCollection:
-				return $"CollectionEquals({property.Name}, other.{property.Name})";
-			case CollectionKind.ImmutableArray when property.IsValueType:
-				return $"CollectionEquals({property.Name}, other.{property.Name})";
-			case CollectionKind.ImmutableArray:
-				return $"CollectionEquals({NullableImmutableArrayAsSequence(property, "")}, {NullableImmutableArrayAsSequence(property, "other.")})";
-			default:
-				return $"Equals({property.Name}, other.{property.Name})";
-		}
-	}
+		EqualityStrategy.Dictionary => $"DictionaryEquals({property.Name}, other.{property.Name})",
+		EqualityStrategy.Sequence => $"CollectionEquals({property.Name}, other.{property.Name})",
+		EqualityStrategy.NullableImmutableArray => $"CollectionEquals({NullableImmutableArrayAsSequence(property, string.Empty)}, {NullableImmutableArrayAsSequence(property, "other.")})",
+		_ => $"Equals({property.Name}, other.{property.Name})"
+	};
 
-	private static string BuildHashCodeExpression(PropertyDescriptor property)
+	private static string BuildHashCodeExpression(PropertyDescriptor property) => GetStrategy(property) switch
 	{
-		switch (property.CollectionKind)
-		{
-			case CollectionKind.Dictionary:
-				return $"DictionaryHashCode({property.Name})";
-			case CollectionKind.List:
-			case CollectionKind.Array:
-			case CollectionKind.ReadOnlyCollection:
-				return $"CollectionHashCode({property.Name})";
-			case CollectionKind.ImmutableArray when property.IsValueType:
-				return $"CollectionHashCode({property.Name})";
-			case CollectionKind.ImmutableArray:
-				return $"CollectionHashCode({NullableImmutableArrayAsSequence(property, "")})";
-			default:
-				return property.IsValueType
-					? $"{property.Name}.GetHashCode()"
-					: $"({property.Name}?.GetHashCode() ?? 0)";
-		}
-	}
+		EqualityStrategy.Dictionary => $"DictionaryHashCode({property.Name})",
+		EqualityStrategy.Sequence => $"CollectionHashCode({property.Name})",
+		EqualityStrategy.NullableImmutableArray => $"CollectionHashCode({NullableImmutableArrayAsSequence(property, string.Empty)})",
+		_ => property.IsValueType
+			? $"{property.Name}.GetHashCode()"
+			: $"({property.Name}?.GetHashCode() ?? 0)"
+	};
 
 	private static string NullableImmutableArrayAsSequence(PropertyDescriptor property, string prefix)
-		=> $"({prefix}{property.Name}.HasValue ? (System.Collections.Generic.IEnumerable<{property.ElementTypeName}>){prefix}{property.Name}.Value : null)";
+		=> $"({prefix}{property.Name}.HasValue ? ({EnumerableTypeName}<{property.ElementTypeName}>){prefix}{property.Name}.Value : null)";
 
-	private static void AppendCollectionHelpers(SourceBuilder sb, bool sequence, bool dictionary)
+	private static void AppendSequenceHelpers(SourceBuilder sb)
 	{
-		if (sequence)
-		{
-			sb.AppendLine();
-			sb.AppendLine("private static bool CollectionEquals<T>(System.Collections.Generic.IEnumerable<T>? left, System.Collections.Generic.IEnumerable<T>? right)");
-			sb.OpenBrace();
-			sb.AppendLine("if (ReferenceEquals(left, right))");
-			sb.Indent();
-			sb.AppendLine("return true;");
-			sb.Outdent();
-			sb.AppendLine("if (left is null || right is null)");
-			sb.Indent();
-			sb.AppendLine("return false;");
-			sb.Outdent();
-			sb.AppendLine("return System.Linq.Enumerable.SequenceEqual(left, right);");
-			sb.CloseBrace();
+		sb.AppendLine();
+		sb.AppendLine($"private static bool CollectionEquals<T>({EnumerableTypeName}<T>? left, {EnumerableTypeName}<T>? right)");
+		sb.OpenBrace();
+		sb.AppendLine("if (ReferenceEquals(left, right))");
+		sb.Indent();
+		sb.AppendLine("return true;");
+		sb.Outdent();
+		sb.AppendLine("if (left is null || right is null)");
+		sb.Indent();
+		sb.AppendLine("return false;");
+		sb.Outdent();
+		sb.AppendLine($"return {NamespaceNames.SystemLinq}.Enumerable.SequenceEqual(left, right);");
+		sb.CloseBrace();
 
-			sb.AppendLine();
-			sb.AppendLine("private static int CollectionHashCode<T>(System.Collections.Generic.IEnumerable<T>? sequence)");
-			sb.OpenBrace();
-			sb.AppendLine("if (sequence is null)");
-			sb.Indent();
-			sb.AppendLine("return 0;");
-			sb.Outdent();
-			sb.AppendLine("unchecked");
-			sb.OpenBrace();
-			sb.AppendLine("int hash = 17;");
-			sb.AppendLine("foreach (T item in sequence)");
-			sb.Indent();
-			sb.AppendLine("hash = hash * 31 + (item?.GetHashCode() ?? 0);");
-			sb.Outdent();
-			sb.AppendLine("return hash;");
-			sb.CloseBrace();
-			sb.CloseBrace();
-		}
+		sb.AppendLine();
+		sb.AppendLine($"private static int CollectionHashCode<T>({EnumerableTypeName}<T>? sequence)");
+		sb.OpenBrace();
+		sb.AppendLine("if (sequence is null)");
+		sb.Indent();
+		sb.AppendLine("return 0;");
+		sb.Outdent();
+		sb.AppendLine("unchecked");
+		sb.OpenBrace();
+		sb.AppendLine($"int hash = {HashSeed};");
+		sb.AppendLine("foreach (T item in sequence)");
+		sb.Indent();
+		sb.AppendLine($"hash = hash * {HashFactor} + (item?.GetHashCode() ?? 0);");
+		sb.Outdent();
+		sb.AppendLine("return hash;");
+		sb.CloseBrace();
+		sb.CloseBrace();
+	}
 
-		if (dictionary)
-		{
-			sb.AppendLine();
-			sb.AppendLine("private static bool DictionaryEquals<TKey, TValue>(System.Collections.Generic.IReadOnlyDictionary<TKey, TValue>? left, System.Collections.Generic.IReadOnlyDictionary<TKey, TValue>? right)");
-			sb.OpenBrace();
-			sb.AppendLine("if (ReferenceEquals(left, right))");
-			sb.Indent();
-			sb.AppendLine("return true;");
-			sb.Outdent();
-			sb.AppendLine("if (left is null || right is null || left.Count != right.Count)");
-			sb.Indent();
-			sb.AppendLine("return false;");
-			sb.Outdent();
-			sb.AppendLine("foreach (System.Collections.Generic.KeyValuePair<TKey, TValue> pair in left)");
-			sb.OpenBrace();
-			sb.AppendLine("if (!right.ContainsKey(pair.Key) || !Equals(pair.Value, right[pair.Key]))");
-			sb.Indent();
-			sb.AppendLine("return false;");
-			sb.Outdent();
-			sb.CloseBrace();
-			sb.AppendLine("return true;");
-			sb.CloseBrace();
+	private static void AppendDictionaryHelpers(SourceBuilder sb)
+	{
+		sb.AppendLine();
+		sb.AppendLine($"private static bool DictionaryEquals<TKey, TValue>({ReadOnlyDictionaryTypeName}<TKey, TValue>? left, {ReadOnlyDictionaryTypeName}<TKey, TValue>? right)");
+		sb.OpenBrace();
+		sb.AppendLine("if (ReferenceEquals(left, right))");
+		sb.Indent();
+		sb.AppendLine("return true;");
+		sb.Outdent();
+		sb.AppendLine("if (left is null || right is null || left.Count != right.Count)");
+		sb.Indent();
+		sb.AppendLine("return false;");
+		sb.Outdent();
+		sb.AppendLine($"foreach ({KeyValuePairTypeName}<TKey, TValue> pair in left)");
+		sb.OpenBrace();
+		sb.AppendLine("if (!right.ContainsKey(pair.Key) || !Equals(pair.Value, right[pair.Key]))");
+		sb.Indent();
+		sb.AppendLine("return false;");
+		sb.Outdent();
+		sb.CloseBrace();
+		sb.AppendLine("return true;");
+		sb.CloseBrace();
 
-			sb.AppendLine();
-			sb.AppendLine("private static int DictionaryHashCode<TKey, TValue>(System.Collections.Generic.IReadOnlyDictionary<TKey, TValue>? dictionary)");
-			sb.OpenBrace();
-			sb.AppendLine("if (dictionary is null)");
-			sb.Indent();
-			sb.AppendLine("return 0;");
-			sb.Outdent();
-			sb.AppendLine("unchecked");
-			sb.OpenBrace();
-			sb.AppendLine("int hash = 0;");
-			sb.AppendLine("foreach (System.Collections.Generic.KeyValuePair<TKey, TValue> pair in dictionary)");
-			sb.Indent();
-			sb.AppendLine("hash ^= (pair.Key?.GetHashCode() ?? 0) * 31 + (pair.Value?.GetHashCode() ?? 0);");
-			sb.Outdent();
-			sb.AppendLine("return hash;");
-			sb.CloseBrace();
-			sb.CloseBrace();
-		}
+		sb.AppendLine();
+		sb.AppendLine($"private static int DictionaryHashCode<TKey, TValue>({ReadOnlyDictionaryTypeName}<TKey, TValue>? dictionary)");
+		sb.OpenBrace();
+		sb.AppendLine("if (dictionary is null)");
+		sb.Indent();
+		sb.AppendLine("return 0;");
+		sb.Outdent();
+		sb.AppendLine("unchecked");
+		sb.OpenBrace();
+		// Order-independent: entry hashes are combined with XOR, so the seed must be 0.
+		sb.AppendLine("int hash = 0;");
+		sb.AppendLine($"foreach ({KeyValuePairTypeName}<TKey, TValue> pair in dictionary)");
+		sb.Indent();
+		sb.AppendLine($"hash ^= (pair.Key?.GetHashCode() ?? 0) * {HashFactor} + (pair.Value?.GetHashCode() ?? 0);");
+		sb.Outdent();
+		sb.AppendLine("return hash;");
+		sb.CloseBrace();
+		sb.CloseBrace();
 	}
 
 	private static bool GetIncludeInherited(ClassDeclarationSyntax classDeclaration, SemanticModel semanticModel)
