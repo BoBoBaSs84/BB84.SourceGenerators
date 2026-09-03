@@ -29,11 +29,11 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 
 	/// <inheritdoc/>
 	public void Initialize(IncrementalGeneratorInitializationContext context)
-		=> GeneratorHelpers.RegisterClassGenerator(context, AttributeNames.MetadataName, Execute);
+		=> GeneratorHelpers.RegisterClassOrRecordGenerator(context, AttributeNames.MetadataName, Execute);
 
-	private void Execute(SourceProductionContext context, (ClassDeclarationSyntax ClassSyntax, SemanticModel SemanticModel)? input)
+	private void Execute(SourceProductionContext context, (TypeDeclarationSyntax TypeSyntax, SemanticModel SemanticModel)? input)
 	{
-		if (!GeneratorHelpers.TryCreateContext(input, out GeneratorContext ctx))
+		if (!GeneratorHelpers.TryCreateContext(input, out TypeGeneratorContext ctx))
 			return;
 
 		CollectionFormat collectionFormat = GetCollectionFormat(ctx.ClassDeclaration, ctx.SemanticModel);
@@ -43,6 +43,8 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 		bool includeInherited = GetIncludeInherited(ctx.ClassDeclaration, ctx.SemanticModel);
 		HashSet<string> excludedProperties = GeneratorHelpers.GetExcludedProperties(ctx.ClassDeclaration, ctx.SemanticModel, nameof(GenerateToStringAttribute));
 		ImmutableArray<PropertyDescriptor> properties = GeneratorHelpers.GetPropertyDescriptors(ctx.ClassSymbol, excludedProperties, detectCollections: true, toStringFormatAttributeName: ToStringFormatAttributeName, toStringOrderAttributeName: ToStringOrderAttributeName, includeInherited: includeInherited);
+		bool printMembersIsOverride = ctx.IsRecord
+			&& ctx.ClassSymbol.BaseType is { IsRecord: true, SpecialType: not SpecialType.System_Object };
 
 		SourceBuilder sb = new();
 
@@ -54,7 +56,7 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 		sb.OpenNamespace(ctx.NamespaceName);
 		sb.OpenOuterClasses(ctx.OuterClasses);
 
-		AppendPartialClass(sb, ctx.ClassName, ctx.Accessibility, properties, collectionFormat, separator, formattable, nullPlaceholder);
+		AppendPartialType(sb, ctx.ClassName, ctx.Accessibility, properties, collectionFormat, separator, formattable, nullPlaceholder, ctx.IsRecord, printMembersIsOverride);
 
 		sb.CloseOuterClasses(ctx.OuterClasses);
 		sb.CloseNamespace();
@@ -64,15 +66,25 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 		context.AddSource(hintName, sb.ToString());
 	}
 
-	private static void AppendPartialClass(SourceBuilder sb, string className, string accessibility, ImmutableArray<PropertyDescriptor> properties, CollectionFormat collectionFormat, string separator, bool formattable, string? nullPlaceholder)
+	private static void AppendPartialType(SourceBuilder sb, string className, string accessibility, ImmutableArray<PropertyDescriptor> properties, CollectionFormat collectionFormat, string separator, bool formattable, string? nullPlaceholder, bool isRecord, bool printMembersIsOverride)
 	{
 		bool hasDictionary = collectionFormat == CollectionFormat.Elements
 			&& properties.Any(static p => p.CollectionKind == CollectionKind.Dictionary);
 
-		if (formattable)
-			sb.OpenClass(accessibility, className, "IFormattable");
+		if (isRecord)
+		{
+			if (formattable)
+				sb.OpenRecord(accessibility, className, "IFormattable");
+			else
+				sb.OpenRecord(accessibility, className);
+		}
 		else
-			sb.OpenClass(accessibility, className);
+		{
+			if (formattable)
+				sb.OpenClass(accessibility, className, "IFormattable");
+			else
+				sb.OpenClass(accessibility, className);
+		}
 
 		if (formattable)
 		{
@@ -86,6 +98,20 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 			sb.AppendLine("public string ToString(string? format, IFormatProvider? formatProvider)");
 			sb.OpenBrace();
 			AppendToStringBody(sb, className, properties, collectionFormat, separator, nullPlaceholder, formattable: true);
+			sb.CloseBrace();
+		}
+		else if (isRecord)
+		{
+			string modifier = printMembersIsOverride ? "protected override" : "protected virtual";
+
+			sb.AppendLine("/// <summary>");
+			sb.AppendLine("/// Appends this record's generated member values to <paramref name=\"builder\"/>.");
+			sb.AppendLine("/// </summary>");
+			sb.AppendLine("/// <param name=\"builder\">The builder to append formatted member values to.</param>");
+			sb.AppendLine("/// <returns><see langword=\"true\"/> if any members were appended; otherwise, <see langword=\"false\"/>.</returns>");
+			sb.AppendLine($"{modifier} bool PrintMembers(System.Text.StringBuilder builder)");
+			sb.OpenBrace();
+			AppendPrintMembersBody(sb, properties, collectionFormat, separator, nullPlaceholder, printMembersIsOverride);
 			sb.CloseBrace();
 		}
 		else
@@ -103,7 +129,10 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 			AppendDictionaryFormatHelper(sb);
 		}
 
-		sb.CloseClass();
+		if (isRecord)
+			sb.CloseRecord();
+		else
+			sb.CloseClass();
 	}
 
 	private static void AppendToStringBody(SourceBuilder sb, string className, ImmutableArray<PropertyDescriptor> properties, CollectionFormat collectionFormat, string separator, string? nullPlaceholder, bool formattable)
@@ -137,6 +166,33 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 
 		sb.AppendLine("sb.Append(\" }\");");
 		sb.AppendLine("return sb.ToString();");
+	}
+
+	private static void AppendPrintMembersBody(SourceBuilder sb, ImmutableArray<PropertyDescriptor> properties, CollectionFormat collectionFormat, string separator, string? nullPlaceholder, bool isOverride)
+	{
+		foreach (PropertyDescriptor prop in properties)
+		{
+			if (prop.CollectionKind == CollectionKind.None)
+				continue;
+			sb.AppendLine($"string {prop.Name.ToLowerInvariant()} = {BuildCollectionFormatExpression(prop, collectionFormat)};");
+		}
+
+		string escapedSeparator = GeneratorHelpers.EscapeString(separator);
+
+		sb.AppendLine(isOverride ? "bool appended = base.PrintMembers(builder);" : "bool appended = false;");
+
+		foreach (PropertyDescriptor prop in properties)
+		{
+			sb.AppendLine("if (appended)");
+			sb.Indent();
+			sb.AppendLine($"builder.Append(\"{escapedSeparator}\");");
+			sb.Outdent();
+			sb.AppendLine($"builder.Append($\"{{nameof({prop.Name})}} = \");");
+			sb.AppendLine($"builder.Append({GetValueExpression(prop, nullPlaceholder, formattable: false)});");
+			sb.AppendLine("appended = true;");
+		}
+
+		sb.AppendLine("return appended;");
 	}
 
 	private static string GetValueExpression(PropertyDescriptor prop, string? nullPlaceholder, bool formattable)
@@ -225,18 +281,18 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 		sb.CloseBrace();
 	}
 
-	private static bool GetFormattable(ClassDeclarationSyntax classDeclaration, SemanticModel semanticModel)
+	private static bool GetFormattable(TypeDeclarationSyntax classDeclaration, SemanticModel semanticModel)
 		=> GeneratorHelpers.GetNamedArgumentValue(classDeclaration, semanticModel, AttributeNames.ShortName, AttributeNames.FullName, nameof(GenerateToStringAttribute.Formattable), false);
 
-	private static string GetSeparator(ClassDeclarationSyntax classDeclaration, SemanticModel semanticModel)
+	private static string GetSeparator(TypeDeclarationSyntax classDeclaration, SemanticModel semanticModel)
 		=> GeneratorHelpers.GetNamedArgumentValue(classDeclaration, semanticModel, AttributeNames.ShortName, AttributeNames.FullName, nameof(GenerateToStringAttribute.Separator), ", ");
 
-	private static CollectionFormat GetCollectionFormat(ClassDeclarationSyntax classDeclaration, SemanticModel semanticModel)
+	private static CollectionFormat GetCollectionFormat(TypeDeclarationSyntax classDeclaration, SemanticModel semanticModel)
 		=> (CollectionFormat)GeneratorHelpers.GetNamedArgumentValue(classDeclaration, semanticModel, AttributeNames.ShortName, AttributeNames.FullName, nameof(GenerateToStringAttribute.CollectionFormat), (int)CollectionFormat.Count);
 
-	private static string? GetNullPlaceholder(ClassDeclarationSyntax classDeclaration, SemanticModel semanticModel)
+	private static string? GetNullPlaceholder(TypeDeclarationSyntax classDeclaration, SemanticModel semanticModel)
 		=> GeneratorHelpers.GetNamedArgumentValue<string?>(classDeclaration, semanticModel, AttributeNames.ShortName, AttributeNames.FullName, nameof(GenerateToStringAttribute.NullPlaceholder), null);
 
-	private static bool GetIncludeInherited(ClassDeclarationSyntax classDeclaration, SemanticModel semanticModel)
+	private static bool GetIncludeInherited(TypeDeclarationSyntax classDeclaration, SemanticModel semanticModel)
 		=> GeneratorHelpers.GetNamedArgumentValue(classDeclaration, semanticModel, AttributeNames.ShortName, AttributeNames.FullName, nameof(GenerateToStringAttribute.IncludeInherited), false);
 }

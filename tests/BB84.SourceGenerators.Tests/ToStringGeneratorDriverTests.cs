@@ -174,6 +174,58 @@ public sealed class ToStringGeneratorDriverTests
 		Assert.Contains("nameof(Own)", src);
 	}
 
+	[TestMethod]
+	public void RecordShouldOverridePrintMembers()
+	{
+		string src = Generate(@"
+	[GenerateToString]
+	public partial record RecordModel { public int Id { get; set; } public string Name { get; set; } }", "partial record RecordModel");
+
+		Assert.Contains("partial record RecordModel", src);
+		Assert.Contains("protected virtual bool PrintMembers(System.Text.StringBuilder builder)", src);
+		Assert.Contains("bool appended = false;", src);
+		Assert.Contains("builder.Append($\"{nameof(Id)} = \");", src);
+		Assert.DoesNotContain("public override string ToString()", src);
+	}
+
+	[TestMethod]
+	public void PositionalRecordShouldOverridePrintMembers()
+	{
+		string src = Generate(@"
+	[GenerateToString]
+	public partial record PositionalRecordModel(int Id, string Name);", "partial record PositionalRecordModel");
+
+		Assert.Contains("nameof(Id)", src);
+		Assert.Contains("nameof(Name)", src);
+		Assert.Contains("PrintMembers", src);
+	}
+
+	[TestMethod]
+	public void FormattableRecordShouldOverrideToStringDirectly()
+	{
+		string src = Generate(@"
+	[GenerateToString(Formattable = true)]
+	public partial record FormattableRecordModel { public int Value { get; set; } }", "partial record FormattableRecordModel");
+
+		Assert.Contains("partial record FormattableRecordModel : IFormattable", src);
+		Assert.Contains("public override string ToString()", src);
+		Assert.DoesNotContain("PrintMembers", src);
+	}
+
+	[TestMethod]
+	public void DerivedRecordPrintMembersShouldOverrideAndCallBase()
+	{
+		string src = Generate(@"
+	[GenerateToString]
+	public partial record BaseRecordModel { public int Id { get; set; } }
+
+	[GenerateToString]
+	public partial record DerivedRecordModel : BaseRecordModel { public string Name { get; set; } }", "partial record DerivedRecordModel");
+
+		Assert.Contains("protected override bool PrintMembers(System.Text.StringBuilder builder)", src);
+		Assert.Contains("bool appended = base.PrintMembers(builder);", src);
+	}
+
 	private static string Generate(string members, string marker)
 	{
 		string source = $@"
