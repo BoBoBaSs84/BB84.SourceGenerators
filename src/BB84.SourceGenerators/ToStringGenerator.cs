@@ -71,20 +71,7 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 		bool hasDictionary = collectionFormat == CollectionFormat.Elements
 			&& properties.Any(static p => p.CollectionKind == CollectionKind.Dictionary);
 
-		if (isRecord)
-		{
-			if (formattable)
-				sb.OpenRecord(accessibility, className, "IFormattable");
-			else
-				sb.OpenRecord(accessibility, className);
-		}
-		else
-		{
-			if (formattable)
-				sb.OpenClass(accessibility, className, "IFormattable");
-			else
-				sb.OpenClass(accessibility, className);
-		}
+		sb.OpenClassOrRecord(isRecord, accessibility, className, formattable ? "IFormattable" : null);
 
 		if (formattable)
 		{
@@ -129,10 +116,7 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 			AppendDictionaryFormatHelper(sb);
 		}
 
-		if (isRecord)
-			sb.CloseRecord();
-		else
-			sb.CloseClass();
+		sb.CloseClassOrRecord(isRecord);
 	}
 
 	private static void AppendToStringBody(SourceBuilder sb, string className, ImmutableArray<PropertyDescriptor> properties, CollectionFormat collectionFormat, string separator, string? nullPlaceholder, bool formattable)

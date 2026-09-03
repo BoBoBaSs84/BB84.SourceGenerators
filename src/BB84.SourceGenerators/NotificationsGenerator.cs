@@ -70,10 +70,7 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 		AppendProperties(sb, members, generatePropertyChanged, generatePropertyChanging, generateHasChanged);
 		AppendRaiseMethods(sb, generatePropertyChanged, generatePropertyChanging, isSealed);
 
-		if (ctx.IsRecord)
-			sb.CloseRecord();
-		else
-			sb.CloseClass();
+		sb.CloseClassOrRecord(ctx.IsRecord);
 		sb.CloseOuterClasses(ctx.OuterClasses);
 		sb.CloseNamespace();
 
@@ -102,10 +99,7 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 
 		string? baseTypes = interfaces.Count > 0 ? string.Join(", ", interfaces) : null;
 
-		if (isRecord)
-			sb.OpenRecord(accessibility, className, baseTypes);
-		else
-			sb.OpenClass(accessibility, className, baseTypes);
+		sb.OpenClassOrRecord(isRecord, accessibility, className, baseTypes);
 
 		if (propertyChanged)
 		{
