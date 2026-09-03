@@ -3,6 +3,7 @@
 //
 // This source code is licensed under the MIT license found in the
 // LICENSE file in the root directory of this source tree.
+using BB84.SourceGenerators.Analyzers;
 using BB84.SourceGenerators.Attributes;
 using BB84.SourceGenerators.Helpers;
 using BB84.SourceGenerators.Models;
@@ -25,12 +26,21 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 
 	/// <inheritdoc/>
 	public void Initialize(IncrementalGeneratorInitializationContext context)
-		=> GeneratorHelpers.RegisterClassGenerator(context, AttributeNames.MetadataName, Execute);
+		=> GeneratorHelpers.RegisterClassOrRecordGenerator(context, AttributeNames.MetadataName, Execute);
 
-	private void Execute(SourceProductionContext context, (ClassDeclarationSyntax ClassSyntax, SemanticModel SemanticModel)? input)
+	private void Execute(SourceProductionContext context, (TypeDeclarationSyntax TypeSyntax, SemanticModel SemanticModel)? input)
 	{
-		if (!GeneratorHelpers.TryCreateContext(input, out GeneratorContext ctx))
+		if (!GeneratorHelpers.TryCreateContext(input, out TypeGeneratorContext ctx))
 			return;
+
+		if (ctx.IsRecord && ctx.PositionalParameterList is not null)
+		{
+			context.ReportDiagnostic(Diagnostic.Create(
+				DiagnosticDescriptors.NotificationsPositionalRecordNotSupportedDiagnostic,
+				ctx.ClassDeclaration.Identifier.GetLocation(),
+				ctx.ClassName));
+			return;
+		}
 
 		bool generatePropertyChanged = GetPropertyChanged(ctx.ClassSymbol);
 		bool generatePropertyChanging = GetPropertyChanging(ctx.ClassSymbol);
@@ -56,11 +66,14 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 		sb.OpenNamespace(ctx.NamespaceName);
 		sb.OpenOuterClasses(ctx.OuterClasses);
 
-		AppendClassStart(sb, ctx.ClassName, ctx.Accessibility, generatePropertyChanged, generatePropertyChanging, generateHasChanged);
+		AppendClassStart(sb, ctx.ClassName, ctx.Accessibility, generatePropertyChanged, generatePropertyChanging, generateHasChanged, ctx.IsRecord);
 		AppendProperties(sb, members, generatePropertyChanged, generatePropertyChanging, generateHasChanged);
 		AppendRaiseMethods(sb, generatePropertyChanged, generatePropertyChanging, isSealed);
 
-		sb.CloseClass();
+		if (ctx.IsRecord)
+			sb.CloseRecord();
+		else
+			sb.CloseClass();
 		sb.CloseOuterClasses(ctx.OuterClasses);
 		sb.CloseNamespace();
 
@@ -78,7 +91,7 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 	private static bool GetHasChanged(INamedTypeSymbol namedTypeSymbol)
 		=> GeneratorHelpers.GetConstructorArgumentValue(namedTypeSymbol, AttributeNames.FullName, 2, false);
 
-	private static void AppendClassStart(SourceBuilder sb, string className, string accessibility, bool propertyChanged, bool propertyChanging, bool hasChanged)
+	private static void AppendClassStart(SourceBuilder sb, string className, string accessibility, bool propertyChanged, bool propertyChanging, bool hasChanged, bool isRecord)
 	{
 		List<string> interfaces = [];
 
@@ -89,7 +102,10 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 
 		string? baseTypes = interfaces.Count > 0 ? string.Join(", ", interfaces) : null;
 
-		sb.OpenClass(accessibility, className, baseTypes);
+		if (isRecord)
+			sb.OpenRecord(accessibility, className, baseTypes);
+		else
+			sb.OpenClass(accessibility, className, baseTypes);
 
 		if (propertyChanged)
 		{

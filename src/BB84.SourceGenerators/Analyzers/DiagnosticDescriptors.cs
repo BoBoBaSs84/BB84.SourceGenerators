@@ -165,4 +165,16 @@ internal static class DiagnosticDescriptors
 		category: "BB84.SourceGenerators",
 		defaultSeverity: DiagnosticSeverity.Error,
 		isEnabledByDefault: true);
+
+	/// <summary>
+	/// Represents a diagnostic error indicating that the [GenerateNotifications] attribute has been applied to
+	/// a positional record, which has no body-declared fields to convert into notification properties.
+	/// </summary>
+	internal static readonly DiagnosticDescriptor NotificationsPositionalRecordNotSupportedDiagnostic = new(
+		id: "BB84SG0014",
+		title: "GenerateNotifications cannot be applied to positional records",
+		messageFormat: "The [GenerateNotifications] attribute cannot be applied to positional record '{0}' because it has no body-declared fields to convert into notification properties",
+		category: "BB84.SourceGenerators",
+		defaultSeverity: DiagnosticSeverity.Error,
+		isEnabledByDefault: true);
 }

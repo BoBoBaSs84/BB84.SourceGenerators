@@ -337,6 +337,86 @@ internal static class GeneratorHelpers
 	}
 
 	/// <summary>
+	/// Transforms a <see cref="GeneratorAttributeSyntaxContext"/> into a tuple of type declaration syntax and
+	/// semantic model, accepting both class and record (record class) declarations.
+	/// </summary>
+	/// <param name="context">The generator attribute syntax context.</param>
+	/// <returns>
+	/// A tuple of type declaration syntax and semantic model, or <see langword="null"/> if the target node is
+	/// not a class declaration or a record (non-struct) declaration.
+	/// </returns>
+	internal static (TypeDeclarationSyntax TypeSyntax, SemanticModel SemanticModel)? TransformClassOrRecordSyntax(GeneratorAttributeSyntaxContext context)
+	{
+		if (context.TargetNode is ClassDeclarationSyntax classSyntax)
+			return (classSyntax, context.SemanticModel);
+
+		if (context.TargetNode is RecordDeclarationSyntax recordSyntax && !recordSyntax.ClassOrStructKeyword.IsKind(SyntaxKind.StructKeyword))
+			return (recordSyntax, context.SemanticModel);
+
+		return null;
+	}
+
+	/// <summary>
+	/// Registers a class-or-record-based incremental source generator pipeline that filters for classes and
+	/// records (excluding record structs) decorated with the specified attribute, transforms them via
+	/// <see cref="TransformClassOrRecordSyntax"/>, and invokes the provided <paramref name="execute"/> callback.
+	/// </summary>
+	/// <param name="context">The generator initialization context.</param>
+	/// <param name="attributeMetadataName">The fully qualified metadata name of the trigger attribute.</param>
+	/// <param name="execute">The callback to execute for each matched class or record.</param>
+	internal static void RegisterClassOrRecordGenerator(
+		IncrementalGeneratorInitializationContext context,
+		string attributeMetadataName,
+		Action<SourceProductionContext, (TypeDeclarationSyntax TypeSyntax, SemanticModel SemanticModel)?> execute)
+	{
+		IncrementalValuesProvider<(TypeDeclarationSyntax TypeSyntax, SemanticModel SemanticModel)?> provider =
+			context.SyntaxProvider
+				.ForAttributeWithMetadataName(
+					fullyQualifiedMetadataName: attributeMetadataName,
+					predicate: static (node, _) => node is ClassDeclarationSyntax
+						|| (node is RecordDeclarationSyntax record && !record.ClassOrStructKeyword.IsKind(SyntaxKind.StructKeyword)),
+					transform: static (ctx, _) => TransformClassOrRecordSyntax(ctx))
+				.Where(static result => result is not null);
+
+		context.RegisterSourceOutput(provider, execute);
+	}
+
+	/// <summary>
+	/// Attempts to create a <see cref="TypeGeneratorContext"/> from the given input tuple.
+	/// Resolves the type symbol, extracts name, namespace, accessibility, outer classes, and record-related
+	/// information.
+	/// </summary>
+	/// <param name="input">The input tuple from the incremental pipeline, or <see langword="null"/>.</param>
+	/// <param name="context">When this method returns <see langword="true"/>, contains the created context.</param>
+	/// <returns><see langword="true"/> if the context was created successfully; otherwise, <see langword="false"/>.</returns>
+	internal static bool TryCreateContext(
+		(TypeDeclarationSyntax TypeSyntax, SemanticModel SemanticModel)? input,
+		out TypeGeneratorContext context)
+	{
+		context = null!;
+
+		if (input is null)
+			return false;
+
+		TypeDeclarationSyntax typeDeclaration = input.Value.TypeSyntax;
+		SemanticModel semanticModel = input.Value.SemanticModel;
+
+		INamedTypeSymbol? typeSymbol = semanticModel.GetDeclaredSymbol(typeDeclaration);
+		if (typeSymbol is null)
+			return false;
+
+		string typeName = typeSymbol.Name;
+		string namespaceName = typeDeclaration.GetNamespace();
+		string accessibility = GetAccessibility(typeDeclaration);
+		List<(string Accessibility, string Name)> outerClasses = GetOuterClasses(typeDeclaration);
+		bool isRecord = typeDeclaration is RecordDeclarationSyntax;
+		ParameterListSyntax? positionalParameterList = (typeDeclaration as RecordDeclarationSyntax)?.ParameterList;
+
+		context = new TypeGeneratorContext(typeDeclaration, semanticModel, typeSymbol, typeName, namespaceName, accessibility, outerClasses, isRecord, positionalParameterList);
+		return true;
+	}
+
+	/// <summary>
 	/// Gets all public readable properties from the given class symbol, optionally excluding specific properties.
 	/// Properties must be public, non-static, and have a getter.
 	/// </summary>
