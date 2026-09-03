@@ -131,6 +131,22 @@ public sealed class NotificationsGeneratorTests
 		CollectionAssert.Contains(changingProperties, nameof(model.Age));
 		CollectionAssert.Contains(changingProperties, nameof(model.YearOfBirth));
 	}
+
+	[TestMethod]
+	public void RecordShouldRaiseNotifications()
+	{
+		int changingCount = 0;
+		int changedCount = 0;
+		NotificationRecordModel model = new();
+		model.PropertyChanging += (s, e) => changingCount++;
+		model.PropertyChanged += (s, e) => changedCount++;
+
+		model.Id = 1;
+		model.Name = "Test";
+
+		Assert.AreEqual(2, changingCount);
+		Assert.AreEqual(2, changedCount);
+	}
 }
 
 [GenerateNotifications]
@@ -197,4 +213,11 @@ public partial class AlsoNotifyModel
 	public string? FullName => $"{_firstName} {_lastName}";
 	public int? Age => _dateOfBirth.HasValue ? (int)((DateTime.UtcNow - _dateOfBirth.Value).TotalDays / 365.25) : null;
 	public int? YearOfBirth => _dateOfBirth?.Year;
+}
+
+[GenerateNotifications]
+public partial record NotificationRecordModel
+{
+	private int _id;
+	private string? _name;
 }

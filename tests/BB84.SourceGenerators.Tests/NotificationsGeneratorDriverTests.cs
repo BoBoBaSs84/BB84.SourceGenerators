@@ -106,6 +106,50 @@ namespace TestNamespace
 		Assert.Contains("RaisePropertyChanging(nameof(FullName))", generated);
 	}
 
+	[TestMethod]
+	public void ShouldGenerateSourceForRecordClass()
+	{
+		string source = @"
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+	[GenerateNotifications]
+	public partial record NotifyRecordModel
+	{
+		private int _id;
+		private string _name;
+	}
+}";
+
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources) = RunGenerator(source);
+
+		Assert.IsEmpty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+		Assert.IsNotEmpty(generatedSources);
+		string generated = generatedSources.First(s => s.Contains("NotifyRecordModel"));
+		Assert.Contains("partial record NotifyRecordModel", generated);
+		Assert.Contains("INotifyPropertyChanged", generated);
+	}
+
+	[TestMethod]
+	public void ShouldReportDiagnosticForPositionalRecord()
+	{
+		string source = @"
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+	[GenerateNotifications]
+	public partial record PositionalNotifyModel(int Id, string Name);
+}";
+
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources) = RunGenerator(source);
+
+		Diagnostic diagnostic = diagnostics.Single(d => d.Id == "BB84SG0014");
+		Assert.AreEqual(DiagnosticSeverity.Error, diagnostic.Severity);
+		Assert.IsFalse(generatedSources.Any(s => s.Contains("PositionalNotifyModel")));
+	}
+
 	private static (ImmutableArray<Diagnostic> Diagnostics, string[] GeneratedSources) RunGenerator(string source)
 	{
 		SyntaxTree syntaxTree = CSharpSyntaxTree.ParseText(source);

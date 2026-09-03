@@ -147,6 +147,28 @@ Automatically generates properties with `INotifyPropertyChanged` and/or `INotify
 - `[AlsoNotify(...)]` - Specifies additional property names that should raise change notifications when the decorated field changes. Works for both `PropertyChanged` and `PropertyChanging` events.
 - `[ExcludeFromNotification]` - Excludes the decorated field from notification property generation. The field will not have a corresponding public property generated.
 
+#### Record Support
+
+`[GenerateNotifications]` can also target `record` (record class) declarations, with the generated members emitted inside a `partial record`. Field-to-property conversion works exactly as for classes, as long as the record declares its fields in the body:
+
+```csharp
+[GenerateNotifications]
+public partial record PersonRecord
+{
+    private string _firstName;
+    private string _lastName;
+}
+```
+
+**Positional records are not supported** - a record with a primary constructor parameter list (e.g. `record PersonRecord(string FirstName, string LastName);`) has no body-declared fields to convert into notification properties, so applying `[GenerateNotifications]` to one is a compile-time error (`BB84SG0014`):
+
+```csharp
+// Error BB84SG0014: The [GenerateNotifications] attribute cannot be applied to positional record
+// 'PersonRecord' because it has no body-declared fields to convert into notification properties
+[GenerateNotifications]
+public partial record PersonRecord(string FirstName, string LastName);
+```
+
 #### Example
 
 ```csharp
