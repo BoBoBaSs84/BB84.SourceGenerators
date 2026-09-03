@@ -236,6 +236,25 @@ internal sealed class SourceBuilder
 	}
 
 	/// <summary>
+	/// Opens a class or record declaration, for generators that support both class and record targets.
+	/// </summary>
+	/// <param name="isRecord">When <see langword="true"/>, opens a record declaration; otherwise, a class declaration.</param>
+	/// <param name="accessibility">The accessibility modifier.</param>
+	/// <param name="typeName">The class or record name.</param>
+	/// <param name="baseTypes">Optional base types / interfaces to implement.</param>
+	/// <returns>The current <see cref="SourceBuilder"/> instance.</returns>
+	public SourceBuilder OpenClassOrRecord(bool isRecord, string accessibility, string typeName, string? baseTypes = null)
+		=> isRecord ? OpenRecord(accessibility, typeName, baseTypes) : OpenClass(accessibility, typeName, baseTypes);
+
+	/// <summary>
+	/// Closes the current class or record block opened via <see cref="OpenClassOrRecord"/>.
+	/// </summary>
+	/// <param name="isRecord">When <see langword="true"/>, closes a record declaration; otherwise, a class declaration.</param>
+	/// <returns>The current <see cref="SourceBuilder"/> instance.</returns>
+	public SourceBuilder CloseClassOrRecord(bool isRecord)
+		=> isRecord ? CloseRecord() : CloseClass();
+
+	/// <summary>
 	/// Opens a record struct declaration.
 	/// </summary>
 	/// <param name="accessibility">The accessibility modifier.</param>
