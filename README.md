@@ -723,6 +723,34 @@ Generates a `ToString()` override for classes, returning a formatted string cont
 
 `null` collections are always rendered as `null` regardless of the format mode.
 
+#### Record Support
+
+`[GenerateToString]` also targets `record` (record class) declarations, including positional records. By default (`Formattable = false`, the common case) the generator overrides the record's compiler-synthesized `PrintMembers(StringBuilder)` hook instead of `ToString()` directly. This keeps the record's own compiler-generated `ToString()` wrapper (`"TypeName { " + members + " }"`) and its normal `PrintMembers` inheritance chain — a derived record's generated `PrintMembers` calls `base.PrintMembers(builder)` first, exactly like a hand-written record override would:
+
+```csharp
+[GenerateToString]
+public partial record Person
+{
+    public string FirstName { get; set; }
+    public string LastName { get; set; }
+}
+
+[GenerateToString]
+public partial record PersonSummary(int Id, string DisplayName);
+
+[GenerateToString]
+public partial record Employee : Person
+{
+    public string Department { get; set; }
+}
+
+// Person { FirstName = John, LastName = Doe }
+// PersonSummary { Id = 1, DisplayName = J. Doe }
+// Employee { FirstName = John, LastName = Doe, Department = Sales }  <- chains PrintMembers from Person
+```
+
+When `Formattable = true`, the generator falls back to directly overriding `ToString()` and `ToString(string?, IFormatProvider?)` — the same code path used for classes — because `PrintMembers` has no way to carry a format string or `IFormatProvider`. This is an intentional trade-off: a formattable record no longer benefits from the compiler-synthesized `ToString()` wrapper.
+
 #### Example
 
 ```csharp

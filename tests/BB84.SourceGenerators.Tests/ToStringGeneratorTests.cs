@@ -555,6 +555,36 @@ public sealed class ToStringGeneratorTests
 
 		Assert.AreEqual(expected, result);
 	}
+
+	[TestMethod]
+	public void RecordToStringShouldMatchCompilerFormat()
+	{
+		ToStringRecordModel model = new() { Id = 1, Name = "Test" };
+		Assert.AreEqual("ToStringRecordModel { Id = 1, Name = Test }", model.ToString());
+	}
+
+	[TestMethod]
+	public void PositionalRecordToStringShouldIncludeProperties()
+	{
+		ToStringPositionalRecordModel model = new(1, "Test");
+		Assert.AreEqual("ToStringPositionalRecordModel { Id = 1, Name = Test }", model.ToString());
+	}
+
+	[TestMethod]
+	public void DerivedRecordToStringShouldChainBaseMembers()
+	{
+		ToStringDerivedRecordModel model = new() { Id = 1, Name = "X" };
+		Assert.AreEqual("ToStringDerivedRecordModel { Id = 1, Name = X }", model.ToString());
+	}
+
+	[TestMethod]
+	public void FormattableRecordToStringShouldImplementIFormattable()
+	{
+		ToStringFormattableRecordModel model = new() { Value = 42 };
+		IFormattable formattable = model;
+		Assert.AreEqual("ToStringFormattableRecordModel { Value = 42 }", formattable.ToString(null, null));
+		Assert.AreEqual(model.ToString(), formattable.ToString(null, null));
+	}
 }
 
 [GenerateToString]
@@ -732,4 +762,32 @@ public partial class ToStringNoInheritTestModel : ToStringBaseModel
 public partial class ToStringInheritedExcludeTestModel : ToStringBaseModel
 {
 	public string? Extra { get; set; }
+}
+
+[GenerateToString]
+public partial record ToStringRecordModel
+{
+	public int Id { get; set; }
+	public string? Name { get; set; }
+}
+
+[GenerateToString]
+public partial record ToStringPositionalRecordModel(int Id, string Name);
+
+[GenerateToString]
+public partial record ToStringBaseRecordModel
+{
+	public int Id { get; set; }
+}
+
+[GenerateToString]
+public partial record ToStringDerivedRecordModel : ToStringBaseRecordModel
+{
+	public string? Name { get; set; }
+}
+
+[GenerateToString(Formattable = true)]
+public partial record ToStringFormattableRecordModel
+{
+	public int Value { get; set; }
 }
