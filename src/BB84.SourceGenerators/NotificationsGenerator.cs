@@ -24,6 +24,9 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 	private static readonly (string MetadataName, string FullName, string ShortName) AttributeNames =
 		GeneratorHelpers.GetAttributeNames<GenerateNotificationsAttribute>();
 
+	private static readonly SymbolDisplayFormat PropertyTypeFormat =
+		SymbolDisplayFormat.FullyQualifiedFormat.AddMiscellaneousOptions(SymbolDisplayMiscellaneousOptions.IncludeNullableReferenceTypeModifier);
+
 	/// <inheritdoc/>
 	public void Initialize(IncrementalGeneratorInitializationContext context)
 		=> GeneratorHelpers.RegisterClassOrRecordGenerator(context, AttributeNames.MetadataName, Execute);
@@ -54,6 +57,8 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 			.Where(field => field is not null)
 			.Where(field => !HasAttribute(field, nameof(ExcludeFromNotificationAttribute)))];
 
+		List<PartialPropertyInfo> partialProperties = GetPartialProperties(context, ctx);
+
 		bool isSealed = ctx.ClassDeclaration.Modifiers.Any(SyntaxKind.SealedKeyword);
 
 		SourceBuilder sb = new();
@@ -68,6 +73,7 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 
 		AppendClassStart(sb, ctx.ClassName, ctx.Accessibility, generatePropertyChanged, generatePropertyChanging, generateHasChanged, ctx.IsRecord);
 		AppendProperties(sb, members, generatePropertyChanged, generatePropertyChanging, generateHasChanged);
+		AppendPartialProperties(sb, partialProperties, members.Count > 0, generatePropertyChanged, generatePropertyChanging, generateHasChanged);
 		AppendRaiseMethods(sb, generatePropertyChanged, generatePropertyChanging, isSealed);
 
 		sb.CloseClassOrRecord(ctx.IsRecord);
@@ -162,32 +168,139 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 				sb.OpenBrace();
 				sb.AppendLine($"get => {fieldName};");
 				sb.AppendLine("set");
-				sb.OpenBrace();
-				sb.AppendLine($"if ({fieldName} != value)");
-				sb.OpenBrace();
-				if (propertyChanging)
-				{
-					if (alsoNotifyFor.Count == 0)
-						sb.AppendLine($"RaisePropertyChanging(nameof({propertyName}));");
-					else
-						sb.AppendLine($"RaisePropertyChanging(nameof({propertyName}), {string.Join(", ", alsoNotifyFor.Select(p => $"nameof({p})"))});");
-				}
-				sb.AppendLine($"{fieldName} = value;");
-				if (propertyChanged)
-				{
-					if (alsoNotifyFor.Count == 0)
-						sb.AppendLine($"RaisePropertyChanged(nameof({propertyName}));");
-					else
-						sb.AppendLine($"RaisePropertyChanged(nameof({propertyName}), {string.Join(", ", alsoNotifyFor.Select(p => $"nameof({p})"))});");
-				}
-				if (hasChanged)
-					sb.AppendLine("HasChanged = true;");
-				sb.CloseBrace();
-				sb.CloseBrace();
+				AppendNotifyingSetterBody(sb, fieldName, propertyName, alsoNotifyFor, propertyChanged, propertyChanging, hasChanged);
 				sb.CloseBrace();
 			}
 		}
 	}
+
+	private static void AppendPartialProperties(SourceBuilder sb, List<PartialPropertyInfo> properties, bool hasPrecedingMembers, bool propertyChanged, bool propertyChanging, bool hasChanged)
+	{
+		bool first = !hasPrecedingMembers;
+		foreach (PartialPropertyInfo property in properties)
+		{
+			if (!first)
+				sb.AppendLine();
+			first = false;
+
+			string initializer = property.Symbol.Type.IsReferenceType && property.Symbol.Type.NullableAnnotation != NullableAnnotation.Annotated
+				? " = default!;"
+				: ";";
+
+			sb.AppendLine($"private {property.TypeName} {property.FieldName}{initializer}");
+			sb.AppendLine();
+			sb.AppendLine($"{property.Syntax.Modifiers} {property.TypeName} {property.Syntax.Identifier.Text}");
+			sb.OpenBrace();
+			sb.AppendLine($"{GetAccessorPrefix(property.Getter)}get => {property.FieldName};");
+
+			if (property.IsExcluded)
+			{
+				sb.AppendLine($"{GetAccessorPrefix(property.Setter)}set => {property.FieldName} = value;");
+			}
+			else
+			{
+				List<string> alsoNotifyFor = GetAlsoNotifyForProperties(property.Syntax);
+				sb.AppendLine($"{GetAccessorPrefix(property.Setter)}set");
+				AppendNotifyingSetterBody(sb, property.FieldName, property.Syntax.Identifier.Text, alsoNotifyFor, propertyChanged, propertyChanging, hasChanged);
+			}
+
+			sb.CloseBrace();
+		}
+	}
+
+	private static void AppendNotifyingSetterBody(SourceBuilder sb, string fieldName, string propertyName, List<string> alsoNotifyFor, bool propertyChanged, bool propertyChanging, bool hasChanged)
+	{
+		sb.OpenBrace();
+		sb.AppendLine($"if ({fieldName} != value)");
+		sb.OpenBrace();
+		if (propertyChanging)
+		{
+			if (alsoNotifyFor.Count == 0)
+				sb.AppendLine($"RaisePropertyChanging(nameof({propertyName}));");
+			else
+				sb.AppendLine($"RaisePropertyChanging(nameof({propertyName}), {string.Join(", ", alsoNotifyFor.Select(p => $"nameof({p})"))});");
+		}
+		sb.AppendLine($"{fieldName} = value;");
+		if (propertyChanged)
+		{
+			if (alsoNotifyFor.Count == 0)
+				sb.AppendLine($"RaisePropertyChanged(nameof({propertyName}));");
+			else
+				sb.AppendLine($"RaisePropertyChanged(nameof({propertyName}), {string.Join(", ", alsoNotifyFor.Select(p => $"nameof({p})"))});");
+		}
+		if (hasChanged)
+			sb.AppendLine("HasChanged = true;");
+		sb.CloseBrace();
+		sb.CloseBrace();
+	}
+
+	private static string GetAccessorPrefix(AccessorDeclarationSyntax accessor)
+		=> accessor.Modifiers.Count == 0 ? string.Empty : $"{accessor.Modifiers} ";
+
+	/// <summary>
+	/// Collects the partial property defining declarations of the type and reports diagnostics
+	/// for those that cannot be implemented with change notification.
+	/// </summary>
+	/// <param name="context">The source production context used to report diagnostics.</param>
+	/// <param name="ctx">The type generator context.</param>
+	/// <returns>The partial properties that can be implemented.</returns>
+	private static List<PartialPropertyInfo> GetPartialProperties(SourceProductionContext context, TypeGeneratorContext ctx)
+	{
+		List<PartialPropertyInfo> properties = [];
+
+		foreach (PropertyDeclarationSyntax property in ctx.ClassDeclaration.Members.OfType<PropertyDeclarationSyntax>())
+		{
+			if (!property.Modifiers.Any(SyntaxKind.PartialKeyword) || !IsDefiningDeclaration(property))
+				continue;
+
+			if (ctx.SemanticModel.GetDeclaredSymbol(property) is not IPropertySymbol symbol)
+				continue;
+
+			string propertyName = property.Identifier.Text;
+			Location location = property.Identifier.GetLocation();
+
+			if (property.Modifiers.Any(SyntaxKind.StaticKeyword))
+			{
+				context.ReportDiagnostic(Diagnostic.Create(DiagnosticDescriptors.NotificationsStaticPartialPropertyDiagnostic, location, propertyName));
+				continue;
+			}
+
+			AccessorDeclarationSyntax? getter = property.AccessorList!.Accessors.FirstOrDefault(a => a.IsKind(SyntaxKind.GetAccessorDeclaration));
+			AccessorDeclarationSyntax? setter = property.AccessorList.Accessors.FirstOrDefault(a => a.IsKind(SyntaxKind.SetAccessorDeclaration));
+
+			if (getter is null || setter is null)
+			{
+				context.ReportDiagnostic(Diagnostic.Create(DiagnosticDescriptors.NotificationsPartialPropertyRequiresSetterDiagnostic, location, propertyName));
+				continue;
+			}
+
+			string fieldName = PropertyNameToFieldName(propertyName);
+
+			if (!ctx.ClassSymbol.GetMembers(fieldName).IsEmpty)
+			{
+				context.ReportDiagnostic(Diagnostic.Create(DiagnosticDescriptors.NotificationsBackingFieldConflictDiagnostic, location, propertyName, fieldName));
+				continue;
+			}
+
+			string typeName = symbol.Type.ToDisplayString(PropertyTypeFormat);
+			bool isExcluded = HasAttribute(property, nameof(ExcludeFromNotificationAttribute));
+
+			properties.Add(new PartialPropertyInfo(property, symbol, getter, setter, typeName, fieldName, isExcluded));
+		}
+
+		return properties;
+	}
+
+	/// <summary>
+	/// Determines whether the given partial property is a defining declaration, i.e. it has an
+	/// accessor list and none of its accessors has an implementation.
+	/// </summary>
+	/// <param name="property">The property declaration syntax.</param>
+	/// <returns><see langword="true"/> if the property is a defining declaration; otherwise, <see langword="false"/>.</returns>
+	private static bool IsDefiningDeclaration(PropertyDeclarationSyntax property)
+		=> property.AccessorList is not null
+			&& property.ExpressionBody is null
+			&& property.AccessorList.Accessors.All(static a => a.Body is null && a.ExpressionBody is null);
 
 	private static void AppendRaiseMethods(SourceBuilder sb, bool propertyChanged, bool propertyChanging, bool isSealed)
 	{
@@ -265,11 +378,20 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 		return $"{char.ToUpperInvariant(fieldName[0])}{fieldName[1..]}";
 	}
 
-	private static bool HasAttribute(FieldDeclarationSyntax field, string attributeName)
+	/// <summary>
+	/// Converts a property name to a backing field name by prefixing an underscore
+	/// and lowercasing the first letter.
+	/// </summary>
+	/// <param name="propertyName">The property name to convert.</param>
+	/// <returns>The converted field name.</returns>
+	private static string PropertyNameToFieldName(string propertyName)
+		=> $"_{char.ToLowerInvariant(propertyName[0])}{propertyName[1..]}";
+
+	private static bool HasAttribute(MemberDeclarationSyntax member, string attributeName)
 	{
 		string shortName = GeneratorHelpers.StripAttributeSuffix(attributeName);
 
-		foreach (AttributeListSyntax attributeList in field.AttributeLists)
+		foreach (AttributeListSyntax attributeList in member.AttributeLists)
 		{
 			foreach (AttributeSyntax attribute in attributeList.Attributes)
 			{
@@ -282,13 +404,13 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 		return false;
 	}
 
-	private static List<string> GetAlsoNotifyForProperties(FieldDeclarationSyntax field)
+	private static List<string> GetAlsoNotifyForProperties(MemberDeclarationSyntax member)
 	{
 		List<string> properties = [];
 		string fullName = nameof(AlsoNotifyAttribute);
 		string shortName = GeneratorHelpers.StripAttributeSuffix(fullName);
 
-		foreach (AttributeListSyntax attributeList in field.AttributeLists)
+		foreach (AttributeListSyntax attributeList in member.AttributeLists)
 		{
 			foreach (AttributeSyntax attribute in attributeList.Attributes)
 			{
@@ -316,4 +438,23 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 
 		return properties;
 	}
+
+	/// <summary>
+	/// Describes a partial property defining declaration that will be implemented by the generator.
+	/// </summary>
+	/// <param name="Syntax">The defining declaration syntax.</param>
+	/// <param name="Symbol">The property symbol.</param>
+	/// <param name="Getter">The <c>get</c> accessor of the defining declaration.</param>
+	/// <param name="Setter">The <c>set</c> accessor of the defining declaration.</param>
+	/// <param name="TypeName">The fully qualified property type name.</param>
+	/// <param name="FieldName">The name of the generated backing field.</param>
+	/// <param name="IsExcluded">Indicates whether the property is excluded from change notification.</param>
+	private sealed record PartialPropertyInfo(
+		PropertyDeclarationSyntax Syntax,
+		IPropertySymbol Symbol,
+		AccessorDeclarationSyntax Getter,
+		AccessorDeclarationSyntax Setter,
+		string TypeName,
+		string FieldName,
+		bool IsExcluded);
 }
