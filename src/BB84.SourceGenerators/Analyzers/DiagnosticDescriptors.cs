@@ -177,4 +177,40 @@ internal static class DiagnosticDescriptors
 		category: "BB84.SourceGenerators",
 		defaultSeverity: DiagnosticSeverity.Error,
 		isEnabledByDefault: true);
+
+	/// <summary>
+	/// Represents a diagnostic error indicating that a partial property in a [GenerateNotifications] type
+	/// does not declare both a <c>get</c> and a <c>set</c> accessor.
+	/// </summary>
+	internal static readonly DiagnosticDescriptor NotificationsPartialPropertyRequiresSetterDiagnostic = new(
+		id: "BB84SG0015",
+		title: "GenerateNotifications partial property requires get and set accessors",
+		messageFormat: "The partial property '{0}' must declare both a 'get' and a 'set' accessor to raise change notifications",
+		category: "BB84.SourceGenerators",
+		defaultSeverity: DiagnosticSeverity.Error,
+		isEnabledByDefault: true);
+
+	/// <summary>
+	/// Represents a diagnostic error indicating that the generated backing field for a partial property
+	/// in a [GenerateNotifications] type collides with an existing member.
+	/// </summary>
+	internal static readonly DiagnosticDescriptor NotificationsBackingFieldConflictDiagnostic = new(
+		id: "BB84SG0016",
+		title: "GenerateNotifications backing field name conflict",
+		messageFormat: "The backing field '{1}' for partial property '{0}' collides with an existing member",
+		category: "BB84.SourceGenerators",
+		defaultSeverity: DiagnosticSeverity.Error,
+		isEnabledByDefault: true);
+
+	/// <summary>
+	/// Represents a diagnostic error indicating that a static partial property has been declared in a
+	/// [GenerateNotifications] type, which is not supported.
+	/// </summary>
+	internal static readonly DiagnosticDescriptor NotificationsStaticPartialPropertyDiagnostic = new(
+		id: "BB84SG0017",
+		title: "GenerateNotifications does not support static partial properties",
+		messageFormat: "The static partial property '{0}' is not supported by the [GenerateNotifications] attribute",
+		category: "BB84.SourceGenerators",
+		defaultSeverity: DiagnosticSeverity.Error,
+		isEnabledByDefault: true);
 }

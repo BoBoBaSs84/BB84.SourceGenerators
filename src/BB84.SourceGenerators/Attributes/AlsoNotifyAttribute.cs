@@ -6,12 +6,12 @@
 namespace BB84.SourceGenerators.Attributes;
 
 /// <summary>
-/// Specifies additional property names that should be notified when the decorated field changes.
+/// Specifies additional property names that should be notified when the decorated field or partial property changes.
 /// This attribute is used in conjunction with the <see cref="GenerateNotificationsAttribute"/> to
 /// raise property changed and property changing notifications for related properties.
 /// </summary>
 /// <param name="propertyNames">The names of the additional properties to notify.</param>
-[AttributeUsage(AttributeTargets.Field, Inherited = false, AllowMultiple = false)]
+[AttributeUsage(AttributeTargets.Field | AttributeTargets.Property, Inherited = false, AllowMultiple = false)]
 internal sealed class AlsoNotifyAttribute(params string[] propertyNames) : Attribute
 {
 	/// <summary>

@@ -3,6 +3,8 @@
 //
 // This source code is licensed under the MIT license found in the
 // LICENSE file in the root directory of this source tree.
+using System.Reflection;
+
 using BB84.SourceGenerators.Attributes;
 
 namespace BB84.SourceGenerators.Tests;
@@ -147,6 +149,138 @@ public sealed class NotificationsGeneratorTests
 		Assert.AreEqual(2, changingCount);
 		Assert.AreEqual(2, changedCount);
 	}
+
+	[TestMethod]
+	public void PartialPropertiesShouldRaiseNotifications()
+	{
+		List<string> changedProperties = [];
+		List<string> changingProperties = [];
+		PartialPropertyModel model = new();
+		model.PropertyChanged += (s, e) => changedProperties.Add(e.PropertyName!);
+		model.PropertyChanging += (s, e) => changingProperties.Add(e.PropertyName!);
+
+		model.Name = "Test";
+		model.Count = 5;
+		model.UpdatedAt = DateTime.MinValue;
+		model.IncrementVersion();
+
+		Assert.AreEqual("Test", model.Name);
+		Assert.AreEqual(5, model.Count);
+		Assert.AreEqual(DateTime.MinValue, model.UpdatedAt);
+		Assert.AreEqual(1, model.Version);
+		string[] expected = [nameof(model.Name), nameof(model.Count), nameof(model.UpdatedAt), nameof(model.Version)];
+		CollectionAssert.AreEqual(expected, changedProperties);
+		CollectionAssert.AreEqual(expected, changingProperties);
+	}
+
+	[TestMethod]
+	public void PartialPropertiesShouldNotNotifyWhenValueIsUnchanged()
+	{
+		int changedCount = 0;
+		PartialPropertyModel model = new() { Name = "Test" };
+		model.PropertyChanged += (s, e) => changedCount++;
+
+		model.Name = "Test";
+
+		Assert.AreEqual(0, changedCount);
+	}
+
+	[TestMethod]
+	public void PartialPropertiesShouldRespectDeclaredAccessibility()
+	{
+		const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+		Type type = typeof(PartialPropertyModel);
+
+		Assert.IsTrue(type.GetProperty(nameof(PartialPropertyModel.Name), flags)!.GetMethod!.IsPublic);
+		Assert.IsTrue(type.GetProperty(nameof(PartialPropertyModel.Count), flags)!.GetMethod!.IsAssembly);
+		Assert.IsTrue(type.GetProperty(nameof(PartialPropertyModel.UpdatedAt), flags)!.GetMethod!.IsFamilyOrAssembly);
+		Assert.IsTrue(type.GetProperty("Notes", flags)!.GetMethod!.IsFamily);
+
+		PropertyInfo version = type.GetProperty(nameof(PartialPropertyModel.Version), flags)!;
+		Assert.IsTrue(version.GetMethod!.IsPublic);
+		Assert.IsTrue(version.SetMethod!.IsPrivate);
+	}
+
+	[TestMethod]
+	public void PartialPropertyAlsoNotifyShouldRaiseAdditionalNotifications()
+	{
+		List<string> changedProperties = [];
+		List<string> changingProperties = [];
+		PartialPropertyAlsoNotifyModel model = new();
+		model.PropertyChanged += (s, e) => changedProperties.Add(e.PropertyName!);
+		model.PropertyChanging += (s, e) => changingProperties.Add(e.PropertyName!);
+
+		model.FirstName = "John";
+
+		CollectionAssert.AreEqual(new[] { nameof(model.FirstName), nameof(model.FullName) }, changedProperties);
+		CollectionAssert.AreEqual(new[] { nameof(model.FirstName), nameof(model.FullName) }, changingProperties);
+	}
+
+	[TestMethod]
+	public void PartialPropertyExcludeFromNotificationShouldStoreValueWithoutNotification()
+	{
+		int changedCount = 0;
+		int changingCount = 0;
+		PartialPropertyExcludeModel model = new();
+		model.PropertyChanged += (s, e) => changedCount++;
+		model.PropertyChanging += (s, e) => changingCount++;
+
+		model.Secret = "hidden";
+
+		Assert.AreEqual("hidden", model.Secret);
+		Assert.AreEqual(0, changedCount);
+		Assert.AreEqual(0, changingCount);
+		Assert.IsFalse(model.HasChanged);
+	}
+
+	[TestMethod]
+	public void PartialPropertyHasChangedShouldBeSetOnPropertyChange()
+	{
+		PartialPropertyExcludeModel model = new();
+
+		model.Name = "Changed";
+
+		Assert.IsTrue(model.HasChanged);
+	}
+
+	[TestMethod]
+	public void SealedPartialPropertyModelShouldCompileAndWork()
+	{
+		int changedCount = 0;
+		SealedPartialPropertyModel model = new();
+		model.PropertyChanged += (s, e) => changedCount++;
+
+		model.Value = 42;
+
+		Assert.AreEqual(42, model.Value);
+		Assert.AreEqual(1, changedCount);
+	}
+
+	[TestMethod]
+	public void PartialPropertyRecordShouldRaiseNotifications()
+	{
+		int changedCount = 0;
+		PartialPropertyRecordModel model = new();
+		model.PropertyChanged += (s, e) => changedCount++;
+
+		model.Name = "Test";
+
+		Assert.AreEqual("Test", model.Name);
+		Assert.AreEqual(1, changedCount);
+	}
+
+	[TestMethod]
+	public void MixedFieldsAndPartialPropertiesShouldRaiseNotifications()
+	{
+		List<string> changedProperties = [];
+		MixedFieldAndPartialPropertyModel model = new();
+		model.PropertyChanged += (s, e) => changedProperties.Add(e.PropertyName!);
+
+		model.Id = 1;
+		model.Name = "Test";
+
+		CollectionAssert.AreEqual(new[] { nameof(model.Id), nameof(model.Name) }, changedProperties);
+	}
 }
 
 [GenerateNotifications]
@@ -220,4 +354,65 @@ public partial record NotificationRecordModel
 {
 	private int _id;
 	private string? _name;
+}
+
+[GenerateNotifications]
+public partial class PartialPropertyModel
+{
+	/// <summary>
+	/// Gets or sets the name.
+	/// </summary>
+	public partial string? Name { get; set; }
+
+	internal partial int Count { get; set; }
+
+	protected internal partial DateTime? UpdatedAt { get; set; }
+
+	protected partial string? Notes { get; set; }
+
+	public partial int Version { get; private set; }
+
+	public void IncrementVersion()
+		=> Version++;
+}
+
+[GenerateNotifications]
+public partial class PartialPropertyAlsoNotifyModel
+{
+	[AlsoNotify(nameof(FullName))]
+	public partial string? FirstName { get; set; }
+
+	[AlsoNotify(nameof(FullName))]
+	public partial string? LastName { get; set; }
+
+	public string FullName => $"{FirstName} {LastName}";
+}
+
+[GenerateNotifications(hasChanged: true)]
+public partial class PartialPropertyExcludeModel
+{
+	public partial string? Name { get; set; }
+
+	[ExcludeFromNotification]
+	public partial string? Secret { get; set; }
+}
+
+[GenerateNotifications]
+public sealed partial class SealedPartialPropertyModel
+{
+	public partial int Value { get; set; }
+}
+
+[GenerateNotifications]
+public partial record PartialPropertyRecordModel
+{
+	public partial string Name { get; set; }
+}
+
+[GenerateNotifications]
+public partial class MixedFieldAndPartialPropertyModel
+{
+	private int _id;
+
+	public partial string? Name { get; set; }
 }

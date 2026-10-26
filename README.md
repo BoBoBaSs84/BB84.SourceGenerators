@@ -144,8 +144,59 @@ Automatically generates properties with `INotifyPropertyChanged` and/or `INotify
 
 **Field-Level Attributes:**
 
-- `[AlsoNotify(...)]` - Specifies additional property names that should raise change notifications when the decorated field changes. Works for both `PropertyChanged` and `PropertyChanging` events.
-- `[ExcludeFromNotification]` - Excludes the decorated field from notification property generation. The field will not have a corresponding public property generated.
+- `[AlsoNotify(...)]` - Specifies additional property names that should raise change notifications when the decorated field or partial property changes. Works for both `PropertyChanged` and `PropertyChanging` events.
+- `[ExcludeFromNotification]` - Excludes the decorated field or partial property from notification generation. A field will not have a corresponding public property generated; a partial property is implemented as a plain property without change notification.
+
+#### Partial Property Support
+
+Besides private fields, `partial` properties (C# 13 or later) declared in the decorated type are implemented with change notification. Unlike field-based generation, the declared accessibility of the property and its accessors is respected, and the property can carry its own XML documentation and attributes:
+
+```csharp
+[GenerateNotifications(hasChanged: true)]
+public partial class Person
+{
+    private int _id; // field-based generation still works
+
+    [AlsoNotify(nameof(FullName))]
+    public partial string FirstName { get; set; }
+
+    internal partial DateTime? UpdatedAt { get; set; }
+
+    public partial int Version { get; private set; }
+
+    [ExcludeFromNotification]
+    public partial string? InternalToken { get; set; }
+
+    public string FullName => FirstName;
+}
+```
+
+For each partial property the generator emits a private backing field (`FirstName` → `_firstName`) and an implementing declaration with the same modifiers, e.g.:
+
+```csharp
+private string _firstName = default!;
+
+public partial string FirstName
+{
+    get => _firstName;
+    set
+    {
+        if (_firstName != value)
+        {
+            RaisePropertyChanging(nameof(FirstName), nameof(FullName));
+            _firstName = value;
+            RaisePropertyChanged(nameof(FirstName), nameof(FullName));
+            HasChanged = true;
+        }
+    }
+}
+```
+
+Only partial properties of the declaration carrying `[GenerateNotifications]` are considered; non-partial properties are ignored. The following compile-time errors are reported:
+
+- `BB84SG0015` - The partial property does not declare both a `get` and a `set` accessor (get-only and `init` properties are not supported)
+- `BB84SG0016` - The backing field name (e.g. `_firstName`) collides with an existing member
+- `BB84SG0017` - The partial property is `static`
 
 #### Record Support
 
