@@ -19,7 +19,7 @@ Implementing `INotifyPropertyChanged` by hand means writing the same backing-fie
 ## Attributes
 
 ```csharp
-[GenerateNotifications(bool propertyChanged = true, bool propertyChanging = true, bool hasChanged = false)]
+[GenerateNotifications(bool propertyChanged = true, bool propertyChanging = true, bool hasChanged = false, bool partialMethods = false)]
 [AlsoNotify(params string[] propertyNames)]
 [ExcludeFromNotification]
 [NotifyCanExecuteChanged(params string[] commandNames)]
@@ -30,6 +30,7 @@ Implementing `INotifyPropertyChanged` by hand means writing the same backing-fie
 - `propertyChanged` - When `true` (default), implements `INotifyPropertyChanged` and generates `PropertyChanged` event and `RaisePropertyChanged()` method
 - `propertyChanging` - When `true` (default), implements `INotifyPropertyChanging` and generates `PropertyChanging` event and `RaisePropertyChanging()` method
 - `hasChanged` - When `true`, generates an additional `HasChanged` boolean property that is set to `true` when any property changes
+- `partialMethods` - When `true`, declares `On[PropertyName]Changing` / `On[PropertyName]Changed` partial methods for each generated property and calls them from the setter (see [Partial Method Hooks](#partial-method-hooks))
 
 **Field-Level Attributes:**
 
@@ -85,6 +86,7 @@ The generator creates:
 - `RaisePropertyChanged()` and/or `RaisePropertyChanging()` methods (`protected virtual` for non-sealed classes, `private` for sealed classes)
 - Additional change notifications for properties specified via `[AlsoNotify]`
 - Optional `HasChanged` property (when `hasChanged` parameter is `true`)
+- Optional `On[PropertyName]Changing` / `On[PropertyName]Changed` partial method hooks (when `partialMethods` parameter is `true`)
 - Correct accessibility modifier matching the user's class declaration
 
 ### Usage Example
@@ -178,6 +180,51 @@ Only partial properties of the declaration carrying `[GenerateNotifications]` ar
 - `BB84SG0015` - The partial property does not declare both a `get` and a `set` accessor (get-only and `init` properties are not supported)
 - `BB84SG0016` - The backing field name (e.g. `_firstName`) collides with an existing member
 - `BB84SG0017` - The partial property is `static`
+
+### Partial Method Hooks
+
+With `partialMethods: true` the generator declares four partial methods for every generated property (fields and partial properties, except those marked with `[ExcludeFromNotification]`) and calls them from the setter:
+
+```csharp
+partial void OnNameChanging(string? value);
+partial void OnNameChanging(string? oldValue, string? newValue);
+partial void OnNameChanged(string? value);
+partial void OnNameChanged(string? oldValue, string? newValue);
+```
+
+Implement only the hooks you need; unimplemented partial methods and their calls are removed by the compiler, so they cost nothing:
+
+```csharp
+[GenerateNotifications(partialMethods: true)]
+public partial class Person
+{
+    private string? _name;
+
+    partial void OnNameChanged(string? oldValue, string? newValue)
+        => Console.WriteLine($"Name changed from '{oldValue}' to '{newValue}'");
+}
+```
+
+The generated setter calls the hooks in this order (only when the value actually changes):
+
+```csharp
+set
+{
+    if (_name != value)
+    {
+        string? __oldValue = _name;
+        OnNameChanging(value);
+        OnNameChanging(__oldValue, value);
+        RaisePropertyChanging(nameof(Name));
+        _name = value;
+        OnNameChanged(value);
+        OnNameChanged(__oldValue, value);
+        RaisePropertyChanged(nameof(Name));
+    }
+}
+```
+
+The hooks are called regardless of the `propertyChanged` / `propertyChanging` settings. The feature is opt-in because an existing non-partial method with the same signature (e.g. a hand-written `void OnNameChanged(string? value)`) would conflict with the generated declaration and fail to compile.
 
 ### Record Support
 

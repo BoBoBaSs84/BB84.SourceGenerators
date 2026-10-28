@@ -339,6 +339,119 @@ namespace TestNamespace
 		Assert.AreEqual(DiagnosticSeverity.Error, diagnostic.Severity);
 	}
 
+	[TestMethod]
+	public void ShouldNotGeneratePartialMethodsByDefault()
+	{
+		string source = @"
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+	[GenerateNotifications]
+	public partial class DefaultHookModel
+	{
+		private string _name;
+	}
+}";
+
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources) = RunGenerator(source);
+
+		Assert.IsEmpty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+		string generated = generatedSources.First(s => s.Contains("partial class DefaultHookModel"));
+		Assert.DoesNotContain("partial void OnName", generated);
+		Assert.DoesNotContain("__oldValue", generated);
+	}
+
+	[TestMethod]
+	public void ShouldGeneratePartialMethodsWhenEnabled()
+	{
+		string source = @"
+#nullable enable
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+	[GenerateNotifications(partialMethods: true)]
+	public partial class HookModel
+	{
+		private string? _name;
+
+		public partial int Count { get; set; }
+	}
+}";
+
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources, ImmutableArray<Diagnostic> compilationErrors) = RunGeneratorWithCompilation(source);
+
+		Assert.IsEmpty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+		Assert.IsEmpty(compilationErrors, string.Join(Environment.NewLine, compilationErrors));
+		string generated = generatedSources.First(s => s.Contains("partial class HookModel"));
+		Assert.Contains("string? __oldValue = _name;", generated);
+		Assert.Contains("partial void OnNameChanging(string? value);", generated);
+		Assert.Contains("partial void OnNameChanging(string? oldValue, string? newValue);", generated);
+		Assert.Contains("partial void OnNameChanged(string? value);", generated);
+		Assert.Contains("partial void OnNameChanged(string? oldValue, string? newValue);", generated);
+		Assert.Contains("int __oldValue = _count;", generated);
+		Assert.Contains("partial void OnCountChanging(int value);", generated);
+		Assert.Contains("partial void OnCountChanged(int oldValue, int newValue);", generated);
+		Assert.IsLessThan(generated.IndexOf("RaisePropertyChanging(nameof(Name));", StringComparison.Ordinal), generated.IndexOf("OnNameChanging(__oldValue, value);", StringComparison.Ordinal));
+		Assert.IsLessThan(generated.IndexOf("RaisePropertyChanged(nameof(Name));", StringComparison.Ordinal), generated.IndexOf("OnNameChanged(__oldValue, value);", StringComparison.Ordinal));
+	}
+
+	[TestMethod]
+	public void ShouldCompileWhenPartialMethodsAreImplemented()
+	{
+		string source = @"
+#nullable enable
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+	[GenerateNotifications(partialMethods: true)]
+	public sealed partial class ImplementedHookModel
+	{
+		private string? _name;
+
+		public int Calls { get; private set; }
+
+		partial void OnNameChanging(string? value) => Calls++;
+
+		partial void OnNameChanged(string? oldValue, string? newValue) => Calls++;
+	}
+}";
+
+		(ImmutableArray<Diagnostic> diagnostics, _, ImmutableArray<Diagnostic> compilationErrors) = RunGeneratorWithCompilation(source);
+
+		Assert.IsEmpty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+		Assert.IsEmpty(compilationErrors, string.Join(Environment.NewLine, compilationErrors));
+	}
+
+	[TestMethod]
+	public void ShouldNotGeneratePartialMethodsForExcludedPartialProperty()
+	{
+		string source = @"
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+	[GenerateNotifications(partialMethods: true)]
+	public partial class ExcludedHookModel
+	{
+		public partial int Count { get; set; }
+
+		[ExcludeFromNotification]
+		public partial int Secret { get; set; }
+	}
+}";
+
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources, ImmutableArray<Diagnostic> compilationErrors) = RunGeneratorWithCompilation(source);
+
+		Assert.IsEmpty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+		Assert.IsEmpty(compilationErrors, string.Join(Environment.NewLine, compilationErrors));
+		string generated = generatedSources.First(s => s.Contains("partial class ExcludedHookModel"));
+		Assert.Contains("partial void OnCountChanged(int value);", generated);
+		Assert.DoesNotContain("OnSecretChang", generated);
+	}
+
 	private static (ImmutableArray<Diagnostic> Diagnostics, string[] GeneratedSources) RunGenerator(string source)
 	{
 		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources, _) = RunGeneratorWithCompilation(source);

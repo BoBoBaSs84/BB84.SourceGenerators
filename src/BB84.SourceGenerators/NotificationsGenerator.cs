@@ -48,6 +48,7 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 		bool generatePropertyChanged = GetPropertyChanged(ctx.ClassSymbol);
 		bool generatePropertyChanging = GetPropertyChanging(ctx.ClassSymbol);
 		bool generateHasChanged = GetHasChanged(ctx.ClassSymbol);
+		bool generatePartialMethods = GetPartialMethods(ctx.ClassSymbol);
 
 		if (!generatePropertyChanged && !generatePropertyChanging)
 			return;
@@ -77,8 +78,8 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 		sb.OpenOuterClasses(ctx.OuterClasses);
 
 		AppendClassStart(sb, ctx.ClassName, ctx.Accessibility, generatePropertyChanged, generatePropertyChanging, generateHasChanged, ctx.IsRecord);
-		AppendProperties(sb, members, notifyCommands, generatePropertyChanged, generatePropertyChanging, generateHasChanged);
-		AppendPartialProperties(sb, partialProperties, notifyCommands, members.Count > 0, generatePropertyChanged, generatePropertyChanging, generateHasChanged);
+		AppendProperties(sb, members, notifyCommands, generatePropertyChanged, generatePropertyChanging, generateHasChanged, generatePartialMethods);
+		AppendPartialProperties(sb, partialProperties, notifyCommands, members.Count > 0, generatePropertyChanged, generatePropertyChanging, generateHasChanged, generatePartialMethods);
 		AppendRaiseMethods(sb, generatePropertyChanged, generatePropertyChanging, isSealed);
 
 		sb.CloseClassOrRecord(ctx.IsRecord);
@@ -98,6 +99,9 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 
 	private static bool GetHasChanged(INamedTypeSymbol namedTypeSymbol)
 		=> GeneratorHelpers.GetConstructorArgumentValue(namedTypeSymbol, AttributeNames.FullName, 2, false);
+
+	private static bool GetPartialMethods(INamedTypeSymbol namedTypeSymbol)
+		=> GeneratorHelpers.GetConstructorArgumentValue(namedTypeSymbol, AttributeNames.FullName, 3, false);
 
 	private static void AppendClassStart(SourceBuilder sb, string className, string accessibility, bool propertyChanged, bool propertyChanging, bool hasChanged, bool isRecord)
 	{
@@ -152,7 +156,7 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 		}
 	}
 
-	private static void AppendProperties(SourceBuilder sb, List<FieldDeclarationSyntax> members, Dictionary<MemberDeclarationSyntax, List<string>> notifyCommands, bool propertyChanged, bool propertyChanging, bool hasChanged)
+	private static void AppendProperties(SourceBuilder sb, List<FieldDeclarationSyntax> members, Dictionary<MemberDeclarationSyntax, List<string>> notifyCommands, bool propertyChanged, bool propertyChanging, bool hasChanged, bool partialMethods)
 	{
 		bool first = true;
 		foreach (FieldDeclarationSyntax member in members)
@@ -174,13 +178,16 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 				sb.OpenBrace();
 				sb.AppendLine($"get => {fieldName};");
 				sb.AppendLine("set");
-				AppendNotifyingSetterBody(sb, fieldName, propertyName, alsoNotifyFor, commands, propertyChanged, propertyChanging, hasChanged);
+				AppendNotifyingSetterBody(sb, fieldName, propertyName, fieldType, alsoNotifyFor, commands, propertyChanged, propertyChanging, hasChanged, partialMethods);
 				sb.CloseBrace();
+
+				if (partialMethods)
+					AppendPartialMethodDeclarations(sb, propertyName, fieldType);
 			}
 		}
 	}
 
-	private static void AppendPartialProperties(SourceBuilder sb, List<PartialPropertyInfo> properties, Dictionary<MemberDeclarationSyntax, List<string>> notifyCommands, bool hasPrecedingMembers, bool propertyChanged, bool propertyChanging, bool hasChanged)
+	private static void AppendPartialProperties(SourceBuilder sb, List<PartialPropertyInfo> properties, Dictionary<MemberDeclarationSyntax, List<string>> notifyCommands, bool hasPrecedingMembers, bool propertyChanged, bool propertyChanging, bool hasChanged, bool partialMethods)
 	{
 		bool first = !hasPrecedingMembers;
 		foreach (PartialPropertyInfo property in properties)
@@ -207,18 +214,27 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 			{
 				List<string> alsoNotifyFor = GetAlsoNotifyForProperties(property.Syntax);
 				sb.AppendLine($"{GetAccessorPrefix(property.Setter)}set");
-				AppendNotifyingSetterBody(sb, property.FieldName, property.Syntax.Identifier.Text, alsoNotifyFor, notifyCommands[property.Syntax], propertyChanged, propertyChanging, hasChanged);
+				AppendNotifyingSetterBody(sb, property.FieldName, property.Syntax.Identifier.Text, property.TypeName, alsoNotifyFor, notifyCommands[property.Syntax], propertyChanged, propertyChanging, hasChanged, partialMethods);
 			}
 
 			sb.CloseBrace();
+
+			if (partialMethods && !property.IsExcluded)
+				AppendPartialMethodDeclarations(sb, property.Syntax.Identifier.Text, property.TypeName);
 		}
 	}
 
-	private static void AppendNotifyingSetterBody(SourceBuilder sb, string fieldName, string propertyName, List<string> alsoNotifyFor, List<string> commands, bool propertyChanged, bool propertyChanging, bool hasChanged)
+	private static void AppendNotifyingSetterBody(SourceBuilder sb, string fieldName, string propertyName, string typeName, List<string> alsoNotifyFor, List<string> commands, bool propertyChanged, bool propertyChanging, bool hasChanged, bool partialMethods)
 	{
 		sb.OpenBrace();
 		sb.AppendLine($"if ({fieldName} != value)");
 		sb.OpenBrace();
+		if (partialMethods)
+		{
+			sb.AppendLine($"{typeName} __oldValue = {fieldName};");
+			sb.AppendLine($"On{propertyName}Changing(value);");
+			sb.AppendLine($"On{propertyName}Changing(__oldValue, value);");
+		}
 		if (propertyChanging)
 		{
 			if (alsoNotifyFor.Count == 0)
@@ -227,6 +243,11 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 				sb.AppendLine($"RaisePropertyChanging(nameof({propertyName}), {string.Join(", ", alsoNotifyFor.Select(p => $"nameof({p})"))});");
 		}
 		sb.AppendLine($"{fieldName} = value;");
+		if (partialMethods)
+		{
+			sb.AppendLine($"On{propertyName}Changed(value);");
+			sb.AppendLine($"On{propertyName}Changed(__oldValue, value);");
+		}
 		if (propertyChanged)
 		{
 			if (alsoNotifyFor.Count == 0)
@@ -240,6 +261,43 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 			sb.AppendLine("HasChanged = true;");
 		sb.CloseBrace();
 		sb.CloseBrace();
+	}
+
+	/// <summary>
+	/// Appends the defining declarations of the <c>On[PropertyName]Changing</c> and
+	/// <c>On[PropertyName]Changed</c> partial methods called from the property setter.
+	/// </summary>
+	/// <param name="sb">The source builder.</param>
+	/// <param name="propertyName">The name of the property.</param>
+	/// <param name="typeName">The type of the property.</param>
+	private static void AppendPartialMethodDeclarations(SourceBuilder sb, string propertyName, string typeName)
+	{
+		sb.AppendLine();
+		sb.AppendLine("/// <summary>");
+		sb.AppendLine($"/// Executes the logic for when <see cref=\"{propertyName}\"/> is about to change.");
+		sb.AppendLine("/// </summary>");
+		sb.AppendLine("/// <param name=\"value\">The new property value being set.</param>");
+		sb.AppendLine($"partial void On{propertyName}Changing({typeName} value);");
+		sb.AppendLine();
+		sb.AppendLine("/// <summary>");
+		sb.AppendLine($"/// Executes the logic for when <see cref=\"{propertyName}\"/> is about to change.");
+		sb.AppendLine("/// </summary>");
+		sb.AppendLine("/// <param name=\"oldValue\">The previous property value that is being replaced.</param>");
+		sb.AppendLine("/// <param name=\"newValue\">The new property value being set.</param>");
+		sb.AppendLine($"partial void On{propertyName}Changing({typeName} oldValue, {typeName} newValue);");
+		sb.AppendLine();
+		sb.AppendLine("/// <summary>");
+		sb.AppendLine($"/// Executes the logic for when <see cref=\"{propertyName}\"/> has just changed.");
+		sb.AppendLine("/// </summary>");
+		sb.AppendLine("/// <param name=\"value\">The new property value that was set.</param>");
+		sb.AppendLine($"partial void On{propertyName}Changed({typeName} value);");
+		sb.AppendLine();
+		sb.AppendLine("/// <summary>");
+		sb.AppendLine($"/// Executes the logic for when <see cref=\"{propertyName}\"/> has just changed.");
+		sb.AppendLine("/// </summary>");
+		sb.AppendLine("/// <param name=\"oldValue\">The previous property value that was replaced.</param>");
+		sb.AppendLine("/// <param name=\"newValue\">The new property value that was set.</param>");
+		sb.AppendLine($"partial void On{propertyName}Changed({typeName} oldValue, {typeName} newValue);");
 	}
 
 	private static string GetAccessorPrefix(AccessorDeclarationSyntax accessor)

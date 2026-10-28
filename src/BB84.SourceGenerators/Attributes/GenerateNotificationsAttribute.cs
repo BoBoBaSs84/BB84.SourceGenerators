@@ -22,8 +22,12 @@ namespace BB84.SourceGenerators.Attributes;
 /// <param name="hasChanged">
 /// Indicates whether a boolean property named <c>HasChanged</c> should be generated.
 /// </param>
+/// <param name="partialMethods">
+/// Indicates whether <c>On[PropertyName]Changing</c> and <c>On[PropertyName]Changed</c> partial methods
+/// should be declared and called from the generated property setters.
+/// </param>
 [AttributeUsage(AttributeTargets.Class, Inherited = false, AllowMultiple = false)]
-internal sealed class GenerateNotificationsAttribute(bool propertyChanged = true, bool propertyChanging = true, bool hasChanged = false) : Attribute
+internal sealed class GenerateNotificationsAttribute(bool propertyChanged = true, bool propertyChanging = true, bool hasChanged = false, bool partialMethods = false) : Attribute
 {
 	/// <summary>
 	/// Indicates whether the <see cref="System.ComponentModel.INotifyPropertyChanged"/> interface should be implemented.
@@ -39,4 +43,10 @@ internal sealed class GenerateNotificationsAttribute(bool propertyChanged = true
 	/// Indicates whether a boolean property named <c>HasChanged</c> should be generated.
 	/// </summary>
 	public bool HasChanged => hasChanged;
+
+	/// <summary>
+	/// Indicates whether <c>On[PropertyName]Changing</c> and <c>On[PropertyName]Changed</c> partial methods
+	/// should be declared and called from the generated property setters.
+	/// </summary>
+	public bool PartialMethods => partialMethods;
 }
