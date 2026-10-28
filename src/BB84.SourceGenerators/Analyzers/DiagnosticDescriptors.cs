@@ -297,4 +297,16 @@ internal static class DiagnosticDescriptors
 		category: "BB84.SourceGenerators",
 		defaultSeverity: DiagnosticSeverity.Warning,
 		isEnabledByDefault: true);
+
+	/// <summary>
+	/// Represents a diagnostic error indicating that a base type of a [GenerateNotifications] type implements a
+	/// notification interface but does not expose an accessible raise method the generated setters can call.
+	/// </summary>
+	internal static readonly DiagnosticDescriptor NotificationsBaseRaiseMethodMissingDiagnostic = new(
+		id: "BB84SG0025",
+		title: "GenerateNotifications base type has no accessible raise method",
+		messageFormat: "The base type '{1}' of '{0}' implements '{2}' but has no accessible '{3}(string)' method",
+		category: "BB84.SourceGenerators",
+		defaultSeverity: DiagnosticSeverity.Error,
+		isEnabledByDefault: true);
 }

@@ -226,6 +226,32 @@ set
 
 The hooks are called regardless of the `propertyChanged` / `propertyChanging` settings. The feature is opt-in because an existing non-partial method with the same signature (e.g. a hand-written `void OnNameChanged(string? value)`) would conflict with the generated declaration and fail to compile.
 
+### Inheritance
+
+A `[GenerateNotifications]` type may derive from a type that already provides change notification. The generator then only emits what the base type chain does not provide yet, and the generated setters use the inherited members:
+
+- **Generated base** - a base type decorated with `[GenerateNotifications]`. The derived type reuses its `PropertyChanged` / `PropertyChanging` events, its `RaisePropertyChanged` / `RaisePropertyChanging` methods and its `HasChanged` property, according to the base attribute's arguments.
+- **Hand-written or referenced base** - a base type implementing `INotifyPropertyChanged` / `INotifyPropertyChanging` itself. It must expose an accessible (e.g. `protected`) `RaisePropertyChanged(string)` / `RaisePropertyChanging(string)` method, otherwise error `BB84SG0025` is reported. If it has no `params string[]` overload, `[AlsoNotify]` notifications are raised with one call per property name.
+- Interfaces the base type chain does not implement are still declared by the derived type (e.g. a base with `propertyChanging: false` and a derived type with the defaults).
+- An inherited `HasChanged` property is always set by the derived setters, even if the derived type does not set `hasChanged: true`.
+
+```csharp
+[GenerateNotifications(hasChanged: true)]
+public partial class EntityBase
+{
+    private int _id;
+}
+
+[GenerateNotifications]
+public partial class Person : EntityBase
+{
+    private string? _name;
+}
+
+// Person declares no events or raise methods of its own:
+// a single PropertyChanged subscription receives Id, Name and HasChanged.
+```
+
 ### Record Support
 
 `[GenerateNotifications]` can also target `record` (record class) declarations, with the generated members emitted inside a `partial record`. Field-to-property conversion works exactly as for classes, as long as the record declares its fields in the body:
@@ -257,3 +283,4 @@ public partial record PersonRecord(string FirstName, string LastName);
 | `BB84SG0016` | Error    | GenerateNotifications backing field name conflict                     |
 | `BB84SG0017` | Error    | GenerateNotifications does not support static partial properties      |
 | `BB84SG0024` | Warning  | NotifyCanExecuteChanged references an unknown command                 |
+| `BB84SG0025` | Error    | GenerateNotifications base type has no accessible raise method        |

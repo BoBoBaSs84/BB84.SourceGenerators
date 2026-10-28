@@ -3,6 +3,7 @@
 //
 // This source code is licensed under the MIT license found in the
 // LICENSE file in the root directory of this source tree.
+using System.ComponentModel;
 using System.Reflection;
 
 using BB84.SourceGenerators.Attributes;
@@ -324,6 +325,45 @@ public sealed class NotificationsGeneratorTests
 
 		Assert.AreSequenceEqual(ExpectedPartialPropertyPartialMethodsLog, model.Log);
 	}
+
+	[TestMethod]
+	public void DerivedModelShouldRaiseBaseAndDerivedNotificationsOnSameEvent()
+	{
+		List<string> changedProperties = [];
+		List<string> changingProperties = [];
+		NotificationDerivedModel model = new();
+		model.PropertyChanged += (s, e) => changedProperties.Add(e.PropertyName!);
+		((INotifyPropertyChanging)model).PropertyChanging += (s, e) => changingProperties.Add(e.PropertyName!);
+
+		model.Name = "John";
+		model.Age = 42;
+
+		Assert.AreSequenceEqual([nameof(model.Name), nameof(model.HasChanged), nameof(model.Age), nameof(model.Name)], changedProperties);
+		Assert.AreSequenceEqual([nameof(model.Name), nameof(model.HasChanged), nameof(model.Age), nameof(model.Name)], changingProperties);
+	}
+
+	[TestMethod]
+	public void DerivedModelShouldSetInheritedHasChanged()
+	{
+		NotificationDerivedModel model = new();
+
+		model.Age = 1;
+
+		Assert.IsTrue(model.HasChanged);
+	}
+
+	[TestMethod]
+	public void HandWrittenBaseShouldReceiveDerivedNotifications()
+	{
+		List<string> changedProperties = [];
+		HandWrittenDerivedModel model = new();
+		model.PropertyChanged += (s, e) => changedProperties.Add(e.PropertyName!);
+
+		model.Name = "John";
+
+		Assert.AreSequenceEqual([nameof(model.Name), nameof(model.Display)], changedProperties);
+		Assert.IsFalse(model is INotifyPropertyChanging);
+	}
 }
 
 [GenerateNotifications]
@@ -483,4 +523,34 @@ public partial class PartialMethodsModel
 
 	partial void OnCountChanged(int oldValue, int newValue)
 		=> Log.Add($"Count:{oldValue}->{newValue}");
+}
+
+[GenerateNotifications(hasChanged: true)]
+public partial class NotificationBaseModel
+{
+	private string? _name;
+}
+
+[GenerateNotifications]
+public partial class NotificationDerivedModel : NotificationBaseModel
+{
+	[AlsoNotify(nameof(Name))]
+	private int _age;
+}
+
+public abstract class HandWrittenNotifyBase : INotifyPropertyChanged
+{
+	public event PropertyChangedEventHandler? PropertyChanged;
+
+	protected void RaisePropertyChanged(string propertyName)
+		=> PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+}
+
+[GenerateNotifications(propertyChanging: false)]
+public partial class HandWrittenDerivedModel : HandWrittenNotifyBase
+{
+	[AlsoNotify(nameof(Display))]
+	private string? _name;
+
+	public string? Display => _name;
 }
