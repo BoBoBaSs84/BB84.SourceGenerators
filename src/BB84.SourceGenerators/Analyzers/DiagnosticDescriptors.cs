@@ -213,4 +213,88 @@ internal static class DiagnosticDescriptors
 		category: "BB84.SourceGenerators",
 		defaultSeverity: DiagnosticSeverity.Error,
 		isEnabledByDefault: true);
+
+	/// <summary>
+	/// Represents a diagnostic error indicating that the [ActionCommand] attribute has been applied to a method
+	/// whose containing type is not a partial class or record class.
+	/// </summary>
+	internal static readonly DiagnosticDescriptor ActionCommandContainingTypeNotPartialDiagnostic = new(
+		id: "BB84SG0018",
+		title: "Action command requires a partial class or record class",
+		messageFormat: "The method '{0}' has an [ActionCommand] attribute, but its containing type '{1}' is not a partial class or record class",
+		category: "BB84.SourceGenerators",
+		defaultSeverity: DiagnosticSeverity.Error,
+		isEnabledByDefault: true);
+
+	/// <summary>
+	/// Represents a diagnostic error indicating that a method with the [ActionCommand] attribute has a
+	/// signature that cannot be mapped to a command.
+	/// </summary>
+	internal static readonly DiagnosticDescriptor ActionCommandUnsupportedSignatureDiagnostic = new(
+		id: "BB84SG0019",
+		title: "Action command method has an unsupported signature",
+		messageFormat: "The method '{0}' has an unsupported signature for [ActionCommand]; expected 'void M()', 'void M(T)', 'Task M([CancellationToken])' or 'Task M(T[, CancellationToken])'",
+		category: "BB84.SourceGenerators",
+		defaultSeverity: DiagnosticSeverity.Error,
+		isEnabledByDefault: true);
+
+	/// <summary>
+	/// Represents a diagnostic error indicating that the CanExecute member of an [ActionCommand] attribute
+	/// was not found or is not compatible with the command.
+	/// </summary>
+	internal static readonly DiagnosticDescriptor ActionCommandInvalidCanExecuteDiagnostic = new(
+		id: "BB84SG0020",
+		title: "Action command CanExecute member is invalid",
+		messageFormat: "The CanExecute member '{1}' of command method '{0}' was not found or is not a bool property, field or compatible method",
+		category: "BB84.SourceGenerators",
+		defaultSeverity: DiagnosticSeverity.Error,
+		isEnabledByDefault: true);
+
+	/// <summary>
+	/// Represents a diagnostic error indicating that the ExceptionHandler of an [ActionCommand] attribute
+	/// was not found or does not have a compatible signature.
+	/// </summary>
+	internal static readonly DiagnosticDescriptor ActionCommandInvalidExceptionHandlerDiagnostic = new(
+		id: "BB84SG0021",
+		title: "Action command exception handler is invalid",
+		messageFormat: "The ExceptionHandler '{1}' of command method '{0}' was not found or does not have the signature 'void M(Exception)'",
+		category: "BB84.SourceGenerators",
+		defaultSeverity: DiagnosticSeverity.Error,
+		isEnabledByDefault: true);
+
+	/// <summary>
+	/// Represents a diagnostic warning indicating that an option that only applies to asynchronous commands
+	/// has been set on a synchronous [ActionCommand] method.
+	/// </summary>
+	internal static readonly DiagnosticDescriptor ActionCommandAsyncOptionOnSyncCommandDiagnostic = new(
+		id: "BB84SG0022",
+		title: "Action command option only applies to asynchronous commands",
+		messageFormat: "The option '{1}' of command method '{0}' only applies to asynchronous commands and is ignored",
+		category: "BB84.SourceGenerators",
+		defaultSeverity: DiagnosticSeverity.Warning,
+		isEnabledByDefault: true);
+
+	/// <summary>
+	/// Represents a diagnostic error indicating that the command property or backing field generated for an
+	/// [ActionCommand] method collides with an existing member.
+	/// </summary>
+	internal static readonly DiagnosticDescriptor ActionCommandNameConflictDiagnostic = new(
+		id: "BB84SG0023",
+		title: "Action command name conflict",
+		messageFormat: "The command '{1}' generated for method '{0}' collides with an existing member",
+		category: "BB84.SourceGenerators",
+		defaultSeverity: DiagnosticSeverity.Error,
+		isEnabledByDefault: true);
+
+	/// <summary>
+	/// Represents a diagnostic warning indicating that a [NotifyCanExecuteChanged] attribute references a
+	/// command that is neither an existing member nor a generated command.
+	/// </summary>
+	internal static readonly DiagnosticDescriptor NotifyCanExecuteChangedUnknownCommandDiagnostic = new(
+		id: "BB84SG0024",
+		title: "NotifyCanExecuteChanged references an unknown command",
+		messageFormat: "The member '{0}' references command '{1}' in [NotifyCanExecuteChanged], but no such member or generated command exists",
+		category: "BB84.SourceGenerators",
+		defaultSeverity: DiagnosticSeverity.Warning,
+		isEnabledByDefault: true);
 }

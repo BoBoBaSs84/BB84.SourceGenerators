@@ -51,7 +51,12 @@ internal static class AttributeSourceRewriter
 		return TransformSource(source);
 	}
 
-	private static string ReadEmbeddedResource(string resourceName)
+	/// <summary>
+	/// Reads the specified embedded resource as-is, without any transformation.
+	/// </summary>
+	/// <param name="resourceName">The logical name of the embedded resource.</param>
+	/// <returns>The raw content of the embedded resource.</returns>
+	internal static string ReadEmbeddedResource(string resourceName)
 	{
 		using Stream stream = ResourceAssembly.GetManifestResourceStream(resourceName);
 		using StreamReader reader = new(stream);

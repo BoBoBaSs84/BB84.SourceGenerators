@@ -13,6 +13,7 @@ namespace BB84.SourceGenerators.Helpers;
 internal static class GeneratorNames
 {
 	internal static readonly string AbstractionGeneratorFullName = typeof(AbstractionGenerator).FullName;
+	internal static readonly string ActionCommandGeneratorFullName = typeof(ActionCommandGenerator).FullName;
 	internal static readonly string AssemblyInformationGeneratorFullName = typeof(AssemblyInformationGenerator).FullName;
 	internal static readonly string AttributeSourceGeneratorFullName = typeof(AttributeSourceGenerator).FullName;
 	internal static readonly string AutoMapperGeneratorFullName = typeof(AutoMapperGenerator).FullName;

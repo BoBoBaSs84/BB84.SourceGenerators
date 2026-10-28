@@ -7,6 +7,7 @@ namespace BB84.SourceGenerators.Helpers;
 
 internal static class NamespaceNames
 {
+	internal const string BB84SourceGeneratorsCommands = "BB84.SourceGenerators.Commands";
 	internal const string System = "System";
 	internal const string SystemCollectionsGeneric = "System.Collections.Generic";
 	internal const string SystemCollectionsImmutable = "System.Collections.Immutable";

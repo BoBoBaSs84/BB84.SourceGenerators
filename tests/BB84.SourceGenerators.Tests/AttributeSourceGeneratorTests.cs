@@ -31,6 +31,7 @@ public sealed class AttributeSourceGeneratorAttributeCoverageTests
 	{
 		string[] expectedAttributeClassNames =
 		[
+			nameof(ActionCommandAttribute),
 			nameof(AlsoNotifyAttribute),
 			nameof(DisposeResourceAttribute),
 			nameof(ExcludeFromNotificationAttribute),
@@ -46,6 +47,7 @@ public sealed class AttributeSourceGeneratorAttributeCoverageTests
 			nameof(GenerateEnumeratorExtensionsAttribute),
 			nameof(GenerateIniFileAttribute),
 			nameof(GenerateNotificationsAttribute),
+			nameof(NotifyCanExecuteChangedAttribute),
 			nameof(GenerateSingletonAttribute),
 			nameof(GenerateIniFileSectionAttribute),
 			nameof(GenerateIniFileValueAttribute),

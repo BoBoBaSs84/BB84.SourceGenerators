@@ -21,6 +21,9 @@ namespace BB84.SourceGenerators;
 [Generator(LanguageNames.CSharp)]
 public sealed class AttributeSourceGenerator : IIncrementalGenerator
 {
+	private static readonly string ActionCommandAttributeSource =
+		AttributeSourceRewriter.ReadAndTransform("ActionCommandAttribute.cs");
+
 	private static readonly string GenerateAbstractionAttributeSource =
 		AttributeSourceRewriter.ReadAndTransform("GenerateAbstractionAttribute.cs");
 
@@ -93,11 +96,15 @@ public sealed class AttributeSourceGenerator : IIncrementalGenerator
 	private static readonly string PropertyMappingAttributeSource =
 		AttributeSourceRewriter.ReadAndTransform("PropertyMappingAttribute.cs");
 
+	private static readonly string NotifyCanExecuteChangedAttributeSource =
+		AttributeSourceRewriter.ReadAndTransform("NotifyCanExecuteChangedAttribute.cs");
+
 	/// <inheritdoc />
 	public void Initialize(IncrementalGeneratorInitializationContext context)
 	{
 		context.RegisterPostInitializationOutput(static ctx =>
 		{
+			ctx.AddSource("ActionCommandAttribute.g.cs", ActionCommandAttributeSource);
 			ctx.AddSource("AlsoNotifyAttribute.g.cs", AlsoNotifyAttributeSource);
 			ctx.AddSource("DisposeResourceAttribute.g.cs", DisposeResourceAttributeSource);
 			ctx.AddSource("ExcludeFromNotificationAttribute.g.cs", ExcludeFromNotificationAttributeSource);
@@ -122,6 +129,7 @@ public sealed class AttributeSourceGenerator : IIncrementalGenerator
 			ctx.AddSource("ToStringFormatAttribute.g.cs", ToStringFormatAttributeSource);
 			ctx.AddSource("ToStringOrderAttribute.g.cs", ToStringOrderAttributeSource);
 			ctx.AddSource("PropertyMappingAttribute.g.cs", PropertyMappingAttributeSource);
+			ctx.AddSource("NotifyCanExecuteChangedAttribute.g.cs", NotifyCanExecuteChangedAttributeSource);
 		});
 	}
 }

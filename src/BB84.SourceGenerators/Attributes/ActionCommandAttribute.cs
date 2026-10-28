@@ -1,0 +1,51 @@
+// Copyright: 2026 Robert Peter Meyer
+// License: MIT
+//
+// This source code is licensed under the MIT license found in the
+// LICENSE file in the root directory of this source tree.
+namespace BB84.SourceGenerators.Attributes;
+
+/// <summary>
+/// Indicates that a command property should be generated for the decorated method. The kind of
+/// command is inferred from the method signature:
+/// <list type="bullet">
+/// <item><c>void M()</c> generates an <c>IActionCommand</c>.</item>
+/// <item><c>void M(T)</c> generates an <c>IActionCommand&lt;T&gt;</c>.</item>
+/// <item><c>Task M()</c> or <c>Task M(CancellationToken)</c> generates an <c>IAsyncActionCommand</c>.</item>
+/// <item><c>Task M(T)</c> or <c>Task M(T, CancellationToken)</c> generates an <c>IAsyncActionCommand&lt;T&gt;</c>.</item>
+/// </list>
+/// </summary>
+[AttributeUsage(AttributeTargets.Method, Inherited = false, AllowMultiple = false)]
+internal sealed class ActionCommandAttribute : Attribute
+{
+	/// <summary>
+	/// Gets or sets the name of the generated command property. When not set, the name is the
+	/// method name without an <c>Async</c> suffix followed by <c>Command</c>.
+	/// </summary>
+	public string? Name { get; set; }
+
+	/// <summary>
+	/// Gets or sets the name of a <see cref="bool"/> property, field or parameterless method that
+	/// determines whether the command can execute. For commands with a parameter, a method taking
+	/// the parameter type is also accepted.
+	/// </summary>
+	public string? CanExecute { get; set; }
+
+	/// <summary>
+	/// Gets or sets the name of a method with the signature <c>void M(Exception)</c> that receives
+	/// exceptions thrown by an asynchronous command. When not set, exceptions are rethrown.
+	/// </summary>
+	public string? ExceptionHandler { get; set; }
+
+	/// <summary>
+	/// Gets or sets a value indicating whether an asynchronous command can be executed again while
+	/// a previous execution is still running. Defaults to <see langword="false"/>.
+	/// </summary>
+	public bool AllowConcurrentExecutions { get; set; }
+
+	/// <summary>
+	/// Gets or sets a value indicating whether an additional <c>{Name}CancelCommand</c> property
+	/// should be generated for an asynchronous command. Defaults to <see langword="false"/>.
+	/// </summary>
+	public bool IncludeCancelCommand { get; set; }
+}
