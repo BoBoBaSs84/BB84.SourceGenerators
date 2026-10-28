@@ -3,34 +3,28 @@
 //
 // This source code is licensed under the MIT license found in the
 // LICENSE file in the root directory of this source tree.
+using System;
+using System.Diagnostics.CodeAnalysis;
+using System.Windows.Input;
+
 namespace BB84.SourceGenerators.Commands
 {
 	/// <summary>
 	/// A synchronous command that delegates its execution and execution guard to the provided delegates.
 	/// </summary>
-	[global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
-	public sealed class ActionCommand : IActionCommand
+	/// <param name="execute">The action to invoke when the command is executed.</param>
+	/// <param name="canExecute">The optional guard that determines whether the command can execute.</param>
+	[ExcludeFromCodeCoverage]
+	public sealed class ActionCommand(Action execute, Func<bool>? canExecute = null) : IActionCommand
 	{
-		private readonly global::System.Action _execute;
-		private readonly global::System.Func<bool>? _canExecute;
-
-		/// <summary>
-		/// Initializes a new instance of the <see cref="ActionCommand"/> class.
-		/// </summary>
-		/// <param name="execute">The action to invoke when the command is executed.</param>
-		/// <param name="canExecute">The optional guard that determines whether the command can execute.</param>
-		public ActionCommand(global::System.Action execute, global::System.Func<bool>? canExecute = null)
-		{
-			_execute = execute ?? throw new global::System.ArgumentNullException(nameof(execute));
-			_canExecute = canExecute;
-		}
+		private readonly Action _execute = execute ?? throw new ArgumentNullException(nameof(execute));
 
 		/// <inheritdoc/>
-		public event global::System.EventHandler? CanExecuteChanged;
+		public event EventHandler? CanExecuteChanged;
 
 		/// <inheritdoc/>
 		public bool CanExecute()
-			=> _canExecute?.Invoke() ?? true;
+			=> canExecute?.Invoke() ?? true;
 
 		/// <inheritdoc/>
 		public bool CanExecute(object? parameter)
@@ -52,7 +46,7 @@ namespace BB84.SourceGenerators.Commands
 
 		/// <inheritdoc/>
 		public void RaiseCanExecuteChanged()
-			=> CanExecuteChanged?.Invoke(this, global::System.EventArgs.Empty);
+			=> CanExecuteChanged?.Invoke(this, EventArgs.Empty);
 	}
 
 	/// <summary>
@@ -60,29 +54,19 @@ namespace BB84.SourceGenerators.Commands
 	/// and execution guard to the provided delegates.
 	/// </summary>
 	/// <typeparam name="T">The type of the command parameter.</typeparam>
-	[global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
-	public sealed class ActionCommand<T> : IActionCommand<T>
+	/// <param name="execute">The action to invoke when the command is executed.</param>
+	/// <param name="canExecute">The optional guard that determines whether the command can execute.</param>
+	[ExcludeFromCodeCoverage]
+	public sealed class ActionCommand<T>(Action<T> execute, Func<T, bool>? canExecute = null) : IActionCommand<T>
 	{
-		private readonly global::System.Action<T> _execute;
-		private readonly global::System.Func<T, bool>? _canExecute;
-
-		/// <summary>
-		/// Initializes a new instance of the <see cref="ActionCommand{T}"/> class.
-		/// </summary>
-		/// <param name="execute">The action to invoke when the command is executed.</param>
-		/// <param name="canExecute">The optional guard that determines whether the command can execute.</param>
-		public ActionCommand(global::System.Action<T> execute, global::System.Func<T, bool>? canExecute = null)
-		{
-			_execute = execute ?? throw new global::System.ArgumentNullException(nameof(execute));
-			_canExecute = canExecute;
-		}
+		private readonly Action<T> _execute = execute ?? throw new ArgumentNullException(nameof(execute));
 
 		/// <inheritdoc/>
-		public event global::System.EventHandler? CanExecuteChanged;
+		public event EventHandler? CanExecuteChanged;
 
 		/// <inheritdoc/>
 		public bool CanExecute(T parameter)
-			=> _canExecute?.Invoke(parameter) ?? true;
+			=> canExecute?.Invoke(parameter) ?? true;
 
 		/// <inheritdoc/>
 		public bool CanExecute(object? parameter)
@@ -107,13 +91,13 @@ namespace BB84.SourceGenerators.Commands
 
 		/// <inheritdoc/>
 		public void RaiseCanExecuteChanged()
-			=> CanExecuteChanged?.Invoke(this, global::System.EventArgs.Empty);
+			=> CanExecuteChanged?.Invoke(this, EventArgs.Empty);
 	}
 
 	/// <summary>
-	/// Provides safe conversion of untyped <see cref="global::System.Windows.Input.ICommand"/> parameters.
+	/// Provides safe conversion of untyped <see cref="ICommand"/> parameters.
 	/// </summary>
-	[global::System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
+	[ExcludeFromCodeCoverage]
 	internal static class CommandParameter
 	{
 		/// <summary>

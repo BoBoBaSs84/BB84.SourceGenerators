@@ -3,12 +3,16 @@
 //
 // This source code is licensed under the MIT license found in the
 // LICENSE file in the root directory of this source tree.
+using System.Threading;
+using System.Threading.Tasks;
+using System.Windows.Input;
+
 namespace BB84.SourceGenerators.Commands
 {
 	/// <summary>
 	/// Represents an asynchronous, cancellable command that can be executed and queried for its ability to execute.
 	/// </summary>
-	public interface IAsyncActionCommand : global::System.Windows.Input.ICommand
+	public interface IAsyncActionCommand : ICommand
 	{
 		/// <summary>
 		/// Gets a value indicating whether the command is currently executing.
@@ -29,14 +33,14 @@ namespace BB84.SourceGenerators.Commands
 		/// Executes the command asynchronously if it can be executed.
 		/// </summary>
 		/// <returns>A task that represents the asynchronous operation.</returns>
-		global::System.Threading.Tasks.Task ExecuteAsync();
+		Task ExecuteAsync();
 
 		/// <summary>
 		/// Executes the command asynchronously if it can be executed, observing the specified cancellation token.
 		/// </summary>
 		/// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
 		/// <returns>A task that represents the asynchronous operation.</returns>
-		global::System.Threading.Tasks.Task ExecuteAsync(global::System.Threading.CancellationToken cancellationToken);
+		Task ExecuteAsync(CancellationToken cancellationToken);
 
 		/// <summary>
 		/// Determines whether the command can execute in its current state.
@@ -50,7 +54,7 @@ namespace BB84.SourceGenerators.Commands
 		void Cancel();
 
 		/// <summary>
-		/// Raises the <see cref="global::System.Windows.Input.ICommand.CanExecuteChanged"/> event.
+		/// Raises the <see cref="ICommand.CanExecuteChanged"/> event.
 		/// </summary>
 		void RaiseCanExecuteChanged();
 	}
@@ -59,7 +63,7 @@ namespace BB84.SourceGenerators.Commands
 	/// Represents an asynchronous, cancellable command that can be executed with a parameter of type <typeparamref name="T"/>.
 	/// </summary>
 	/// <typeparam name="T">The type of the command parameter.</typeparam>
-	public interface IAsyncActionCommand<T> : global::System.Windows.Input.ICommand
+	public interface IAsyncActionCommand<T> : ICommand
 	{
 		/// <summary>
 		/// Gets a value indicating whether the command is currently executing.
@@ -81,7 +85,7 @@ namespace BB84.SourceGenerators.Commands
 		/// </summary>
 		/// <param name="parameter">The command parameter.</param>
 		/// <returns>A task that represents the asynchronous operation.</returns>
-		global::System.Threading.Tasks.Task ExecuteAsync(T parameter);
+		Task ExecuteAsync(T parameter);
 
 		/// <summary>
 		/// Executes the command asynchronously with the specified parameter if it can be executed,
@@ -90,7 +94,7 @@ namespace BB84.SourceGenerators.Commands
 		/// <param name="parameter">The command parameter.</param>
 		/// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
 		/// <returns>A task that represents the asynchronous operation.</returns>
-		global::System.Threading.Tasks.Task ExecuteAsync(T parameter, global::System.Threading.CancellationToken cancellationToken);
+		Task ExecuteAsync(T parameter, CancellationToken cancellationToken);
 
 		/// <summary>
 		/// Determines whether the command can execute with the specified parameter.
@@ -105,7 +109,7 @@ namespace BB84.SourceGenerators.Commands
 		void Cancel();
 
 		/// <summary>
-		/// Raises the <see cref="global::System.Windows.Input.ICommand.CanExecuteChanged"/> event.
+		/// Raises the <see cref="ICommand.CanExecuteChanged"/> event.
 		/// </summary>
 		void RaiseCanExecuteChanged();
 	}

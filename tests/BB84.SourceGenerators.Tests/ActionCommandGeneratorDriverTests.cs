@@ -36,11 +36,11 @@ public sealed class ActionCommandGeneratorDriverTests
 	{
 		(_, string[] generatedSources, ImmutableArray<Diagnostic> compilationErrors) = RunGeneratorWithCompilation("namespace TestNamespace { }");
 
-		Assert.IsEmpty(compilationErrors);
-		Assert.IsTrue(generatedSources.Any(s => s.Contains("public interface IActionCommand :")));
-		Assert.IsTrue(generatedSources.Any(s => s.Contains("public interface IAsyncActionCommand<T>")));
-		Assert.IsTrue(generatedSources.Any(s => s.Contains("public sealed class ActionCommand<T>")));
-		Assert.IsTrue(generatedSources.Any(s => s.Contains("public sealed class AsyncActionCommand<T>")));
+		Assert.IsEmpty(compilationErrors, string.Join("\n", compilationErrors.Take(15)));
+		Assert.Contains(s => s.Contains("public interface IActionCommand :"), generatedSources);
+		Assert.Contains(s => s.Contains("public interface IAsyncActionCommand<T>"), generatedSources);
+		Assert.Contains(s => s.Contains("public sealed class ActionCommand<T>"), generatedSources);
+		Assert.Contains(s => s.Contains("public sealed class AsyncActionCommand<T>"), generatedSources);
 	}
 
 	[TestMethod]
@@ -208,7 +208,7 @@ namespace TestNamespace
 		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources) = RunGenerator(source);
 
 		Assert.AreEqual(DiagnosticSeverity.Error, diagnostics.Single(d => d.Id == "BB84SG0020").Severity);
-		Assert.IsFalse(generatedSources.Any(s => s.Contains("RunCommand")));
+		Assert.DoesNotContain(s => s.Contains("RunCommand"), generatedSources);
 	}
 
 	[TestMethod]
@@ -256,8 +256,8 @@ namespace TestNamespace
 
 		Assert.IsEmpty(diagnostics);
 		Assert.IsEmpty(compilationErrors);
-		Assert.IsTrue(generatedSources.Any(s => s.Contains("canExecute: () => CanRun")));
-		Assert.IsTrue(generatedSources.Any(s => s.Contains("RunCommand.RaiseCanExecuteChanged();")));
+		Assert.Contains(s => s.Contains("canExecute: () => CanRun"), generatedSources);
+		Assert.Contains(s => s.Contains("RunCommand.RaiseCanExecuteChanged();"), generatedSources);
 	}
 
 	[TestMethod]
@@ -338,7 +338,7 @@ namespace TestNamespace
 
 		Assert.AreEqual(3, diagnostics.Count(d => d.Id == "BB84SG0022" && d.Severity == DiagnosticSeverity.Warning));
 		Assert.IsEmpty(compilationErrors);
-		Assert.IsTrue(generatedSources.Any(s => s.Contains("RunCommand")));
+		Assert.Contains(s => s.Contains("RunCommand"), generatedSources);
 	}
 
 	[TestMethod]
@@ -386,7 +386,7 @@ namespace TestNamespace
 
 		Assert.AreEqual(DiagnosticSeverity.Warning, diagnostics.Single(d => d.Id == "BB84SG0024").Severity);
 		Assert.IsEmpty(compilationErrors);
-		Assert.IsFalse(generatedSources.Any(s => s.Contains("MissingCommand.RaiseCanExecuteChanged")));
+		Assert.DoesNotContain(s => s.Contains("MissingCommand.RaiseCanExecuteChanged"), generatedSources);
 	}
 
 	private static (ImmutableArray<Diagnostic> Diagnostics, string[] GeneratedSources) RunGenerator(string source)
