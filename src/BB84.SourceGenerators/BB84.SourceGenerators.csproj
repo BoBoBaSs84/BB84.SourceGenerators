@@ -28,6 +28,7 @@
 		<None Remove="bin\Debug\netstandard2.0\\BB84.SourceGenerators.dll" />
 	</ItemGroup>
 	<ItemGroup>
+		<EmbeddedResource Include="Attributes\ActionCommandAttribute.cs" LogicalName="ActionCommandAttribute.cs" />
 		<EmbeddedResource Include="Attributes\AlsoNotifyAttribute.cs" LogicalName="AlsoNotifyAttribute.cs" />
 		<EmbeddedResource Include="Attributes\DisposeResourceAttribute.cs" LogicalName="DisposeResourceAttribute.cs" />
 		<EmbeddedResource Include="Attributes\ExcludeFromNotificationAttribute.cs" LogicalName="ExcludeFromNotificationAttribute.cs" />
@@ -52,6 +53,12 @@
 		<EmbeddedResource Include="Attributes\ToStringFormatAttribute.cs" LogicalName="ToStringFormatAttribute.cs" />
 		<EmbeddedResource Include="Attributes\ToStringOrderAttribute.cs" LogicalName="ToStringOrderAttribute.cs" />
 		<EmbeddedResource Include="Attributes\PropertyMappingAttribute.cs" LogicalName="PropertyMappingAttribute.cs" />
+		<EmbeddedResource Include="Attributes\NotifyCanExecuteChangedAttribute.cs" LogicalName="NotifyCanExecuteChangedAttribute.cs" />
+	</ItemGroup>
+	<ItemGroup>
+		<!-- Runtime command types emitted verbatim into consuming compilations; not compiled into the generator -->
+		<Compile Remove="Templates\**" />
+		<EmbeddedResource Include="Templates\Commands\*.cs" LogicalName="Commands.%(Filename).cs" />
 	</ItemGroup>
 	<ItemGroup>
 		<!-- Packs the generator DLL into the analyzers folder so Roslyn loads it as a source generator -->

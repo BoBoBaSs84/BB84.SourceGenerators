@@ -59,6 +59,11 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 
 		List<PartialPropertyInfo> partialProperties = GetPartialProperties(context, ctx);
 
+		HashSet<string> knownCommands = GetKnownCommandNames(ctx.ClassSymbol);
+		Dictionary<MemberDeclarationSyntax, List<string>> notifyCommands = [];
+		foreach (MemberDeclarationSyntax member in members.Cast<MemberDeclarationSyntax>().Concat(partialProperties.Select(static p => p.Syntax)))
+			notifyCommands[member] = GetNotifyCanExecuteChangedCommands(context, member, knownCommands);
+
 		bool isSealed = ctx.ClassDeclaration.Modifiers.Any(SyntaxKind.SealedKeyword);
 
 		SourceBuilder sb = new();
@@ -72,8 +77,8 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 		sb.OpenOuterClasses(ctx.OuterClasses);
 
 		AppendClassStart(sb, ctx.ClassName, ctx.Accessibility, generatePropertyChanged, generatePropertyChanging, generateHasChanged, ctx.IsRecord);
-		AppendProperties(sb, members, generatePropertyChanged, generatePropertyChanging, generateHasChanged);
-		AppendPartialProperties(sb, partialProperties, members.Count > 0, generatePropertyChanged, generatePropertyChanging, generateHasChanged);
+		AppendProperties(sb, members, notifyCommands, generatePropertyChanged, generatePropertyChanging, generateHasChanged);
+		AppendPartialProperties(sb, partialProperties, notifyCommands, members.Count > 0, generatePropertyChanged, generatePropertyChanging, generateHasChanged);
 		AppendRaiseMethods(sb, generatePropertyChanged, generatePropertyChanging, isSealed);
 
 		sb.CloseClassOrRecord(ctx.IsRecord);
@@ -147,12 +152,13 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 		}
 	}
 
-	private static void AppendProperties(SourceBuilder sb, List<FieldDeclarationSyntax> members, bool propertyChanged, bool propertyChanging, bool hasChanged)
+	private static void AppendProperties(SourceBuilder sb, List<FieldDeclarationSyntax> members, Dictionary<MemberDeclarationSyntax, List<string>> notifyCommands, bool propertyChanged, bool propertyChanging, bool hasChanged)
 	{
 		bool first = true;
 		foreach (FieldDeclarationSyntax member in members)
 		{
 			List<string> alsoNotifyFor = GetAlsoNotifyForProperties(member);
+			List<string> commands = notifyCommands[member];
 
 			foreach (VariableDeclaratorSyntax variable in member.Declaration.Variables)
 			{
@@ -168,13 +174,13 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 				sb.OpenBrace();
 				sb.AppendLine($"get => {fieldName};");
 				sb.AppendLine("set");
-				AppendNotifyingSetterBody(sb, fieldName, propertyName, alsoNotifyFor, propertyChanged, propertyChanging, hasChanged);
+				AppendNotifyingSetterBody(sb, fieldName, propertyName, alsoNotifyFor, commands, propertyChanged, propertyChanging, hasChanged);
 				sb.CloseBrace();
 			}
 		}
 	}
 
-	private static void AppendPartialProperties(SourceBuilder sb, List<PartialPropertyInfo> properties, bool hasPrecedingMembers, bool propertyChanged, bool propertyChanging, bool hasChanged)
+	private static void AppendPartialProperties(SourceBuilder sb, List<PartialPropertyInfo> properties, Dictionary<MemberDeclarationSyntax, List<string>> notifyCommands, bool hasPrecedingMembers, bool propertyChanged, bool propertyChanging, bool hasChanged)
 	{
 		bool first = !hasPrecedingMembers;
 		foreach (PartialPropertyInfo property in properties)
@@ -201,14 +207,14 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 			{
 				List<string> alsoNotifyFor = GetAlsoNotifyForProperties(property.Syntax);
 				sb.AppendLine($"{GetAccessorPrefix(property.Setter)}set");
-				AppendNotifyingSetterBody(sb, property.FieldName, property.Syntax.Identifier.Text, alsoNotifyFor, propertyChanged, propertyChanging, hasChanged);
+				AppendNotifyingSetterBody(sb, property.FieldName, property.Syntax.Identifier.Text, alsoNotifyFor, notifyCommands[property.Syntax], propertyChanged, propertyChanging, hasChanged);
 			}
 
 			sb.CloseBrace();
 		}
 	}
 
-	private static void AppendNotifyingSetterBody(SourceBuilder sb, string fieldName, string propertyName, List<string> alsoNotifyFor, bool propertyChanged, bool propertyChanging, bool hasChanged)
+	private static void AppendNotifyingSetterBody(SourceBuilder sb, string fieldName, string propertyName, List<string> alsoNotifyFor, List<string> commands, bool propertyChanged, bool propertyChanging, bool hasChanged)
 	{
 		sb.OpenBrace();
 		sb.AppendLine($"if ({fieldName} != value)");
@@ -228,6 +234,8 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 			else
 				sb.AppendLine($"RaisePropertyChanged(nameof({propertyName}), {string.Join(", ", alsoNotifyFor.Select(p => $"nameof({p})"))});");
 		}
+		foreach (string command in commands)
+			sb.AppendLine($"{command}.RaiseCanExecuteChanged();");
 		if (hasChanged)
 			sb.AppendLine("HasChanged = true;");
 		sb.CloseBrace();
@@ -405,17 +413,76 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 	}
 
 	private static List<string> GetAlsoNotifyForProperties(MemberDeclarationSyntax member)
+		=> [.. GetNameArguments(member, nameof(AlsoNotifyAttribute)).Select(static argument => argument.Name)];
+
+	/// <summary>
+	/// Gets the commands referenced by the <see cref="NotifyCanExecuteChangedAttribute"/> of the given member,
+	/// reporting a diagnostic for each command that is neither an existing member nor a generated command.
+	/// </summary>
+	/// <param name="context">The source production context used to report diagnostics.</param>
+	/// <param name="member">The field or partial property declaration.</param>
+	/// <param name="knownCommands">The names of the members and generated commands of the type.</param>
+	/// <returns>The names of the known commands to notify.</returns>
+	private static List<string> GetNotifyCanExecuteChangedCommands(SourceProductionContext context, MemberDeclarationSyntax member, HashSet<string> knownCommands)
 	{
-		List<string> properties = [];
-		string fullName = nameof(AlsoNotifyAttribute);
-		string shortName = GeneratorHelpers.StripAttributeSuffix(fullName);
+		List<string> commands = [];
+
+		foreach ((string name, Location location) in GetNameArguments(member, nameof(NotifyCanExecuteChangedAttribute)))
+		{
+			if (knownCommands.Contains(name))
+			{
+				commands.Add(name);
+				continue;
+			}
+
+			string memberName = member is FieldDeclarationSyntax field
+				? string.Join(", ", field.Declaration.Variables.Select(static v => v.Identifier.Text))
+				: ((PropertyDeclarationSyntax)member).Identifier.Text;
+
+			context.ReportDiagnostic(Diagnostic.Create(DiagnosticDescriptors.NotifyCanExecuteChangedUnknownCommandDiagnostic, location, memberName, name));
+		}
+
+		return commands;
+	}
+
+	/// <summary>
+	/// Gets the names of all members of the type and of the commands generated for its
+	/// <see cref="ActionCommandAttribute"/> methods.
+	/// </summary>
+	/// <param name="typeSymbol">The type symbol.</param>
+	/// <returns>The set of known command names.</returns>
+	private static HashSet<string> GetKnownCommandNames(INamedTypeSymbol typeSymbol)
+	{
+		HashSet<string> names = new(StringComparer.Ordinal);
+
+		foreach (ISymbol member in typeSymbol.GetMembers())
+		{
+			names.Add(member.Name);
+
+			if (member is IMethodSymbol method && ActionCommandGenerator.GetCommandName(method) is string commandName)
+				names.Add(commandName);
+		}
+
+		return names;
+	}
+
+	/// <summary>
+	/// Gets the name arguments (<c>nameof(...)</c> expressions or string literals) of the given attribute on a member.
+	/// </summary>
+	/// <param name="member">The member declaration syntax.</param>
+	/// <param name="attributeName">The full name of the attribute.</param>
+	/// <returns>The names and their source locations.</returns>
+	private static List<(string Name, Location Location)> GetNameArguments(MemberDeclarationSyntax member, string attributeName)
+	{
+		List<(string Name, Location Location)> names = [];
+		string shortName = GeneratorHelpers.StripAttributeSuffix(attributeName);
 
 		foreach (AttributeListSyntax attributeList in member.AttributeLists)
 		{
 			foreach (AttributeSyntax attribute in attributeList.Attributes)
 			{
 				string name = attribute.Name.ToString();
-				if (name != fullName && name != shortName)
+				if (name != attributeName && name != shortName)
 					continue;
 
 				if (attribute.ArgumentList is null)
@@ -431,12 +498,12 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 						argText = argText.Trim('"');
 
 					if (!string.IsNullOrWhiteSpace(argText))
-						properties.Add(argText);
+						names.Add((argText, argument.GetLocation()));
 				}
 			}
 		}
 
-		return properties;
+		return names;
 	}
 
 	/// <summary>
