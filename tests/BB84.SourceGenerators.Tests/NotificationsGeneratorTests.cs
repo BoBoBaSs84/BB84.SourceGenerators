@@ -12,6 +12,14 @@ namespace BB84.SourceGenerators.Tests;
 [TestClass]
 public sealed class NotificationsGeneratorTests
 {
+	private static readonly string[] ExpectedPartialMethodsLog =
+	[
+		"Changing:John", "Changing:->John", "PropertyChanging:Name", "Changed:John", "Changed:->John", "PropertyChanged:Name",
+		"Changing:Jane", "Changing:John->Jane", "PropertyChanging:Name", "Changed:Jane", "Changed:John->Jane", "PropertyChanged:Name"
+	];
+
+	private static readonly string[] ExpectedPartialPropertyPartialMethodsLog = ["Count:0->5", "Count:5->7"];
+
 	[TestMethod]
 	public void InitializeTest()
 	{
@@ -120,18 +128,18 @@ public sealed class NotificationsGeneratorTests
 		model.LastName = "Doe";
 		model.DateOfBirth = DateTime.MinValue;
 
-		CollectionAssert.Contains(changedProperties, nameof(model.FirstName));
-		CollectionAssert.Contains(changedProperties, nameof(model.LastName));
-		CollectionAssert.Contains(changedProperties, nameof(model.FullName));
-		CollectionAssert.Contains(changedProperties, nameof(model.DateOfBirth));
-		CollectionAssert.Contains(changedProperties, nameof(model.Age));
-		CollectionAssert.Contains(changedProperties, nameof(model.YearOfBirth));
-		CollectionAssert.Contains(changingProperties, nameof(model.FirstName));
-		CollectionAssert.Contains(changingProperties, nameof(model.LastName));
-		CollectionAssert.Contains(changingProperties, nameof(model.FullName));
-		CollectionAssert.Contains(changingProperties, nameof(model.DateOfBirth));
-		CollectionAssert.Contains(changingProperties, nameof(model.Age));
-		CollectionAssert.Contains(changingProperties, nameof(model.YearOfBirth));
+		Assert.Contains(nameof(model.FirstName), changedProperties);
+		Assert.Contains(nameof(model.LastName), changedProperties);
+		Assert.Contains(nameof(model.FullName), changedProperties);
+		Assert.Contains(nameof(model.DateOfBirth), changedProperties);
+		Assert.Contains(nameof(model.Age), changedProperties);
+		Assert.Contains(nameof(model.YearOfBirth), changedProperties);
+		Assert.Contains(nameof(model.FirstName), changingProperties);
+		Assert.Contains(nameof(model.LastName), changingProperties);
+		Assert.Contains(nameof(model.FullName), changingProperties);
+		Assert.Contains(nameof(model.DateOfBirth), changingProperties);
+		Assert.Contains(nameof(model.Age), changingProperties);
+		Assert.Contains(nameof(model.YearOfBirth), changingProperties);
 	}
 
 	[TestMethod]
@@ -169,8 +177,8 @@ public sealed class NotificationsGeneratorTests
 		Assert.AreEqual(DateTime.MinValue, model.UpdatedAt);
 		Assert.AreEqual(1, model.Version);
 		string[] expected = [nameof(model.Name), nameof(model.Count), nameof(model.UpdatedAt), nameof(model.Version)];
-		CollectionAssert.AreEqual(expected, changedProperties);
-		CollectionAssert.AreEqual(expected, changingProperties);
+		Assert.AreSequenceEqual(expected, changedProperties);
+		Assert.AreSequenceEqual(expected, changingProperties);
 	}
 
 	[TestMethod]
@@ -212,8 +220,8 @@ public sealed class NotificationsGeneratorTests
 
 		model.FirstName = "John";
 
-		CollectionAssert.AreEqual(new[] { nameof(model.FirstName), nameof(model.FullName) }, changedProperties);
-		CollectionAssert.AreEqual(new[] { nameof(model.FirstName), nameof(model.FullName) }, changingProperties);
+		Assert.AreSequenceEqual([nameof(model.FirstName), nameof(model.FullName)], changedProperties);
+		Assert.AreSequenceEqual([nameof(model.FirstName), nameof(model.FullName)], changingProperties);
 	}
 
 	[TestMethod]
@@ -279,7 +287,42 @@ public sealed class NotificationsGeneratorTests
 		model.Id = 1;
 		model.Name = "Test";
 
-		CollectionAssert.AreEqual(new[] { nameof(model.Id), nameof(model.Name) }, changedProperties);
+		Assert.AreSequenceEqual([nameof(model.Id), nameof(model.Name)], changedProperties);
+	}
+
+	[TestMethod]
+	public void PartialMethodsShouldBeCalledAroundNotifications()
+	{
+		PartialMethodsModel model = new();
+		model.PropertyChanging += (s, e) => model.Log.Add($"PropertyChanging:{e.PropertyName}");
+		model.PropertyChanged += (s, e) => model.Log.Add($"PropertyChanged:{e.PropertyName}");
+
+		model.Name = "John";
+		model.Name = "Jane";
+
+		Assert.AreSequenceEqual(ExpectedPartialMethodsLog, model.Log);
+	}
+
+	[TestMethod]
+	public void PartialMethodsShouldNotBeCalledWhenValueIsUnchanged()
+	{
+		PartialMethodsModel model = new() { Name = "John" };
+		model.Log.Clear();
+
+		model.Name = "John";
+
+		Assert.IsEmpty(model.Log);
+	}
+
+	[TestMethod]
+	public void PartialMethodsShouldWorkForPartialPropertiesWithPartialImplementation()
+	{
+		PartialMethodsModel model = new();
+
+		model.Count = 5;
+		model.Count = 7;
+
+		Assert.AreSequenceEqual(ExpectedPartialPropertyPartialMethodsLog, model.Log);
 	}
 }
 
@@ -415,4 +458,29 @@ public partial class MixedFieldAndPartialPropertyModel
 	private int _id;
 
 	public partial string? Name { get; set; }
+}
+
+[GenerateNotifications(partialMethods: true)]
+public partial class PartialMethodsModel
+{
+	private string? _name;
+
+	public partial int Count { get; set; }
+
+	public List<string> Log { get; } = [];
+
+	partial void OnNameChanging(string? value)
+		=> Log.Add($"Changing:{value}");
+
+	partial void OnNameChanging(string? oldValue, string? newValue)
+		=> Log.Add($"Changing:{oldValue}->{newValue}");
+
+	partial void OnNameChanged(string? value)
+		=> Log.Add($"Changed:{value}");
+
+	partial void OnNameChanged(string? oldValue, string? newValue)
+		=> Log.Add($"Changed:{oldValue}->{newValue}");
+
+	partial void OnCountChanged(int oldValue, int newValue)
+		=> Log.Add($"Count:{oldValue}->{newValue}");
 }
