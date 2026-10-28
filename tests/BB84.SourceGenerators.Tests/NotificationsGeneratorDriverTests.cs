@@ -452,6 +452,206 @@ namespace TestNamespace
 		Assert.DoesNotContain("OnSecretChang", generated);
 	}
 
+	[TestMethod]
+	public void ShouldNotRedeclareInheritedMembers()
+	{
+		string source = @"
+#nullable enable
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+	[GenerateNotifications(hasChanged: true)]
+	public partial class BaseModel
+	{
+		private string? _name;
+	}
+
+	[GenerateNotifications]
+	public partial class DerivedModel : BaseModel
+	{
+		[AlsoNotify(nameof(Name))]
+		private int _age;
+	}
+}";
+
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources, ImmutableArray<Diagnostic> compilationDiagnostics) = RunGeneratorWithAllDiagnostics(source);
+
+		Assert.IsEmpty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+		Assert.IsEmpty(compilationDiagnostics.Where(d => d.Severity == DiagnosticSeverity.Error || d.Id is "CS0108" or "CS0114"), string.Join(Environment.NewLine, compilationDiagnostics));
+		string generated = generatedSources.First(s => s.Contains("partial class DerivedModel"));
+		Assert.DoesNotContain("INotifyPropertyChanged", generated);
+		Assert.DoesNotContain("event PropertyChangedEventHandler", generated);
+		Assert.DoesNotContain("void RaisePropertyChanged", generated);
+		Assert.DoesNotContain("_hasChanged", generated);
+		Assert.Contains("RaisePropertyChanged(nameof(Age), nameof(Name));", generated);
+		Assert.Contains("HasChanged = true;", generated);
+	}
+
+	[TestMethod]
+	public void ShouldDeclareOnlyMissingInterfaceInDerived()
+	{
+		string source = @"
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+	[GenerateNotifications(propertyChanging: false)]
+	public partial class ChangedOnlyBaseModel
+	{
+		private int _id;
+	}
+
+	[GenerateNotifications]
+	public partial class ChangingDerivedModel : ChangedOnlyBaseModel
+	{
+		private int _count;
+	}
+}";
+
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources, ImmutableArray<Diagnostic> compilationDiagnostics) = RunGeneratorWithAllDiagnostics(source);
+
+		Assert.IsEmpty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+		Assert.IsEmpty(compilationDiagnostics.Where(d => d.Severity == DiagnosticSeverity.Error || d.Id is "CS0108" or "CS0114"), string.Join(Environment.NewLine, compilationDiagnostics));
+		string generated = generatedSources.First(s => s.Contains("partial class ChangingDerivedModel"));
+		Assert.Contains("partial class ChangingDerivedModel : INotifyPropertyChanging", generated);
+		Assert.Contains("void RaisePropertyChanging(string propertyName)", generated);
+		Assert.DoesNotContain("void RaisePropertyChanged", generated);
+		Assert.Contains("RaisePropertyChanged(nameof(Count));", generated);
+	}
+
+	[TestMethod]
+	public void ShouldUseInheritedRaiseMethodFromHandWrittenBase()
+	{
+		string source = @"
+using System.ComponentModel;
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+	public abstract class HandWrittenBase : INotifyPropertyChanged
+	{
+		public event PropertyChangedEventHandler PropertyChanged;
+
+		protected void RaisePropertyChanged(string propertyName)
+			=> PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+	}
+
+	[GenerateNotifications(propertyChanging: false)]
+	public partial class HandWrittenDerived : HandWrittenBase
+	{
+		[AlsoNotify(nameof(Display))]
+		private string _name;
+
+		public string Display => _name;
+	}
+}";
+
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources, ImmutableArray<Diagnostic> compilationDiagnostics) = RunGeneratorWithAllDiagnostics(source);
+
+		Assert.IsEmpty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+		Assert.IsEmpty(compilationDiagnostics.Where(d => d.Severity == DiagnosticSeverity.Error || d.Id is "CS0108" or "CS0114"), string.Join(Environment.NewLine, compilationDiagnostics));
+		string generated = generatedSources.First(s => s.Contains("partial class HandWrittenDerived"));
+		Assert.DoesNotContain("event PropertyChangedEventHandler", generated);
+		Assert.Contains("RaisePropertyChanged(nameof(Name));", generated);
+		Assert.Contains("RaisePropertyChanged(nameof(Display));", generated);
+	}
+
+	[TestMethod]
+	public void ShouldReportDiagnosticWhenBaseRaiseMethodMissing()
+	{
+		string source = @"
+using System.ComponentModel;
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+	public abstract class NoRaiseBase : INotifyPropertyChanged
+	{
+		public event PropertyChangedEventHandler PropertyChanged;
+
+		private void RaisePropertyChanged(string propertyName)
+			=> PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+	}
+
+	[GenerateNotifications(propertyChanging: false)]
+	public partial class NoRaiseDerived : NoRaiseBase
+	{
+		private string _name;
+	}
+}";
+
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources) = RunGenerator(source);
+
+		Diagnostic diagnostic = diagnostics.Single(d => d.Id == "BB84SG0025");
+		Assert.AreEqual(DiagnosticSeverity.Error, diagnostic.Severity);
+		Assert.IsFalse(generatedSources.Any(s => s.Contains("partial class NoRaiseDerived")));
+	}
+
+	[TestMethod]
+	public void ShouldSupportMultiLevelInheritance()
+	{
+		string source = @"
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+	[GenerateNotifications]
+	public partial class RootModel
+	{
+		private int _a;
+	}
+
+	public partial class MiddleModel : RootModel
+	{
+	}
+
+	[GenerateNotifications]
+	public partial class LeafModel : MiddleModel
+	{
+		private int _b;
+	}
+}";
+
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources, ImmutableArray<Diagnostic> compilationDiagnostics) = RunGeneratorWithAllDiagnostics(source);
+
+		Assert.IsEmpty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+		Assert.IsEmpty(compilationDiagnostics.Where(d => d.Severity == DiagnosticSeverity.Error || d.Id is "CS0108" or "CS0114"), string.Join(Environment.NewLine, compilationDiagnostics));
+		string generated = generatedSources.First(s => s.Contains("partial class LeafModel"));
+		Assert.DoesNotContain("event PropertyChangedEventHandler", generated);
+		Assert.DoesNotContain("event PropertyChangingEventHandler", generated);
+		Assert.Contains("RaisePropertyChanged(nameof(B));", generated);
+	}
+
+	[TestMethod]
+	public void ShouldSupportRecordInheritance()
+	{
+		string source = @"
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+	[GenerateNotifications]
+	public partial record BaseRecord
+	{
+		private int _id;
+	}
+
+	[GenerateNotifications]
+	public partial record DerivedRecord : BaseRecord
+	{
+		private int _count;
+	}
+}";
+
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources, ImmutableArray<Diagnostic> compilationDiagnostics) = RunGeneratorWithAllDiagnostics(source);
+
+		Assert.IsEmpty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+		Assert.IsEmpty(compilationDiagnostics.Where(d => d.Severity == DiagnosticSeverity.Error || d.Id is "CS0108" or "CS0114"), string.Join(Environment.NewLine, compilationDiagnostics));
+		string generated = generatedSources.First(s => s.Contains("partial record DerivedRecord"));
+		Assert.DoesNotContain("event PropertyChangedEventHandler", generated);
+	}
+
 	private static (ImmutableArray<Diagnostic> Diagnostics, string[] GeneratedSources) RunGenerator(string source)
 	{
 		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources, _) = RunGeneratorWithCompilation(source);
@@ -459,6 +659,12 @@ namespace TestNamespace
 	}
 
 	private static (ImmutableArray<Diagnostic> Diagnostics, string[] GeneratedSources, ImmutableArray<Diagnostic> CompilationErrors) RunGeneratorWithCompilation(string source)
+	{
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources, ImmutableArray<Diagnostic> compilationDiagnostics) = RunGeneratorWithAllDiagnostics(source);
+		return (diagnostics, generatedSources, [.. compilationDiagnostics.Where(d => d.Severity == DiagnosticSeverity.Error)]);
+	}
+
+	private static (ImmutableArray<Diagnostic> Diagnostics, string[] GeneratedSources, ImmutableArray<Diagnostic> CompilationDiagnostics) RunGeneratorWithAllDiagnostics(string source)
 	{
 		SyntaxTree syntaxTree = CSharpSyntaxTree.ParseText(source);
 
@@ -475,11 +681,10 @@ namespace TestNamespace
 
 		GeneratorDriverRunResult runResult = driver.GetRunResult();
 		string[] generatedSources = [.. runResult.GeneratedTrees.Select(t => t.GetText().ToString())];
-		// Errors in the emitted attribute sources are unrelated to the notifications generator and are ignored here.
-		ImmutableArray<Diagnostic> compilationErrors = [.. outputCompilation.GetDiagnostics()
-			.Where(d => d.Severity == DiagnosticSeverity.Error)
+		// Diagnostics in the emitted attribute sources are unrelated to the notifications generator and are ignored here.
+		ImmutableArray<Diagnostic> compilationDiagnostics = [.. outputCompilation.GetDiagnostics()
 			.Where(d => d.Location.SourceTree?.FilePath.Contains(nameof(AttributeSourceGenerator)) != true)];
 
-		return (diagnostics, generatedSources, compilationErrors);
+		return (diagnostics, generatedSources, compilationDiagnostics);
 	}
 }

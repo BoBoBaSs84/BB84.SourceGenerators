@@ -27,6 +27,9 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 	private static readonly SymbolDisplayFormat PropertyTypeFormat =
 		SymbolDisplayFormat.FullyQualifiedFormat.AddMiscellaneousOptions(SymbolDisplayMiscellaneousOptions.IncludeNullableReferenceTypeModifier);
 
+	private const string PropertyChangedInterfaceName = "System.ComponentModel.INotifyPropertyChanged";
+	private const string PropertyChangingInterfaceName = "System.ComponentModel.INotifyPropertyChanging";
+
 	/// <inheritdoc/>
 	public void Initialize(IncrementalGeneratorInitializationContext context)
 		=> GeneratorHelpers.RegisterClassOrRecordGenerator(context, AttributeNames.MetadataName, Execute);
@@ -50,7 +53,39 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 		bool generateHasChanged = GetHasChanged(ctx.ClassSymbol);
 		bool generatePartialMethods = GetPartialMethods(ctx.ClassSymbol);
 
-		if (!generatePropertyChanged && !generatePropertyChanging)
+		Compilation compilation = ctx.SemanticModel.Compilation;
+		InheritedFeature inheritedChanged = GetInheritedFeature(ctx.ClassSymbol, compilation, PropertyChangedInterfaceName, "RaisePropertyChanged", GetPropertyChanged);
+		InheritedFeature inheritedChanging = GetInheritedFeature(ctx.ClassSymbol, compilation, PropertyChangingInterfaceName, "RaisePropertyChanging", GetPropertyChanging);
+
+		foreach (InheritedFeature feature in new[] { inheritedChanged, inheritedChanging })
+		{
+			if (feature.MissingRaiseMethodIn is null)
+				continue;
+
+			context.ReportDiagnostic(Diagnostic.Create(
+				DiagnosticDescriptors.NotificationsBaseRaiseMethodMissingDiagnostic,
+				ctx.ClassDeclaration.Identifier.GetLocation(),
+				ctx.ClassName,
+				feature.MissingRaiseMethodIn.Name,
+				feature.InterfaceName,
+				feature.MethodName));
+			return;
+		}
+
+		bool inheritedHasChanged = GetInheritedHasChanged(ctx.ClassSymbol, compilation);
+
+		NotificationOptions options = new(
+			DeclareChanged: generatePropertyChanged && !inheritedChanged.IsProvided,
+			DeclareChanging: generatePropertyChanging && !inheritedChanging.IsProvided,
+			DeclareHasChanged: generateHasChanged && !inheritedHasChanged,
+			RaiseChanged: generatePropertyChanged || inheritedChanged.IsProvided,
+			RaiseChanging: generatePropertyChanging || inheritedChanging.IsProvided,
+			SetHasChanged: generateHasChanged || inheritedHasChanged,
+			ChangedSupportsParams: !inheritedChanged.IsProvided || inheritedChanged.SupportsParams,
+			ChangingSupportsParams: !inheritedChanging.IsProvided || inheritedChanging.SupportsParams,
+			PartialMethods: generatePartialMethods);
+
+		if (!options.RaiseChanged && !options.RaiseChanging)
 			return;
 
 		List<FieldDeclarationSyntax> members = [.. ctx.ClassDeclaration.Members
@@ -77,10 +112,10 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 		sb.OpenNamespace(ctx.NamespaceName);
 		sb.OpenOuterClasses(ctx.OuterClasses);
 
-		AppendClassStart(sb, ctx.ClassName, ctx.Accessibility, generatePropertyChanged, generatePropertyChanging, generateHasChanged, ctx.IsRecord);
-		AppendProperties(sb, members, notifyCommands, generatePropertyChanged, generatePropertyChanging, generateHasChanged, generatePartialMethods);
-		AppendPartialProperties(sb, partialProperties, notifyCommands, members.Count > 0, generatePropertyChanged, generatePropertyChanging, generateHasChanged, generatePartialMethods);
-		AppendRaiseMethods(sb, generatePropertyChanged, generatePropertyChanging, isSealed);
+		AppendClassStart(sb, ctx.ClassName, ctx.Accessibility, options, ctx.IsRecord);
+		AppendProperties(sb, members, notifyCommands, options);
+		AppendPartialProperties(sb, partialProperties, notifyCommands, members.Count > 0, options);
+		AppendRaiseMethods(sb, options.DeclareChanged, options.DeclareChanging, isSealed);
 
 		sb.CloseClassOrRecord(ctx.IsRecord);
 		sb.CloseOuterClasses(ctx.OuterClasses);
@@ -103,34 +138,118 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 	private static bool GetPartialMethods(INamedTypeSymbol namedTypeSymbol)
 		=> GeneratorHelpers.GetConstructorArgumentValue(namedTypeSymbol, AttributeNames.FullName, 3, false);
 
-	private static void AppendClassStart(SourceBuilder sb, string className, string accessibility, bool propertyChanged, bool propertyChanging, bool hasChanged, bool isRecord)
+	/// <summary>
+	/// Determines whether the base type chain of the given type already provides the change notification
+	/// described by <paramref name="interfaceName"/>, either through a base type decorated with the
+	/// <see cref="GenerateNotificationsAttribute"/> or through a base type implementing the interface itself.
+	/// </summary>
+	/// <param name="typeSymbol">The type whose base types are inspected.</param>
+	/// <param name="compilation">The compilation used to resolve the interface and to check accessibility.</param>
+	/// <param name="interfaceName">The metadata name of the notification interface.</param>
+	/// <param name="methodName">The name of the raise method the derived type calls.</param>
+	/// <param name="isGenerated">Determines whether a decorated base type generates the notification.</param>
+	/// <returns>The inherited feature description.</returns>
+	private static InheritedFeature GetInheritedFeature(INamedTypeSymbol typeSymbol, Compilation compilation, string interfaceName, string methodName, Func<INamedTypeSymbol, bool> isGenerated)
+	{
+		INamedTypeSymbol? interfaceSymbol = compilation.GetTypeByMetadataName(interfaceName);
+
+		for (INamedTypeSymbol? baseType = typeSymbol.BaseType; baseType is not null && baseType.SpecialType != SpecialType.System_Object; baseType = baseType.BaseType)
+		{
+			if (HasGenerateNotificationsAttribute(baseType))
+			{
+				if (isGenerated(baseType))
+					return new InheritedFeature(interfaceName, methodName, IsProvided: true, SupportsParams: true, MissingRaiseMethodIn: null);
+				continue;
+			}
+
+			if (interfaceSymbol is null || !baseType.Interfaces.Contains(interfaceSymbol, SymbolEqualityComparer.Default))
+				continue;
+
+			bool hasSingle = false;
+			bool hasParams = false;
+
+			for (INamedTypeSymbol? current = baseType; current is not null; current = current.BaseType)
+			{
+				foreach (IMethodSymbol method in current.GetMembers(methodName).OfType<IMethodSymbol>())
+				{
+					if (method.IsStatic || !method.ReturnsVoid || method.Parameters.Length != 1
+						|| !compilation.IsSymbolAccessibleWithin(method, typeSymbol, typeSymbol))
+						continue;
+
+					ITypeSymbol parameterType = method.Parameters[0].Type;
+					if (parameterType.SpecialType == SpecialType.System_String)
+						hasSingle = true;
+					else if (parameterType is IArrayTypeSymbol { ElementType.SpecialType: SpecialType.System_String })
+						hasParams = true;
+				}
+			}
+
+			return hasSingle || hasParams
+				? new InheritedFeature(interfaceName, methodName, IsProvided: true, SupportsParams: hasParams, MissingRaiseMethodIn: null)
+				: new InheritedFeature(interfaceName, methodName, IsProvided: false, SupportsParams: false, MissingRaiseMethodIn: baseType);
+		}
+
+		return new InheritedFeature(interfaceName, methodName, IsProvided: false, SupportsParams: false, MissingRaiseMethodIn: null);
+	}
+
+	/// <summary>
+	/// Determines whether the base type chain of the given type already provides a settable
+	/// <c>HasChanged</c> property.
+	/// </summary>
+	/// <param name="typeSymbol">The type whose base types are inspected.</param>
+	/// <param name="compilation">The compilation used to check accessibility.</param>
+	/// <returns><see langword="true"/> if a base type provides <c>HasChanged</c>; otherwise, <see langword="false"/>.</returns>
+	private static bool GetInheritedHasChanged(INamedTypeSymbol typeSymbol, Compilation compilation)
+	{
+		for (INamedTypeSymbol? baseType = typeSymbol.BaseType; baseType is not null && baseType.SpecialType != SpecialType.System_Object; baseType = baseType.BaseType)
+		{
+			if (HasGenerateNotificationsAttribute(baseType) && GetHasChanged(baseType))
+				return true;
+
+			bool hasProperty = baseType.GetMembers("HasChanged")
+				.OfType<IPropertySymbol>()
+				.Any(p => p.Type.SpecialType == SpecialType.System_Boolean
+					&& p.SetMethod is not null
+					&& compilation.IsSymbolAccessibleWithin(p.SetMethod, typeSymbol, typeSymbol));
+
+			if (hasProperty)
+				return true;
+		}
+
+		return false;
+	}
+
+	private static bool HasGenerateNotificationsAttribute(INamedTypeSymbol typeSymbol)
+		=> typeSymbol.GetAttributes().Any(static a => a.AttributeClass?.Name == AttributeNames.FullName);
+
+	private static void AppendClassStart(SourceBuilder sb, string className, string accessibility, NotificationOptions options, bool isRecord)
 	{
 		List<string> interfaces = [];
 
-		if (propertyChanged)
+		if (options.DeclareChanged)
 			interfaces.Add("INotifyPropertyChanged");
-		if (propertyChanging)
+		if (options.DeclareChanging)
 			interfaces.Add("INotifyPropertyChanging");
 
 		string? baseTypes = interfaces.Count > 0 ? string.Join(", ", interfaces) : null;
 
 		sb.OpenClassOrRecord(isRecord, accessibility, className, baseTypes);
 
-		if (propertyChanged)
+		if (options.DeclareChanged)
 		{
 			sb.AppendLine("/// <inheritdoc/>");
 			sb.AppendLine("public event PropertyChangedEventHandler? PropertyChanged;");
 			sb.AppendLine();
 		}
 
-		if (propertyChanging)
+		if (options.DeclareChanging)
 		{
 			sb.AppendLine("/// <inheritdoc/>");
 			sb.AppendLine("public event PropertyChangingEventHandler? PropertyChanging;");
 			sb.AppendLine();
 		}
 
-		if (hasChanged)
+		if (options.DeclareHasChanged)
 		{
 			sb.AppendLine("private bool _hasChanged;");
 			sb.AppendLine();
@@ -144,10 +263,10 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 			sb.OpenBrace();
 			sb.AppendLine("if (_hasChanged != value)");
 			sb.OpenBrace();
-			if (propertyChanging)
+			if (options.RaiseChanging)
 				sb.AppendLine("RaisePropertyChanging(nameof(HasChanged));");
 			sb.AppendLine("_hasChanged = value;");
-			if (propertyChanged)
+			if (options.RaiseChanged)
 				sb.AppendLine("RaisePropertyChanged(nameof(HasChanged));");
 			sb.CloseBrace();
 			sb.CloseBrace();
@@ -156,7 +275,7 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 		}
 	}
 
-	private static void AppendProperties(SourceBuilder sb, List<FieldDeclarationSyntax> members, Dictionary<MemberDeclarationSyntax, List<string>> notifyCommands, bool propertyChanged, bool propertyChanging, bool hasChanged, bool partialMethods)
+	private static void AppendProperties(SourceBuilder sb, List<FieldDeclarationSyntax> members, Dictionary<MemberDeclarationSyntax, List<string>> notifyCommands, NotificationOptions options)
 	{
 		bool first = true;
 		foreach (FieldDeclarationSyntax member in members)
@@ -178,16 +297,16 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 				sb.OpenBrace();
 				sb.AppendLine($"get => {fieldName};");
 				sb.AppendLine("set");
-				AppendNotifyingSetterBody(sb, fieldName, propertyName, fieldType, alsoNotifyFor, commands, propertyChanged, propertyChanging, hasChanged, partialMethods);
+				AppendNotifyingSetterBody(sb, fieldName, propertyName, fieldType, alsoNotifyFor, commands, options);
 				sb.CloseBrace();
 
-				if (partialMethods)
+				if (options.PartialMethods)
 					AppendPartialMethodDeclarations(sb, propertyName, fieldType);
 			}
 		}
 	}
 
-	private static void AppendPartialProperties(SourceBuilder sb, List<PartialPropertyInfo> properties, Dictionary<MemberDeclarationSyntax, List<string>> notifyCommands, bool hasPrecedingMembers, bool propertyChanged, bool propertyChanging, bool hasChanged, bool partialMethods)
+	private static void AppendPartialProperties(SourceBuilder sb, List<PartialPropertyInfo> properties, Dictionary<MemberDeclarationSyntax, List<string>> notifyCommands, bool hasPrecedingMembers, NotificationOptions options)
 	{
 		bool first = !hasPrecedingMembers;
 		foreach (PartialPropertyInfo property in properties)
@@ -214,53 +333,69 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 			{
 				List<string> alsoNotifyFor = GetAlsoNotifyForProperties(property.Syntax);
 				sb.AppendLine($"{GetAccessorPrefix(property.Setter)}set");
-				AppendNotifyingSetterBody(sb, property.FieldName, property.Syntax.Identifier.Text, property.TypeName, alsoNotifyFor, notifyCommands[property.Syntax], propertyChanged, propertyChanging, hasChanged, partialMethods);
+				AppendNotifyingSetterBody(sb, property.FieldName, property.Syntax.Identifier.Text, property.TypeName, alsoNotifyFor, notifyCommands[property.Syntax], options);
 			}
 
 			sb.CloseBrace();
 
-			if (partialMethods && !property.IsExcluded)
+			if (options.PartialMethods && !property.IsExcluded)
 				AppendPartialMethodDeclarations(sb, property.Syntax.Identifier.Text, property.TypeName);
 		}
 	}
 
-	private static void AppendNotifyingSetterBody(SourceBuilder sb, string fieldName, string propertyName, string typeName, List<string> alsoNotifyFor, List<string> commands, bool propertyChanged, bool propertyChanging, bool hasChanged, bool partialMethods)
+	private static void AppendNotifyingSetterBody(SourceBuilder sb, string fieldName, string propertyName, string typeName, List<string> alsoNotifyFor, List<string> commands, NotificationOptions options)
 	{
 		sb.OpenBrace();
 		sb.AppendLine($"if ({fieldName} != value)");
 		sb.OpenBrace();
-		if (partialMethods)
+		if (options.PartialMethods)
 		{
 			sb.AppendLine($"{typeName} __oldValue = {fieldName};");
 			sb.AppendLine($"On{propertyName}Changing(value);");
 			sb.AppendLine($"On{propertyName}Changing(__oldValue, value);");
 		}
-		if (propertyChanging)
-		{
-			if (alsoNotifyFor.Count == 0)
-				sb.AppendLine($"RaisePropertyChanging(nameof({propertyName}));");
-			else
-				sb.AppendLine($"RaisePropertyChanging(nameof({propertyName}), {string.Join(", ", alsoNotifyFor.Select(p => $"nameof({p})"))});");
-		}
+		if (options.RaiseChanging)
+			AppendRaiseCall(sb, "RaisePropertyChanging", propertyName, alsoNotifyFor, options.ChangingSupportsParams);
 		sb.AppendLine($"{fieldName} = value;");
-		if (partialMethods)
+		if (options.PartialMethods)
 		{
 			sb.AppendLine($"On{propertyName}Changed(value);");
 			sb.AppendLine($"On{propertyName}Changed(__oldValue, value);");
 		}
-		if (propertyChanged)
-		{
-			if (alsoNotifyFor.Count == 0)
-				sb.AppendLine($"RaisePropertyChanged(nameof({propertyName}));");
-			else
-				sb.AppendLine($"RaisePropertyChanged(nameof({propertyName}), {string.Join(", ", alsoNotifyFor.Select(p => $"nameof({p})"))});");
-		}
+		if (options.RaiseChanged)
+			AppendRaiseCall(sb, "RaisePropertyChanged", propertyName, alsoNotifyFor, options.ChangedSupportsParams);
 		foreach (string command in commands)
 			sb.AppendLine($"{command}.RaiseCanExecuteChanged();");
-		if (hasChanged)
+		if (options.SetHasChanged)
 			sb.AppendLine("HasChanged = true;");
 		sb.CloseBrace();
 		sb.CloseBrace();
+	}
+
+	/// <summary>
+	/// Appends the call of a raise method for the given property and its additionally notified properties,
+	/// using a single <c>params</c> call when supported and one call per property otherwise.
+	/// </summary>
+	/// <param name="sb">The source builder.</param>
+	/// <param name="methodName">The name of the raise method.</param>
+	/// <param name="propertyName">The name of the changed property.</param>
+	/// <param name="alsoNotifyFor">The names of the additionally notified properties.</param>
+	/// <param name="supportsParams">Indicates whether a <c>params string[]</c> overload of the raise method is available.</param>
+	private static void AppendRaiseCall(SourceBuilder sb, string methodName, string propertyName, List<string> alsoNotifyFor, bool supportsParams)
+	{
+		if (alsoNotifyFor.Count == 0)
+		{
+			sb.AppendLine($"{methodName}(nameof({propertyName}));");
+		}
+		else if (supportsParams)
+		{
+			sb.AppendLine($"{methodName}(nameof({propertyName}), {string.Join(", ", alsoNotifyFor.Select(p => $"nameof({p})"))});");
+		}
+		else
+		{
+			foreach (string name in new[] { propertyName }.Concat(alsoNotifyFor))
+				sb.AppendLine($"{methodName}(nameof({name}));");
+		}
 	}
 
 	/// <summary>
@@ -582,4 +717,44 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 		string TypeName,
 		string FieldName,
 		bool IsExcluded);
+
+	/// <summary>
+	/// Describes whether a change notification is already provided by the base type chain.
+	/// </summary>
+	/// <param name="InterfaceName">The metadata name of the notification interface.</param>
+	/// <param name="MethodName">The name of the raise method.</param>
+	/// <param name="IsProvided">Indicates whether a base type provides the notification and a usable raise method.</param>
+	/// <param name="SupportsParams">Indicates whether the inherited raise method has a <c>params string[]</c> overload.</param>
+	/// <param name="MissingRaiseMethodIn">
+	/// The base type that implements the interface without an accessible raise method; otherwise, <see langword="null"/>.
+	/// </param>
+	private sealed record InheritedFeature(
+		string InterfaceName,
+		string MethodName,
+		bool IsProvided,
+		bool SupportsParams,
+		INamedTypeSymbol? MissingRaiseMethodIn);
+
+	/// <summary>
+	/// Describes which notification members are declared by the generated type and which are raised by its setters.
+	/// </summary>
+	/// <param name="DeclareChanged">Indicates whether the <c>PropertyChanged</c> event and raise methods are declared.</param>
+	/// <param name="DeclareChanging">Indicates whether the <c>PropertyChanging</c> event and raise methods are declared.</param>
+	/// <param name="DeclareHasChanged">Indicates whether the <c>HasChanged</c> property is declared.</param>
+	/// <param name="RaiseChanged">Indicates whether setters raise the <c>PropertyChanged</c> event.</param>
+	/// <param name="RaiseChanging">Indicates whether setters raise the <c>PropertyChanging</c> event.</param>
+	/// <param name="SetHasChanged">Indicates whether setters set the <c>HasChanged</c> property.</param>
+	/// <param name="ChangedSupportsParams">Indicates whether <c>RaisePropertyChanged</c> accepts multiple property names.</param>
+	/// <param name="ChangingSupportsParams">Indicates whether <c>RaisePropertyChanging</c> accepts multiple property names.</param>
+	/// <param name="PartialMethods">Indicates whether partial method hooks are declared and called.</param>
+	private sealed record NotificationOptions(
+		bool DeclareChanged,
+		bool DeclareChanging,
+		bool DeclareHasChanged,
+		bool RaiseChanged,
+		bool RaiseChanging,
+		bool SetHasChanged,
+		bool ChangedSupportsParams,
+		bool ChangingSupportsParams,
+		bool PartialMethods);
 }
