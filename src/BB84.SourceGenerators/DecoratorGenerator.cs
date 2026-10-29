@@ -73,6 +73,15 @@ public sealed class DecoratorGenerator : IIncrementalGenerator
 
 		sb.OpenClass(accessibility, className);
 
+		AppendConstructor(sb, className, innerTypeName);
+		AppendHooks(sb, interfaceInfos);
+		AppendMemberDelegations(sb, primaryInterface, interfaceInfos);
+
+		sb.CloseClass();
+	}
+
+	private static void AppendConstructor(SourceBuilder sb, string className, string innerTypeName)
+	{
 		// Inner field
 		sb.AppendLine($"private readonly {innerTypeName} _inner;");
 		sb.AppendLine();
@@ -87,7 +96,10 @@ public sealed class DecoratorGenerator : IIncrementalGenerator
 		sb.OpenBrace();
 		sb.AppendLine("_inner = inner ?? throw new ArgumentNullException(nameof(inner));");
 		sb.CloseBrace();
+	}
 
+	private static void AppendHooks(SourceBuilder sb, List<InterfaceInfo> interfaceInfos)
+	{
 		// Generate partial method hooks
 		HashSet<string> emittedHooks = new(StringComparer.Ordinal);
 		foreach (InterfaceInfo info in interfaceInfos)
@@ -102,7 +114,10 @@ public sealed class DecoratorGenerator : IIncrementalGenerator
 				}
 			}
 		}
+	}
 
+	private static void AppendMemberDelegations(SourceBuilder sb, INamedTypeSymbol primaryInterface, List<InterfaceInfo> interfaceInfos)
+	{
 		// Collect all interfaces that the primary interface already covers (itself + its full hierarchy)
 		HashSet<string> primaryCovers = new(StringComparer.Ordinal)
 		{
@@ -137,8 +152,6 @@ public sealed class DecoratorGenerator : IIncrementalGenerator
 				AppendEventDelegation(sb, evt, innerAccess);
 			}
 		}
-
-		sb.CloseClass();
 	}
 
 	private static void AppendMethodDelegation(SourceBuilder sb, IMethodSymbol method, string innerAccess)
@@ -256,17 +269,9 @@ public sealed class DecoratorGenerator : IIncrementalGenerator
 		return $"<{string.Join(", ", parts)}>";
 	}
 
+	// Type arguments at the call site are the method's own type parameter names.
 	private static string GetTypeArgumentList(IMethodSymbol method)
-	{
-		if (method.TypeParameters.Length == 0)
-			return string.Empty;
-
-		List<string> parts = [];
-		foreach (ITypeParameterSymbol tp in method.TypeParameters)
-			parts.Add(tp.Name);
-
-		return $"<{string.Join(", ", parts)}>";
-	}
+		=> GetTypeParameterList(method);
 
 	private static string GetTypeParameterConstraints(IMethodSymbol method)
 	{

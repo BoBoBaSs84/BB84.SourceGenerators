@@ -51,7 +51,34 @@ public sealed class FactoryGenerator : IIncrementalGenerator
 			return;
 		}
 
-		// Discover all concrete implementations
+		if (DiscoverImplementations(context, ctx, compilation, interfaceSymbol) is not { } implementations)
+			return;
+
+		string interfaceName = interfaceSymbol.ToFullyQualifiedDisplayString();
+		string interfaceShortName = interfaceSymbol.ToMinimalDisplayString();
+
+		SourceBuilder sb = new();
+
+		sb.BeginTypeFile(GeneratorNames.FactoryGeneratorFullName, ctx.NamespaceName, ctx.OuterClasses, []);
+
+		AppendPartialClass(sb, ctx.ClassName, ctx.Accessibility, interfaceName, interfaceShortName, implementations);
+
+		sb.EndTypeFile(ctx.OuterClasses);
+
+		GeneratorHelpers.AddTypeSource(context, ctx.OuterClasses, ctx.ClassName, "Factory", sb);
+	}
+
+	/// <summary>
+	/// Discovers all concrete, publicly constructible implementations of the interface in the compilation,
+	/// reporting a diagnostic for each duplicate factory key.
+	/// </summary>
+	/// <param name="context">The source production context used to report diagnostics.</param>
+	/// <param name="ctx">The generator context of the factory class.</param>
+	/// <param name="compilation">The compilation to search.</param>
+	/// <param name="interfaceSymbol">The target interface.</param>
+	/// <returns>The implementations and their keys, or <see langword="null"/> when duplicate keys were found.</returns>
+	private static List<(INamedTypeSymbol Type, string Key)>? DiscoverImplementations(SourceProductionContext context, GeneratorContext ctx, Compilation compilation, INamedTypeSymbol interfaceSymbol)
+	{
 		List<(INamedTypeSymbol Type, string Key)> implementations = [];
 		HashSet<string> seenKeys = new(StringComparer.Ordinal);
 		bool hasDuplicates = false;
@@ -79,21 +106,7 @@ public sealed class FactoryGenerator : IIncrementalGenerator
 			implementations.Add((type, key));
 		}
 
-		if (hasDuplicates)
-			return;
-
-		string interfaceName = interfaceSymbol.ToFullyQualifiedDisplayString();
-		string interfaceShortName = interfaceSymbol.ToMinimalDisplayString();
-
-		SourceBuilder sb = new();
-
-		sb.BeginTypeFile(GeneratorNames.FactoryGeneratorFullName, ctx.NamespaceName, ctx.OuterClasses, []);
-
-		AppendPartialClass(sb, ctx.ClassName, ctx.Accessibility, interfaceName, interfaceShortName, implementations);
-
-		sb.EndTypeFile(ctx.OuterClasses);
-
-		GeneratorHelpers.AddTypeSource(context, ctx.OuterClasses, ctx.ClassName, "Factory", sb);
+		return hasDuplicates ? null : implementations;
 	}
 
 	private static void AppendPartialClass(
@@ -106,7 +119,15 @@ public sealed class FactoryGenerator : IIncrementalGenerator
 	{
 		sb.OpenClass(accessibility, className);
 
-		// Create method
+		AppendCreateMethod(sb, interfaceFullName, interfaceShortName, implementations);
+		sb.AppendLine();
+		AppendGetKeysMethod(sb, implementations);
+
+		sb.CloseClass();
+	}
+
+	private static void AppendCreateMethod(SourceBuilder sb, string interfaceFullName, string interfaceShortName, List<(INamedTypeSymbol Type, string Key)> implementations)
+	{
 		sb.AppendSummary($"Creates an instance of <see cref=\"{interfaceShortName}\"/> based on the specified key.");
 		sb.AppendLine("/// <param name=\"key\">The key identifying the implementation to create.</param>");
 		sb.AppendLine($"/// <returns>A new instance of <see cref=\"{interfaceShortName}\"/>.</returns>");
@@ -126,10 +147,10 @@ public sealed class FactoryGenerator : IIncrementalGenerator
 		sb.Outdent();
 		sb.AppendLine("};");
 		sb.CloseBrace();
+	}
 
-		sb.AppendLine();
-
-		// GetKeys method
+	private static void AppendGetKeysMethod(SourceBuilder sb, List<(INamedTypeSymbol Type, string Key)> implementations)
+	{
 		sb.AppendSummary("Gets all registered factory keys.");
 		sb.AppendLine("/// <returns>An enumerable of all registered keys.</returns>");
 		sb.AppendLine("public static System.Collections.Generic.IEnumerable<string> GetKeys()");
@@ -144,8 +165,6 @@ public sealed class FactoryGenerator : IIncrementalGenerator
 			sb.AppendLine("yield break;");
 
 		sb.CloseBrace();
-
-		sb.CloseClass();
 	}
 
 	private static INamedTypeSymbol? GetInterfaceTypeFromAttribute(INamedTypeSymbol classSymbol)

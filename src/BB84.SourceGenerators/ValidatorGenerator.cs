@@ -36,6 +36,14 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 
 	private const string ErrorMessageArgumentName = "ErrorMessage";
 
+	private static readonly Dictionary<ValidationKind, SimpleAttributeRule> SimpleAttributeRules = new()
+	{
+		[ValidationKind.EmailAddress] = new("EmailAddressAttribute", "e-mail address"),
+		[ValidationKind.Url] = new("UrlAttribute", "fully-qualified http, https, or ftp URL"),
+		[ValidationKind.Phone] = new("PhoneAttribute", "phone number"),
+		[ValidationKind.CreditCard] = new("CreditCardAttribute", "credit card number"),
+	};
+
 	/// <inheritdoc/>
 	public void Initialize(IncrementalGeneratorInitializationContext context)
 		=> GeneratorHelpers.RegisterClassGenerator(context, AttributeNames.MetadataName, Execute);
@@ -72,6 +80,15 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 		// Collect all unique regex patterns and emit static readonly Regex fields
 		Dictionary<string, RegexFieldInfo> regexFields = CollectRegexPatterns(validatedProperties);
 
+		AppendRegexFields(sb, regexFields);
+		AppendValidateAll(sb, validatedProperties, implementsIValidatableObject, regexFields);
+		AppendValidateProperty(sb);
+
+		sb.CloseClass();
+	}
+
+	private static void AppendRegexFields(SourceBuilder sb, Dictionary<string, RegexFieldInfo> regexFields)
+	{
 		foreach (KeyValuePair<string, RegexFieldInfo> entry in regexFields)
 		{
 			sb.AppendLine($"private static readonly Regex {entry.Value.FieldName} = new Regex(@\"{GeneratorHelpers.EscapeVerbatimString(entry.Key)}\", RegexOptions.Compiled);");
@@ -79,7 +96,10 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 
 		if (regexFields.Count > 0)
 			sb.AppendLine();
+	}
 
+	private static void AppendValidateAll(SourceBuilder sb, ImmutableArray<PropertyValidationInfo> validatedProperties, bool implementsIValidatableObject, Dictionary<string, RegexFieldInfo> regexFields)
+	{
 		// Generate Validate() returning Dictionary<string, List<string>>
 		sb.AppendSummary("Validates the current instance and returns a dictionary of validation errors grouped by property name.");
 		sb.AppendLine("/// <returns>A dictionary where each key is a property name and the value is a list of validation error messages. An empty dictionary indicates a valid instance.</returns>");
@@ -91,7 +111,7 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 		{
 			foreach (ValidationRule rule in property.Rules)
 			{
-				AppendValidationRule(sb, property.Name, property.TypeName, property.IsCollection, property.IsArray, rule, regexFields);
+				AppendValidationRule(sb, property, rule, regexFields);
 			}
 		}
 
@@ -121,7 +141,10 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 		sb.AppendLine("return errors;");
 		sb.CloseBrace();
 		sb.AppendLine();
+	}
 
+	private static void AppendValidateProperty(SourceBuilder sb)
+	{
 		// Generate Validate(string propertyName) returning List<string>
 		sb.AppendSummary("Validates a specific property of the current instance and returns a list of validation errors.");
 		sb.AppendLine("/// <param name=\"propertyName\">The name of the property to validate.</param>");
@@ -135,20 +158,21 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 		sb.Outdent();
 		sb.AppendLine("return new List<string>();");
 		sb.CloseBrace();
-		sb.CloseClass();
 	}
 
-	private static void AppendValidationRule(SourceBuilder sb, string propertyName, string typeName, bool isCollection, bool isArray, ValidationRule rule, Dictionary<string, RegexFieldInfo> regexFields)
+	private static void AppendValidationRule(SourceBuilder sb, PropertyValidationInfo property, ValidationRule rule, Dictionary<string, RegexFieldInfo> regexFields)
 	{
+		string propertyName = property.Name;
+
 		sb.AppendLine();
 
 		switch (rule.Kind)
 		{
 			case ValidationKind.Required:
-				AppendRequiredValidation(sb, propertyName, typeName, rule);
+				AppendRequiredValidation(sb, propertyName, property.TypeName, rule);
 				break;
 			case ValidationKind.Range:
-				AppendRangeValidation(sb, propertyName, isCollection, isArray, rule);
+				AppendRangeValidation(sb, propertyName, property.IsCollection, property.IsArray, rule);
 				break;
 			case ValidationKind.StringLength:
 				AppendStringLengthValidation(sb, propertyName, rule);
@@ -163,16 +187,10 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 				AppendRegularExpressionValidation(sb, propertyName, rule, regexFields);
 				break;
 			case ValidationKind.EmailAddress:
-				AppendEmailAddressValidation(sb, propertyName, rule);
-				break;
 			case ValidationKind.Url:
-				AppendUrlValidation(sb, propertyName, rule);
-				break;
 			case ValidationKind.Phone:
-				AppendPhoneValidation(sb, propertyName, rule);
-				break;
 			case ValidationKind.CreditCard:
-				AppendCreditCardValidation(sb, propertyName, rule);
+				AppendSimpleAttributeValidation(sb, propertyName, rule, SimpleAttributeRules[rule.Kind]);
 				break;
 			case ValidationKind.Compare:
 				AppendCompareValidation(sb, propertyName, rule);
@@ -263,35 +281,11 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 		AppendAddError(sb, propertyName, message);
 	}
 
-	private static void AppendEmailAddressValidation(SourceBuilder sb, string propertyName, ValidationRule rule)
+	private static void AppendSimpleAttributeValidation(SourceBuilder sb, string propertyName, ValidationRule rule, SimpleAttributeRule simpleRule)
 	{
-		string message = rule.ErrorMessage ?? $"The {propertyName} field is not a valid e-mail address.";
+		string message = rule.ErrorMessage ?? $"The {propertyName} field is not a valid {simpleRule.ValueDescription}.";
 
-		sb.AppendLine($"if ({propertyName} != null && !new EmailAddressAttribute().IsValid({propertyName}))");
-		AppendAddError(sb, propertyName, message);
-	}
-
-	private static void AppendUrlValidation(SourceBuilder sb, string propertyName, ValidationRule rule)
-	{
-		string message = rule.ErrorMessage ?? $"The {propertyName} field is not a valid fully-qualified http, https, or ftp URL.";
-
-		sb.AppendLine($"if ({propertyName} != null && !new UrlAttribute().IsValid({propertyName}))");
-		AppendAddError(sb, propertyName, message);
-	}
-
-	private static void AppendPhoneValidation(SourceBuilder sb, string propertyName, ValidationRule rule)
-	{
-		string message = rule.ErrorMessage ?? $"The {propertyName} field is not a valid phone number.";
-
-		sb.AppendLine($"if ({propertyName} != null && !new PhoneAttribute().IsValid({propertyName}))");
-		AppendAddError(sb, propertyName, message);
-	}
-
-	private static void AppendCreditCardValidation(SourceBuilder sb, string propertyName, ValidationRule rule)
-	{
-		string message = rule.ErrorMessage ?? $"The {propertyName} field is not a valid credit card number.";
-
-		sb.AppendLine($"if ({propertyName} != null && !new CreditCardAttribute().IsValid({propertyName}))");
+		sb.AppendLine($"if ({propertyName} != null && !new {simpleRule.AttributeTypeName}().IsValid({propertyName}))");
 		AppendAddError(sb, propertyName, message);
 	}
 
@@ -374,8 +368,8 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 					DataAnnotationNames.Phone => ParseSimpleAttribute(attribute, ValidationKind.Phone),
 					DataAnnotationNames.CreditCard => ParseSimpleAttribute(attribute, ValidationKind.CreditCard),
 					DataAnnotationNames.Compare => ParseCompareAttribute(attribute),
-					DataAnnotationNames.AllowedValues => ParseAllowedValuesAttribute(attribute),
-					DataAnnotationNames.DeniedValues => ParseDeniedValuesAttribute(attribute),
+					DataAnnotationNames.AllowedValues => ParseValuesAttribute(attribute, ValidationKind.AllowedValues),
+					DataAnnotationNames.DeniedValues => ParseValuesAttribute(attribute, ValidationKind.DeniedValues),
 					_ => TryParseCustomValidationAttribute(attribute)
 				};
 
@@ -422,14 +416,7 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 
 	private static ValidationRule? ParseStringLengthAttribute(AttributeData attribute)
 	{
-		ImmutableArray<TypedConstant> args = attribute.ConstructorArguments;
-
-		if (args.Length < 1)
-			return null;
-
-		string? maxValue = args[0].Value?.ToString();
-
-		if (maxValue is null)
+		if (!TryGetFirstArgString(attribute, out string maxValue))
 			return null;
 
 		string? errorMessage = GeneratorHelpers.GetNamedArgument<string?>(attribute, ErrorMessageArgumentName, null);
@@ -442,14 +429,7 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 
 	private static ValidationRule? ParseMinLengthAttribute(AttributeData attribute)
 	{
-		ImmutableArray<TypedConstant> args = attribute.ConstructorArguments;
-
-		if (args.Length < 1)
-			return null;
-
-		string? minValue = args[0].Value?.ToString();
-
-		if (minValue is null)
+		if (!TryGetFirstArgString(attribute, out string minValue))
 			return null;
 
 		string? errorMessage = GeneratorHelpers.GetNamedArgument<string?>(attribute, ErrorMessageArgumentName, null);
@@ -459,14 +439,7 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 
 	private static ValidationRule? ParseMaxLengthAttribute(AttributeData attribute)
 	{
-		ImmutableArray<TypedConstant> args = attribute.ConstructorArguments;
-
-		if (args.Length < 1)
-			return null;
-
-		string? maxValue = args[0].Value?.ToString();
-
-		if (maxValue is null)
+		if (!TryGetFirstArgString(attribute, out string maxValue))
 			return null;
 
 		string? errorMessage = GeneratorHelpers.GetNamedArgument<string?>(attribute, ErrorMessageArgumentName, null);
@@ -476,14 +449,7 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 
 	private static ValidationRule? ParseRegularExpressionAttribute(AttributeData attribute)
 	{
-		ImmutableArray<TypedConstant> args = attribute.ConstructorArguments;
-
-		if (args.Length < 1)
-			return null;
-
-		string? pattern = args[0].Value?.ToString();
-
-		if (pattern is null)
+		if (!TryGetFirstArgString(attribute, out string pattern))
 			return null;
 
 		string? errorMessage = GeneratorHelpers.GetNamedArgument<string?>(attribute, ErrorMessageArgumentName, null);
@@ -499,14 +465,7 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 
 	private static ValidationRule? ParseCompareAttribute(AttributeData attribute)
 	{
-		ImmutableArray<TypedConstant> args = attribute.ConstructorArguments;
-
-		if (args.Length < 1)
-			return null;
-
-		string? otherProperty = args[0].Value?.ToString();
-
-		if (otherProperty is null)
+		if (!TryGetFirstArgString(attribute, out string otherProperty))
 			return null;
 
 		string? errorMessage = GeneratorHelpers.GetNamedArgument<string?>(attribute, ErrorMessageArgumentName, null);
@@ -514,7 +473,7 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 		return new ValidationRule(ValidationKind.Compare) { CompareProperty = otherProperty, ErrorMessage = errorMessage };
 	}
 
-	private static ValidationRule? ParseAllowedValuesAttribute(AttributeData attribute)
+	private static ValidationRule? ParseValuesAttribute(AttributeData attribute, ValidationKind kind)
 	{
 		ImmutableArray<TypedConstant> args = attribute.ConstructorArguments;
 
@@ -531,27 +490,16 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 
 		string? errorMessage = GeneratorHelpers.GetNamedArgument<string?>(attribute, ErrorMessageArgumentName, null);
 
-		return new ValidationRule(ValidationKind.AllowedValues) { Values = values, ErrorMessage = errorMessage };
+		return new ValidationRule(kind) { Values = values, ErrorMessage = errorMessage };
 	}
 
-	private static ValidationRule? ParseDeniedValuesAttribute(AttributeData attribute)
+	private static bool TryGetFirstArgString(AttributeData attribute, out string value)
 	{
 		ImmutableArray<TypedConstant> args = attribute.ConstructorArguments;
+		string? text = args.Length < 1 ? null : args[0].Value?.ToString();
 
-		if (args.Length < 1 || args[0].Kind != TypedConstantKind.Array)
-			return null;
-
-		ImmutableArray<string> values = [.. args[0].Values
-			.Select(FormatConstantValue)
-			.Where(v => v is not null)
-			.Select(v => v!)];
-
-		if (values.IsEmpty)
-			return null;
-
-		string? errorMessage = GeneratorHelpers.GetNamedArgument<string?>(attribute, ErrorMessageArgumentName, null);
-
-		return new ValidationRule(ValidationKind.DeniedValues) { Values = values, ErrorMessage = errorMessage };
+		value = text ?? string.Empty;
+		return text is not null;
 	}
 
 	private static string? FormatConstantValue(TypedConstant constant)
@@ -674,4 +622,6 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 	}
 
 	private sealed record RegexFieldInfo(string FieldName);
+
+	private sealed record SimpleAttributeRule(string AttributeTypeName, string ValueDescription);
 }

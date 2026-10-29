@@ -484,20 +484,18 @@ internal static class GeneratorHelpers
 	internal static bool TryCreateContext(
 		(TypeDeclarationSyntax TypeSyntax, SemanticModel SemanticModel)? input,
 		out TypeGeneratorContext context)
-		=> TryCreateContextCore(
-			input,
-			static (typeDeclaration, semanticModel, typeSymbol, namespaceName, accessibility, outerClasses)
-				=> new TypeGeneratorContext(
-					typeDeclaration,
-					semanticModel,
-					typeSymbol,
-					typeSymbol.Name,
-					namespaceName,
-					accessibility,
-					outerClasses,
-					typeDeclaration is RecordDeclarationSyntax,
-					(typeDeclaration as RecordDeclarationSyntax)?.ParameterList),
-			out context);
+		=> TryCreateContextCore(input, CreateTypeContext, out context);
+
+	/// <summary>
+	/// Attempts to create a <see cref="TypeGeneratorContext"/> from the given struct input tuple.
+	/// </summary>
+	/// <param name="input">The input tuple from the incremental pipeline, or <see langword="null"/>.</param>
+	/// <param name="context">When this method returns <see langword="true"/>, contains the created context.</param>
+	/// <returns><see langword="true"/> if the context was created successfully; otherwise, <see langword="false"/>.</returns>
+	internal static bool TryCreateContext(
+		(StructDeclarationSyntax StructSyntax, SemanticModel SemanticModel)? input,
+		out TypeGeneratorContext context)
+		=> TryCreateContextCore(input, CreateTypeContext, out context);
 
 	/// <summary>
 	/// Reports a diagnostic located at the identifier of the given type declaration.
@@ -538,6 +536,24 @@ internal static class GeneratorHelpers
 
 		context.RegisterSourceOutput(provider, execute);
 	}
+
+	private static TypeGeneratorContext CreateTypeContext(
+		TypeDeclarationSyntax typeDeclaration,
+		SemanticModel semanticModel,
+		INamedTypeSymbol typeSymbol,
+		string namespaceName,
+		string accessibility,
+		List<(string Accessibility, string Name)> outerClasses)
+		=> new(
+			typeDeclaration,
+			semanticModel,
+			typeSymbol,
+			typeSymbol.Name,
+			namespaceName,
+			accessibility,
+			outerClasses,
+			typeDeclaration is RecordDeclarationSyntax,
+			(typeDeclaration as RecordDeclarationSyntax)?.ParameterList);
 
 	private static bool TryCreateContextCore<TSyntax, TContext>(
 		(TSyntax Syntax, SemanticModel SemanticModel)? input,

@@ -18,6 +18,18 @@ internal static class SymbolExtensions
 	private static readonly SymbolDisplayFormat MinimallyQualifiedFormatWithoutGlobal =
 		SymbolDisplayFormat.MinimallyQualifiedFormat.WithGlobalNamespaceStyle(SymbolDisplayGlobalNamespaceStyle.OmittedAsContaining);
 
+	private static readonly SymbolDisplayFormat PropertyTypeFormat =
+		SymbolDisplayFormat.FullyQualifiedFormat.AddMiscellaneousOptions(SymbolDisplayMiscellaneousOptions.IncludeNullableReferenceTypeModifier);
+
+	/// <summary>
+	/// Returns a fully qualified display string for the given symbol, including the <c>global::</c> prefix
+	/// and the nullable reference type modifier, suitable for emitting property and parameter types.
+	/// </summary>
+	/// <param name="symbol">The symbol for which to get the display string.</param>
+	/// <returns>A fully qualified display string for the given symbol, including nullable annotations.</returns>
+	internal static string ToPropertyTypeDisplayString(this ISymbol symbol)
+		=> symbol.ToDisplayString(PropertyTypeFormat);
+
 	/// <summary>
 	/// Returns a fully qualified display string for the given symbol, omitting the global namespace as a containing namespace.
 	/// </summary>
