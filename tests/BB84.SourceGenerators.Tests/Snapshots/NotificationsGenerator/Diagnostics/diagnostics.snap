@@ -1,0 +1,6 @@
+BB84SG0014|Error|6:24-6:45|The [GenerateNotifications] attribute cannot be applied to positional record 'PositionalNotifyModel' because it has no body-declared fields to convert into notification properties
+BB84SG0015|Error|11:25-11:32|The partial property 'GetOnly' must declare both a 'get' and a 'set' accessor to raise change notifications
+BB84SG0015|Error|12:25-12:32|The partial property 'GetInit' must declare both a 'get' and a 'set' accessor to raise change notifications
+BB84SG0015|Error|13:25-13:32|The partial property 'SetOnly' must declare both a 'get' and a 'set' accessor to raise change notifications
+BB84SG0016|Error|21:25-21:29|The backing field '_name' for partial property 'Name' collides with an existing member
+BB84SG0017|Error|27:32-27:36|The static partial property 'Name' is not supported by the [GenerateNotifications] attribute

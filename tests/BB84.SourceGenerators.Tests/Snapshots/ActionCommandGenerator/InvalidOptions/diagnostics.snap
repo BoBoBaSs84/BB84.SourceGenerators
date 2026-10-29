@@ -1,0 +1,9 @@
+BB84SG0020|Error|16:16-16:28|The CanExecute member 'Missing' of command method 'MissingGuard' was not found or is not a bool property, field or compatible method
+BB84SG0020|Error|19:16-19:28|The CanExecute member 'NotBool' of command method 'NotBoolGuard' was not found or is not a bool property, field or compatible method
+BB84SG0020|Error|22:16-22:35|The CanExecute member 'WrongParameter' of command method 'WrongParameterGuard' was not found or is not a bool property, field or compatible method
+BB84SG0020|Error|25:23-25:46|The CanExecute member 'InstanceGuard' of command method 'StaticWithInstanceGuard' was not found or is not a bool property, field or compatible method
+BB84SG0021|Error|28:16-28:35|The ExceptionHandler 'Missing' of command method 'MissingHandlerAsync' was not found or does not have the signature 'void M(Exception)'
+BB84SG0021|Error|31:16-31:33|The ExceptionHandler 'WrongSignature' of command method 'WrongHandlerAsync' was not found or does not have the signature 'void M(Exception)'
+BB84SG0022|Warning|34:16-34:34|The option 'AllowConcurrentExecutions' of command method 'AsyncOptionsOnSync' only applies to asynchronous commands and is ignored
+BB84SG0022|Warning|34:16-34:34|The option 'ExceptionHandler' of command method 'AsyncOptionsOnSync' only applies to asynchronous commands and is ignored
+BB84SG0022|Warning|34:16-34:34|The option 'IncludeCancelCommand' of command method 'AsyncOptionsOnSync' only applies to asynchronous commands and is ignored

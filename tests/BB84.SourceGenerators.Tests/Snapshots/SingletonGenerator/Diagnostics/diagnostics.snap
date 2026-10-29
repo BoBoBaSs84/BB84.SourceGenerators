@@ -1,0 +1,2 @@
+BB84SG0002|Error|12:23-12:45|The [GenerateSingleton] attribute cannot be applied to class 'RequiredFieldSingleton' because it contains required member 'Value' that prevents parameterless initialization
+BB84SG0002|Error|6:23-6:48|The [GenerateSingleton] attribute cannot be applied to class 'RequiredPropertySingleton' because it contains required member 'Name' that prevents parameterless initialization

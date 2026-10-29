@@ -1,0 +1,7 @@
+BB84SG0018|Error|31:16-31:19|The method 'Run' has an [ActionCommand] attribute, but its containing type 'NotPartialViewModel' is not a partial class or record class
+BB84SG0019|Error|10:15-10:27|The method 'ReturnsValue' has an unsupported signature for [ActionCommand]; expected 'void M()', 'void M(T)', 'Task M([CancellationToken])' or 'Task M(T[, CancellationToken])'
+BB84SG0019|Error|13:16-13:29|The method 'TwoParameters' has an unsupported signature for [ActionCommand]; expected 'void M()', 'void M(T)', 'Task M([CancellationToken])' or 'Task M(T[, CancellationToken])'
+BB84SG0019|Error|16:16-16:21|The method 'ByRef' has an unsupported signature for [ActionCommand]; expected 'void M()', 'void M(T)', 'Task M([CancellationToken])' or 'Task M(T[, CancellationToken])'
+BB84SG0019|Error|19:16-19:23|The method 'Generic' has an unsupported signature for [ActionCommand]; expected 'void M()', 'void M(T)', 'Task M([CancellationToken])' or 'Task M(T[, CancellationToken])'
+BB84SG0019|Error|22:21-22:35|The method 'ReturnsTaskOfT' has an unsupported signature for [ActionCommand]; expected 'void M()', 'void M(T)', 'Task M([CancellationToken])' or 'Task M(T[, CancellationToken])'
+BB84SG0019|Error|25:16-25:31|The method 'WrongOrderAsync' has an unsupported signature for [ActionCommand]; expected 'void M()', 'void M(T)', 'Task M([CancellationToken])' or 'Task M(T[, CancellationToken])'

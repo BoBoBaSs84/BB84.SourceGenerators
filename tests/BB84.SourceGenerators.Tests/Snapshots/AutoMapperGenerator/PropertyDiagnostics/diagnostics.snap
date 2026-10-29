@@ -1,0 +1,2 @@
+BB84SG0007|Warning|none|Target property 'Name' on type 'TargetModel' has no matching source property and will not be mapped
+BB84SG0008|Error|none|Property 'Id' on target type 'TargetModel' cannot be assigned from source property 'Id' due to a type mismatch

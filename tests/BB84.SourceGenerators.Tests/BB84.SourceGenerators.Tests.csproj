@@ -16,6 +16,9 @@
 		<PackageReference Include="System.ComponentModel.Annotations" />
 	</ItemGroup>
 	<ItemGroup>
+		<None Include="Snapshots\**" CopyToOutputDirectory="PreserveNewest" />
+	</ItemGroup>
+	<ItemGroup>
 		<ProjectReference Include="..\..\src\BB84.SourceGenerators\BB84.SourceGenerators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="True" />
 	</ItemGroup>
 </Project>
