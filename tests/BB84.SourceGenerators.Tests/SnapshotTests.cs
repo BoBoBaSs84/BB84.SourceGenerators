@@ -211,21 +211,18 @@ public sealed class SnapshotTests
 	}
 #endif
 
-#if NETFRAMEWORK
+	/// <summary>
+	/// Runs the async disposal case against a minimal core library without <c>System.IAsyncDisposable</c>.
+	/// The runtime's own core library cannot be used: Mono's <c>mscorlib</c> defines the interface,
+	/// while the .NET Framework's does not, so the scenario would depend on the test host.
+	/// </summary>
 	[TestMethod]
 	public void DisposableAsyncUnsupported()
 	{
-		MetadataReference[] references =
-		[
-			MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
-			MetadataReference.CreateFromFile(typeof(Attribute).Assembly.Location),
-		];
-
 		GeneratorDriverRunResult result = GeneratorDriverHarness.Run(
-			GeneratorDriverHarness.CreateCompilation(SnapshotCases.DisposableAsyncUnsupported, references: references),
+			GeneratorDriverHarness.CreateCompilation(SnapshotCases.DisposableAsyncUnsupported, references: [MinimalCoreLibrary.Reference]),
 			new DisposableGenerator());
 
 		SnapshotAssert.Match(result, nameof(DisposableGenerator), "AsyncUnsupported");
 	}
-#endif
 }

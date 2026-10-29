@@ -58,7 +58,10 @@ internal static class SnapshotAssert
 			return;
 		}
 
-		string directory = Path.Combine(AppContext.BaseDirectory, SnapshotsFolder, generatorName, caseName);
+		// The test assembly's own folder, not AppContext.BaseDirectory: under Mono the .NET Framework
+		// test host reports the SDK's TestHostNetFramework folder as the base directory.
+		string outputDirectory = Path.GetDirectoryName(typeof(SnapshotAssert).Assembly.Location)!;
+		string directory = Path.Combine(outputDirectory, SnapshotsFolder, generatorName, caseName);
 		Assert.IsTrue(Directory.Exists(directory), $"Snapshot directory '{directory}' is missing. Run with {UpdateVariable}=1 to create it.");
 
 		string[] expectedFiles = [.. Directory.GetFiles(directory, "*" + SnapshotExtension).Select(Path.GetFileName).OrderBy(static f => f, StringComparer.Ordinal)!];

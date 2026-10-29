@@ -6,6 +6,8 @@
 using System.Collections.Immutable;
 using System.Reflection;
 
+using BB84.SourceGenerators.Tests.Helpers;
+
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 
@@ -133,12 +135,10 @@ namespace TestNamespace
 		Assert.Contains("DisposeAsyncCore()", src);
 	}
 
-#if NETFRAMEWORK
 	// The generator only reports BB84SG0006 when the compilation cannot resolve System.IAsyncDisposable.
-	// That type is absent from the genuine .NET Framework mscorlib but present on modern .NET (hence the
-	// #if guard) and, crucially, in Mono's core library - which hosts the .NET Framework targets on the
-	// Linux CI. Since the branch cannot be reproduced against a BCL that ships the type, probe the
-	// constructed compilation and mark the test inconclusive (not failed) when the host provides it.
+	// The host's own core library cannot provide that reliably: modern .NET and Mono (the Linux CI host
+	// for the .NET Framework targets) both ship the type. The compilation therefore references an
+	// in-memory minimal core library without it, so the branch runs on every target framework.
 	[TestMethod]
 	public void AsyncOptionWithoutIAsyncDisposableShouldReportDiagnosticAndSkipAsync()
 	{
@@ -154,23 +154,14 @@ namespace TestNamespace
 		private readonly System.IDisposable _resource;
 	}
 }";
-		// Bare mscorlib-only reference set: the smallest set that still lets attributes resolve while
-		// keeping System.IAsyncDisposable out of the reference graph on a genuine .NET Framework host.
-		MetadataReference[] references =
-		[
-			MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
-			MetadataReference.CreateFromFile(typeof(Attribute).Assembly.Location),
-		];
-
 		SyntaxTree syntaxTree = CSharpSyntaxTree.ParseText(source);
 		CSharpCompilation compilation = CSharpCompilation.Create(
 			assemblyName: "DisposableDriverTestAssembly",
 			syntaxTrees: [syntaxTree],
-			references: references,
+			references: [MinimalCoreLibrary.Reference],
 			options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
-		if (compilation.GetTypeByMetadataName("System.IAsyncDisposable") is not null)
-			Assert.Inconclusive("Host BCL provides System.IAsyncDisposable; the 'type unavailable' branch cannot be exercised here.");
+		Assert.IsNull(compilation.GetTypeByMetadataName("System.IAsyncDisposable"));
 
 		IIncrementalGenerator[] generators = [new AttributeSourceGenerator(), new DisposableGenerator()];
 		GeneratorDriver driver = CSharpGeneratorDriver.Create(generators);
@@ -185,7 +176,6 @@ namespace TestNamespace
 		Assert.DoesNotContain("DisposeAsync", src);
 		Assert.DoesNotContain("IAsyncDisposable", src);
 	}
-#endif
 
 	[TestMethod]
 	public void OrderedDisposalShouldEmitFieldsInOrder()
