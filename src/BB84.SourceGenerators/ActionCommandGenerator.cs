@@ -27,16 +27,17 @@ public sealed class ActionCommandGenerator : IIncrementalGenerator
 {
 	private const string CommandSuffix = "Command";
 	private const string AsyncSuffix = "Async";
-	private const string CommandsNamespace = $"global::{NamespaceNames.BB84SourceGeneratorsCommands}";
-	private const string TaskTypeName = "System.Threading.Tasks.Task";
-	private const string CancellationTokenTypeName = "System.Threading.CancellationToken";
-	private const string ExceptionTypeName = "System.Exception";
+	private const string CommandsNamespace = $"{NamespaceNames.BB84SourceGeneratorsCommands}";
+	private const string IActionCommandName = "IActionCommand";
+	private const string IAsyncActionCommandName = "IAsyncActionCommand";
+	private const string ActionCommandName = "ActionCommand";
+	private const string AsyncActionCommandName = "AsyncActionCommand";
 
-	private static readonly (string MetadataName, string FullName, string ShortName) AttributeNames =
+	private static readonly (string MetadataName, string TypeName, string ShortName) AttributeNames =
 		GeneratorHelpers.GetAttributeNames<ActionCommandAttribute>();
 
 	private static readonly string[] TemplateNames =
-		["IActionCommand", "IAsyncActionCommand", "ActionCommand", "AsyncActionCommand"];
+		[IActionCommandName, IAsyncActionCommandName, ActionCommandName, AsyncActionCommandName];
 
 	private static readonly string[] TemplateSources =
 		[.. TemplateNames.Select(static name => AttributeSourceRewriter.ReadEmbeddedResource($"Commands.{name}.cs"))];
@@ -75,7 +76,7 @@ public sealed class ActionCommandGenerator : IIncrementalGenerator
 	}
 
 	private static bool IsActionCommandAttribute(AttributeData attribute)
-		=> attribute.AttributeClass?.Name == AttributeNames.FullName;
+		=> attribute.AttributeClass?.Name == AttributeNames.TypeName;
 
 	private static string GetCommandName(IMethodSymbol method, AttributeData attribute)
 	{
@@ -235,7 +236,7 @@ public sealed class ActionCommandGenerator : IIncrementalGenerator
 			return true;
 		}
 
-		if (method.ReturnType.ToDisplayString() != TaskTypeName)
+		if (method.ReturnType.ToDisplayString() != TypeNames.Task)
 			return false;
 
 		isAsync = true;
@@ -261,7 +262,7 @@ public sealed class ActionCommandGenerator : IIncrementalGenerator
 	}
 
 	private static bool IsCancellationToken(ITypeSymbol type)
-		=> type.ToDisplayString() == CancellationTokenTypeName;
+		=> type.ToDisplayString() == TypeNames.CancellationToken;
 
 	private static bool HasNameConflict(INamedTypeSymbol containingType, IMethodSymbol method, string commandName, string fieldName, string? cancelCommandName)
 	{
@@ -346,7 +347,7 @@ public sealed class ActionCommandGenerator : IIncrementalGenerator
 				&& !handler.IsGenericMethod
 				&& handler.Parameters.Length == 1
 				&& handler.Parameters[0].RefKind == RefKind.None
-				&& handler.Parameters[0].Type.ToDisplayString() == ExceptionTypeName);
+				&& handler.Parameters[0].Type.ToDisplayString() == TypeNames.Exception);
 
 		return found ? $"exception => {memberName}(exception)" : null;
 	}
@@ -424,8 +425,8 @@ public sealed class ActionCommandGenerator : IIncrementalGenerator
 	private static void AppendCommandProperty(SourceBuilder sb, ActionCommandRequest request)
 	{
 		string staticModifier = request.IsStatic ? "static " : string.Empty;
-		string interfaceName = request.IsAsync ? "IAsyncActionCommand" : "IActionCommand";
-		string className = request.IsAsync ? "AsyncActionCommand" : "ActionCommand";
+		string interfaceName = request.IsAsync ? IAsyncActionCommandName : IActionCommandName;
+		string className = request.IsAsync ? AsyncActionCommandName : ActionCommandName;
 		string genericArgument = request.ParameterType is null ? string.Empty : $"<{request.ParameterType}>";
 		string propertyType = $"{CommandsNamespace}.{interfaceName}{genericArgument}";
 

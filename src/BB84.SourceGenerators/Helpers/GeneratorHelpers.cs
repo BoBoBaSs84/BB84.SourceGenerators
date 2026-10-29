@@ -217,20 +217,20 @@ internal static class GeneratorHelpers
 	}
 
 	/// <summary>
-	/// Returns the fully-qualified metadata name, the simple full name, and the short name
+	/// Returns the fully-qualified metadata name, the simple type name, and the short name
 	/// (without the "Attribute" suffix) for the given attribute type.
 	/// </summary>
 	/// <typeparam name="TAttribute">The attribute type.</typeparam>
 	/// <returns>
-	/// A tuple of <c>(MetadataName, FullName, ShortName)</c> where <c>MetadataName</c> is the
-	/// value of <see cref="Type.FullName"/>, <c>FullName</c> is the simple type name including
+	/// A tuple of <c>(MetadataName, TypeName, ShortName)</c> where <c>MetadataName</c> is the
+	/// value of <see cref="Type.FullName"/>, <c>TypeName</c> is the simple type name including
 	/// the "Attribute" suffix, and <c>ShortName</c> is the type name without the suffix.
 	/// </returns>
-	internal static (string MetadataName, string FullName, string ShortName) GetAttributeNames<TAttribute>()
+	internal static (string MetadataName, string TypeName, string ShortName) GetAttributeNames<TAttribute>()
 		where TAttribute : Attribute
 	{
-		string fullName = typeof(TAttribute).Name;
-		return (typeof(TAttribute).FullName, fullName, StripAttributeSuffix(fullName));
+		string typeName = typeof(TAttribute).Name;
+		return (typeof(TAttribute).FullName, typeName, StripAttributeSuffix(typeName));
 	}
 
 	/// <summary>

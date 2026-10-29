@@ -21,14 +21,15 @@ namespace BB84.SourceGenerators;
 [Generator(LanguageNames.CSharp)]
 public sealed class EnumeratorExtensionsGenerator : IIncrementalGenerator
 {
-	private static readonly string GeneratorAttributeName = typeof(GenerateEnumeratorExtensionsAttribute).FullName;
+	private static readonly (string MetadataName, string TypeName, string ShortName) AttributeNames =
+		GeneratorHelpers.GetAttributeNames<GenerateEnumeratorExtensionsAttribute>();
 
 	/// <inheritdoc/>
 	public void Initialize(IncrementalGeneratorInitializationContext context)
 	{
 		IncrementalValuesProvider<(EnumDeclarationSyntax EnumDeclaration, SemanticModel SemanticModel)> provider = context.SyntaxProvider
 			 .ForAttributeWithMetadataName(
-				 fullyQualifiedMetadataName: GeneratorAttributeName,
+				 fullyQualifiedMetadataName: AttributeNames.MetadataName,
 				 predicate: (node, _) => Predicate(node),
 				transform: (context, _) => Transform(context));
 
@@ -41,8 +42,7 @@ public sealed class EnumeratorExtensionsGenerator : IIncrementalGenerator
 		EnumDeclarationSyntax enumDeclaration = data.EnumDeclaration;
 
 		ImmutableArray<EnumMemberDeclarationSyntax> members = [.. enumDeclaration.Members
-				.OfType<EnumMemberDeclarationSyntax>()
-				.Where(field => field is not null)];
+				.OfType<EnumMemberDeclarationSyntax>()];
 
 		if (!members.Any())
 			return;
@@ -200,6 +200,8 @@ public sealed class EnumeratorExtensionsGenerator : IIncrementalGenerator
 
 	private static void AppendGetDescriptionFast(SourceBuilder sb, string enumName, ImmutableArray<EnumMemberDeclarationSyntax> members, SemanticModel semanticModel)
 	{
+		INamedTypeSymbol? descriptionAttributeSymbol = semanticModel.Compilation.GetTypeByMetadataName(TypeNames.DescriptionAttribute);
+
 		sb.AppendLine("/// <summary>");
 		sb.AppendLine($"/// Returns the description of the <see cref=\"{enumName}\"/> enumeration if the");
 		sb.AppendLine("/// <see cref=\"System.ComponentModel.DescriptionAttribute\"/> is applied to the");
@@ -214,7 +216,7 @@ public sealed class EnumeratorExtensionsGenerator : IIncrementalGenerator
 		foreach (EnumMemberDeclarationSyntax member in members)
 		{
 			string memberName = member.Identifier.Text;
-			string? description = GetDescriptionFromAttributes(member, semanticModel);
+			string? description = GetDescriptionFromAttributes(member, semanticModel, descriptionAttributeSymbol);
 
 			if (description is not null)
 				sb.AppendLine($"{enumName}.{memberName} => \"{description}\",");
@@ -228,10 +230,8 @@ public sealed class EnumeratorExtensionsGenerator : IIncrementalGenerator
 		sb.AppendLine();
 	}
 
-	private static string? GetDescriptionFromAttributes(EnumMemberDeclarationSyntax member, SemanticModel semanticModel)
+	private static string? GetDescriptionFromAttributes(EnumMemberDeclarationSyntax member, SemanticModel semanticModel, INamedTypeSymbol? descriptionAttributeSymbol)
 	{
-		INamedTypeSymbol? descriptionAttributeSymbol = semanticModel.Compilation.GetTypeByMetadataName("System.ComponentModel.DescriptionAttribute");
-
 		if (descriptionAttributeSymbol is null)
 			return null;
 

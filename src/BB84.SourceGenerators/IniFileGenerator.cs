@@ -24,10 +24,11 @@ namespace BB84.SourceGenerators;
 [Generator(LanguageNames.CSharp)]
 public sealed class IniFileGenerator : IIncrementalGenerator
 {
-	private static readonly (string MetadataName, string FullName, string ShortName) AttributeNames =
+	private static readonly (string MetadataName, string TypeName, string ShortName) AttributeNames =
 		GeneratorHelpers.GetAttributeNames<GenerateIniFileAttribute>();
 	private static readonly string SectionAttributeName = typeof(GenerateIniFileSectionAttribute).FullName;
 	private static readonly string ValueAttributeName = typeof(GenerateIniFileValueAttribute).FullName;
+	private const int MaxSectionDepth = 8;
 	private static readonly string[] LineBreakSeparators = ["\r\n", "\n"];
 
 	/// <inheritdoc/>
@@ -43,7 +44,7 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 		string sectionDelimiter = GetSectionDelimiter(ctx.ClassSymbol);
 		bool serializeComments = GetSerializeComments(ctx.ClassDeclaration, ctx.SemanticModel);
 
-		List<SectionInfo> sections = GetSections(ctx.ClassDeclaration, ctx.SemanticModel, sectionDelimiter, serializeComments);
+		List<SectionInfo> sections = GetSections(ctx.ClassSymbol, sectionDelimiter, serializeComments);
 
 		if (!ValidateSectionProperties(context, ctx.ClassDeclaration, ctx.SemanticModel))
 			return;
@@ -382,13 +383,9 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 		sb.CloseBrace();
 	}
 
-	private static List<SectionInfo> GetSections(ClassDeclarationSyntax classDeclaration, SemanticModel semanticModel, string sectionDelimiter, bool serializeComments)
+	private static List<SectionInfo> GetSections(INamedTypeSymbol classSymbol, string sectionDelimiter, bool serializeComments)
 	{
 		List<SectionInfo> sections = [];
-		INamedTypeSymbol? classSymbol = semanticModel.GetDeclaredSymbol(classDeclaration);
-
-		if (classSymbol is null)
-			return sections;
 
 		foreach (ISymbol member in classSymbol.GetMembers())
 		{
@@ -408,13 +405,10 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 			string? comment = serializeComments ? GetXmlSummaryComment(propertySymbol) : null;
 
 			List<ValueInfo> values = GetValues(sectionType, serializeComments);
-			string sectionTypeName = GetNonNullableFullyQualifiedName(sectionType);
 
 			sections.Add(new SectionInfo(
-				PropertyName: propertySymbol.Name,
 				PropertyPath: propertyPath,
 				SectionName: sectionName,
-				TypeName: sectionTypeName,
 				Values: values,
 				Comment: comment
 			));
@@ -427,7 +421,7 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 
 	private static void CollectNestedSections(List<SectionInfo> sections, INamedTypeSymbol parentType, string parentSectionName, string parentPropertyPath, string sectionDelimiter, int depth, bool serializeComments)
 	{
-		if (depth >= 8)
+		if (depth >= MaxSectionDepth)
 			return;
 
 		foreach (ISymbol member in parentType.GetMembers())
@@ -449,13 +443,10 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 			string? comment = serializeComments ? GetXmlSummaryComment(propertySymbol) : null;
 
 			List<ValueInfo> values = GetValues(sectionType, serializeComments);
-			string sectionTypeName = GetNonNullableFullyQualifiedName(sectionType);
 
 			sections.Add(new SectionInfo(
-				PropertyName: propertySymbol.Name,
 				PropertyPath: propertyPath,
 				SectionName: fullSectionName,
-				TypeName: sectionTypeName,
 				Values: values,
 				Comment: comment
 				));
@@ -464,7 +455,7 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 		}
 	}
 
-	private static List<ValueInfo> GetValues(INamedTypeSymbol sectionType, bool serializeComments = false)
+	private static List<ValueInfo> GetValues(INamedTypeSymbol sectionType, bool serializeComments)
 	{
 		List<ValueInfo> values = [];
 
@@ -491,7 +482,7 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 			}
 			else if (propertySymbol.Type is INamedTypeSymbol namedType
 				&& namedType.IsGenericType
-				&& namedType.ConstructedFrom.ToDisplayString().StartsWith("System.Collections.Generic.List", StringComparison.Ordinal)
+				&& namedType.ConstructedFrom.ToDisplayString().StartsWith(TypeNames.List, StringComparison.Ordinal)
 				&& namedType.TypeArguments.Length == 1)
 			{
 				isCollection = true;
@@ -509,7 +500,7 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 			if (isEnum)
 			{
 				enumFullName = propertySymbol.Type.ToFullyQualifiedDisplayString();
-				isFlagsEnum = propertySymbol.Type.GetAttributes().Any(a => a.AttributeClass?.ToMinimalDisplayString() == "FlagsAttribute");
+				isFlagsEnum = propertySymbol.Type.GetAttributes().Any(a => a.AttributeClass?.ToMinimalDisplayString() == TypeNames.FlagsAttributeShortName);
 			}
 
 			string? comment = serializeComments ? GetXmlSummaryComment(propertySymbol) : null;
@@ -602,13 +593,7 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 			SpecialType.System_Boolean => "bool",
 			SpecialType.System_Decimal => "decimal",
 			SpecialType.System_DateTime => "DateTime",
-			_ => type.ToMinimalDisplayString() switch
-			{
-				"Guid" => "Guid",
-				"TimeSpan" => "TimeSpan",
-				"DateTimeOffset" => "DateTimeOffset",
-				var other => other
-			}
+			_ => type.ToMinimalDisplayString()
 		};
 	}
 
@@ -651,13 +636,13 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 	}
 
 	private static StringComparison GetStringComparison(INamedTypeSymbol classSymbol)
-		=> (StringComparison)GeneratorHelpers.GetConstructorArgumentValue(classSymbol, AttributeNames.FullName, 0, (int)StringComparison.OrdinalIgnoreCase);
+		=> (StringComparison)GeneratorHelpers.GetConstructorArgumentValue(classSymbol, AttributeNames.TypeName, 0, (int)StringComparison.OrdinalIgnoreCase);
 
 	private static string GetSectionDelimiter(INamedTypeSymbol classSymbol)
-		=> GeneratorHelpers.GetConstructorArgumentValue(classSymbol, AttributeNames.FullName, 1, ".");
+		=> GeneratorHelpers.GetConstructorArgumentValue(classSymbol, AttributeNames.TypeName, 1, ".");
 
 	private static bool GetSerializeComments(ClassDeclarationSyntax classDeclaration, SemanticModel semanticModel)
-		=> GeneratorHelpers.GetNamedArgumentValue(classDeclaration, semanticModel, AttributeNames.ShortName, AttributeNames.FullName, nameof(GenerateIniFileAttribute.SerializeComments), false);
+		=> GeneratorHelpers.GetNamedArgumentValue(classDeclaration, semanticModel, AttributeNames.ShortName, AttributeNames.TypeName, nameof(GenerateIniFileAttribute.SerializeComments), false);
 
 	private static string? GetXmlSummaryComment(ISymbol symbol)
 	{
@@ -795,23 +780,9 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 			: defaultName;
 	}
 
-	private static string GetNonNullableFullyQualifiedName(INamedTypeSymbol type)
-	{
-		string typeName = type
-			.WithNullableAnnotation(NullableAnnotation.NotAnnotated)
-			.ToFullyQualifiedDisplayString();
-
-		if (typeName.EndsWith("?", StringComparison.Ordinal))
-			typeName = typeName[..^1];
-
-		return typeName;
-	}
-
 	private sealed record SectionInfo(
-		string PropertyName,
 		string PropertyPath,
 		string SectionName,
-		string TypeName,
 		List<ValueInfo> Values,
 		string? Comment = null
 	);

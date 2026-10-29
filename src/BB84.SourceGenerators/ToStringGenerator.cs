@@ -21,7 +21,7 @@ namespace BB84.SourceGenerators;
 [Generator(LanguageNames.CSharp)]
 public sealed class ToStringGenerator : IIncrementalGenerator
 {
-	private static readonly (string MetadataName, string FullName, string ShortName) AttributeNames =
+	private static readonly (string MetadataName, string TypeName, string ShortName) AttributeNames =
 		GeneratorHelpers.GetAttributeNames<GenerateToStringAttribute>();
 
 	private static readonly string ToStringFormatAttributeName = typeof(ToStringFormatAttribute).FullName;
@@ -266,17 +266,17 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 	}
 
 	private static bool GetFormattable(TypeDeclarationSyntax classDeclaration, SemanticModel semanticModel)
-		=> GeneratorHelpers.GetNamedArgumentValue(classDeclaration, semanticModel, AttributeNames.ShortName, AttributeNames.FullName, nameof(GenerateToStringAttribute.Formattable), false);
+		=> GeneratorHelpers.GetNamedArgumentValue(classDeclaration, semanticModel, AttributeNames.ShortName, AttributeNames.TypeName, nameof(GenerateToStringAttribute.Formattable), false);
 
 	private static string GetSeparator(TypeDeclarationSyntax classDeclaration, SemanticModel semanticModel)
-		=> GeneratorHelpers.GetNamedArgumentValue(classDeclaration, semanticModel, AttributeNames.ShortName, AttributeNames.FullName, nameof(GenerateToStringAttribute.Separator), ", ");
+		=> GeneratorHelpers.GetNamedArgumentValue(classDeclaration, semanticModel, AttributeNames.ShortName, AttributeNames.TypeName, nameof(GenerateToStringAttribute.Separator), ", ");
 
 	private static CollectionFormat GetCollectionFormat(TypeDeclarationSyntax classDeclaration, SemanticModel semanticModel)
-		=> (CollectionFormat)GeneratorHelpers.GetNamedArgumentValue(classDeclaration, semanticModel, AttributeNames.ShortName, AttributeNames.FullName, nameof(GenerateToStringAttribute.CollectionFormat), (int)CollectionFormat.Count);
+		=> (CollectionFormat)GeneratorHelpers.GetNamedArgumentValue(classDeclaration, semanticModel, AttributeNames.ShortName, AttributeNames.TypeName, nameof(GenerateToStringAttribute.CollectionFormat), (int)CollectionFormat.Count);
 
 	private static string? GetNullPlaceholder(TypeDeclarationSyntax classDeclaration, SemanticModel semanticModel)
-		=> GeneratorHelpers.GetNamedArgumentValue<string?>(classDeclaration, semanticModel, AttributeNames.ShortName, AttributeNames.FullName, nameof(GenerateToStringAttribute.NullPlaceholder), null);
+		=> GeneratorHelpers.GetNamedArgumentValue<string?>(classDeclaration, semanticModel, AttributeNames.ShortName, AttributeNames.TypeName, nameof(GenerateToStringAttribute.NullPlaceholder), null);
 
 	private static bool GetIncludeInherited(TypeDeclarationSyntax classDeclaration, SemanticModel semanticModel)
-		=> GeneratorHelpers.GetNamedArgumentValue(classDeclaration, semanticModel, AttributeNames.ShortName, AttributeNames.FullName, nameof(GenerateToStringAttribute.IncludeInherited), false);
+		=> GeneratorHelpers.GetNamedArgumentValue(classDeclaration, semanticModel, AttributeNames.ShortName, AttributeNames.TypeName, nameof(GenerateToStringAttribute.IncludeInherited), false);
 }

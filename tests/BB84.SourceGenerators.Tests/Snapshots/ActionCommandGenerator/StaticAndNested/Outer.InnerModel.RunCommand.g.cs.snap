@@ -15,13 +15,13 @@ namespace TestNamespace
   {
     internal partial record InnerModel
     {
-      private global::BB84.SourceGenerators.Commands.IActionCommand? _runCommand;
+      private BB84.SourceGenerators.Commands.IActionCommand? _runCommand;
 
       /// <summary>
       /// Gets the command that invokes <c>Run</c>.
       /// </summary>
-      public global::BB84.SourceGenerators.Commands.IActionCommand RunCommand
-        => _runCommand ??= new global::BB84.SourceGenerators.Commands.ActionCommand(() => Run());
+      public BB84.SourceGenerators.Commands.IActionCommand RunCommand
+        => _runCommand ??= new BB84.SourceGenerators.Commands.ActionCommand(() => Run());
     }
   }
 }

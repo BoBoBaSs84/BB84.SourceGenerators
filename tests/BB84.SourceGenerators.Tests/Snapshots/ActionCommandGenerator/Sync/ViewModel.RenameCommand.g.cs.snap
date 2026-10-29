@@ -13,12 +13,12 @@ namespace TestNamespace
 {
   public partial class ViewModel
   {
-    private global::BB84.SourceGenerators.Commands.IActionCommand<string?>? _renameCommand;
+    private BB84.SourceGenerators.Commands.IActionCommand<string?>? _renameCommand;
 
     /// <summary>
     /// Gets the command that invokes <c>Rename</c>.
     /// </summary>
-    public global::BB84.SourceGenerators.Commands.IActionCommand<string?> RenameCommand
-      => _renameCommand ??= new global::BB84.SourceGenerators.Commands.ActionCommand<string?>(parameter => Rename(parameter));
+    public BB84.SourceGenerators.Commands.IActionCommand<string?> RenameCommand
+      => _renameCommand ??= new BB84.SourceGenerators.Commands.ActionCommand<string?>(parameter => Rename(parameter));
   }
 }

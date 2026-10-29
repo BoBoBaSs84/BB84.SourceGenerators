@@ -30,7 +30,7 @@ public sealed class EqualityGenerator : IIncrementalGenerator
 	private const string ReadOnlyDictionaryTypeName = NamespaceNames.SystemCollectionsGeneric + ".IReadOnlyDictionary";
 	private const string KeyValuePairTypeName = NamespaceNames.SystemCollectionsGeneric + ".KeyValuePair";
 
-	private static readonly (string MetadataName, string FullName, string ShortName) AttributeNames =
+	private static readonly (string MetadataName, string TypeName, string ShortName) AttributeNames =
 		GeneratorHelpers.GetAttributeNames<GenerateEqualityAttribute>();
 
 	/// <summary>
@@ -315,5 +315,5 @@ public sealed class EqualityGenerator : IIncrementalGenerator
 	}
 
 	private static bool GetIncludeInherited(ClassDeclarationSyntax classDeclaration, SemanticModel semanticModel)
-		=> GeneratorHelpers.GetNamedArgumentValue(classDeclaration, semanticModel, AttributeNames.ShortName, AttributeNames.FullName, nameof(GenerateEqualityAttribute.IncludeInherited), false);
+		=> GeneratorHelpers.GetNamedArgumentValue(classDeclaration, semanticModel, AttributeNames.ShortName, AttributeNames.TypeName, nameof(GenerateEqualityAttribute.IncludeInherited), false);
 }
