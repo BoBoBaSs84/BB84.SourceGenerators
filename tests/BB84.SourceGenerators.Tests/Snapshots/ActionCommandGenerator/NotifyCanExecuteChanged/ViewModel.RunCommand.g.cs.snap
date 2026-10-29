@@ -8,17 +8,18 @@
 // </auto-generated>
 //------------------------------------------------------------------------------
 #nullable enable
+using BB84.SourceGenerators.Commands;
 
 namespace TestNamespace
 {
   public partial class ViewModel
   {
-    private BB84.SourceGenerators.Commands.IActionCommand? _runCommand;
+    private IActionCommand? _runCommand;
 
     /// <summary>
     /// Gets the command that invokes <c>Run</c>.
     /// </summary>
-    public BB84.SourceGenerators.Commands.IActionCommand RunCommand
-      => _runCommand ??= new BB84.SourceGenerators.Commands.ActionCommand(() => Run(), canExecute: () => CanRun);
+    public IActionCommand RunCommand
+      => _runCommand ??= new ActionCommand(() => Run(), canExecute: () => CanRun);
   }
 }

@@ -415,7 +415,7 @@ public sealed class ActionCommandGenerator : IIncrementalGenerator
 
 		SourceBuilder sb = new();
 
-		sb.BeginTypeFile(GeneratorNames.ActionCommandGeneratorFullName, type.NamespaceName, type.OuterClasses, []);
+		sb.BeginTypeFile(GeneratorNames.ActionCommandGeneratorFullName, type.NamespaceName, type.OuterClasses, [CommandsNamespace]);
 		sb.OpenClassOrRecord(type.IsRecord, type.TypeAccessibility, type.TypeName);
 
 		AppendCommandProperty(sb, request, staticModifier);
@@ -433,7 +433,7 @@ public sealed class ActionCommandGenerator : IIncrementalGenerator
 	{
 		sb.AppendLine();
 		sb.AppendSummary($"Gets the command that cancels the running execution of <see cref=\"{commandName}\"/>.");
-		sb.AppendLine($"public {staticModifier}{CommandsNamespace}.{IActionCommandName} {cancelCommandName}");
+		sb.AppendLine($"public {staticModifier}{IActionCommandName} {cancelCommandName}");
 		sb.Indent();
 		sb.AppendLine($"=> {commandName}.CancelCommand;");
 		sb.Outdent();
@@ -445,7 +445,7 @@ public sealed class ActionCommandGenerator : IIncrementalGenerator
 		string interfaceName = signature.IsAsync ? IAsyncActionCommandName : IActionCommandName;
 		string className = signature.IsAsync ? AsyncActionCommandName : ActionCommandName;
 		string genericArgument = signature.ParameterType is null ? string.Empty : $"<{signature.ParameterType}>";
-		string propertyType = $"{CommandsNamespace}.{interfaceName}{genericArgument}";
+		string propertyType = $"{interfaceName}{genericArgument}";
 
 		List<string> arguments = [GetExecuteExpression(signature)];
 
@@ -461,7 +461,7 @@ public sealed class ActionCommandGenerator : IIncrementalGenerator
 		sb.AppendSummary($"Gets the command that invokes <c>{signature.MethodName}</c>.");
 		sb.AppendLine($"public {staticModifier}{propertyType} {request.CommandName}");
 		sb.Indent();
-		sb.AppendLine($"=> {request.FieldName} ??= new {CommandsNamespace}.{className}{genericArgument}({string.Join(", ", arguments)});");
+		sb.AppendLine($"=> {request.FieldName} ??= new {className}{genericArgument}({string.Join(", ", arguments)});");
 		sb.Outdent();
 	}
 

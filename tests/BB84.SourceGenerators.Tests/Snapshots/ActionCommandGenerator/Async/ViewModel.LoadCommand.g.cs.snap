@@ -8,17 +8,18 @@
 // </auto-generated>
 //------------------------------------------------------------------------------
 #nullable enable
+using BB84.SourceGenerators.Commands;
 
 namespace TestNamespace
 {
   internal partial class ViewModel
   {
-    private BB84.SourceGenerators.Commands.IAsyncActionCommand? _loadCommand;
+    private IAsyncActionCommand? _loadCommand;
 
     /// <summary>
     /// Gets the command that invokes <c>LoadAsync</c>.
     /// </summary>
-    public BB84.SourceGenerators.Commands.IAsyncActionCommand LoadCommand
-      => _loadCommand ??= new BB84.SourceGenerators.Commands.AsyncActionCommand(cancellationToken => LoadAsync());
+    public IAsyncActionCommand LoadCommand
+      => _loadCommand ??= new AsyncActionCommand(cancellationToken => LoadAsync());
   }
 }
