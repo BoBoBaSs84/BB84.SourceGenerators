@@ -38,32 +38,14 @@ public sealed class DisposableGenerator : IIncrementalGenerator
 			return;
 
 		bool generateFinalizer = GetGenerateFinalizer(ctx.ClassSymbol);
-		bool generateAsync = GetGenerateAsync(ctx.ClassSymbol);
-
-		// Check if IAsyncDisposable is available in the target framework
-		if (generateAsync)
-		{
-			INamedTypeSymbol? asyncDisposableSymbol = ctx.SemanticModel.Compilation
-				.GetTypeByMetadataName(TypeNames.IAsyncDisposable);
-
-			if (asyncDisposableSymbol is null)
-			{
-				GeneratorHelpers.ReportAtClass(context, ctx.ClassDeclaration, DiagnosticDescriptors.AsyncDisposableNotSupportedDiagnostic, ctx.ClassName);
-				generateAsync = false;
-			}
-		}
-
+		bool generateAsync = GetGenerateAsync(ctx.ClassSymbol) && IsAsyncDisposableSupported(context, ctx);
 		bool isSealed = ctx.ClassDeclaration.Modifiers.Any(SyntaxKind.SealedKeyword);
 
 		ImmutableArray<(string FieldName, int Order, int SourceIndex)> disposableFields = GetDisposableFields(ctx.ClassDeclaration);
 
 		SourceBuilder sb = new();
 
-		List<string> usings = [NamespaceNames.System];
-		if (generateAsync)
-			usings.Add(NamespaceNames.SystemThreadingTasks);
-
-		sb.BeginTypeFile(GeneratorNames.DisposableGeneratorFullName, ctx.NamespaceName, ctx.OuterClasses, usings);
+		sb.BeginTypeFile(GeneratorNames.DisposableGeneratorFullName, ctx.NamespaceName, ctx.OuterClasses, GetUsings(generateAsync));
 
 		AppendClassStart(sb, ctx.ClassName, ctx.Accessibility, generateAsync);
 		AppendDisposedField(sb);
@@ -84,6 +66,30 @@ public sealed class DisposableGenerator : IIncrementalGenerator
 		sb.EndTypeFile(ctx.OuterClasses);
 
 		GeneratorHelpers.AddTypeSource(context, ctx.OuterClasses, ctx.ClassName, "Disposable", sb);
+	}
+
+	/// <summary>
+	/// Checks whether <c>IAsyncDisposable</c> is available in the target framework, reporting a diagnostic if not.
+	/// </summary>
+	/// <param name="context">The source production context used to report diagnostics.</param>
+	/// <param name="ctx">The generator context.</param>
+	/// <returns><see langword="true"/> if <c>IAsyncDisposable</c> is available; otherwise, <see langword="false"/>.</returns>
+	private static bool IsAsyncDisposableSupported(SourceProductionContext context, GeneratorContext ctx)
+	{
+		if (ctx.SemanticModel.Compilation.GetTypeByMetadataName(TypeNames.IAsyncDisposable) is not null)
+			return true;
+
+		GeneratorHelpers.ReportAtClass(context, ctx.ClassDeclaration, DiagnosticDescriptors.AsyncDisposableNotSupportedDiagnostic, ctx.ClassName);
+		return false;
+	}
+
+	private static List<string> GetUsings(bool generateAsync)
+	{
+		List<string> usings = [NamespaceNames.System];
+		if (generateAsync)
+			usings.Add(NamespaceNames.SystemThreadingTasks);
+
+		return usings;
 	}
 
 	private static bool GetGenerateFinalizer(INamedTypeSymbol namedTypeSymbol)
