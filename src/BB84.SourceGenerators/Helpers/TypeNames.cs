@@ -15,6 +15,7 @@ internal static class TypeNames
 	internal const string Exception = "System.Exception";
 	internal const string FlagsAttributeShortName = "FlagsAttribute";
 	internal const string IAsyncDisposable = "System.IAsyncDisposable";
+	internal const string IFormattable = "System.IFormattable";
 	internal const string INotifyPropertyChanged = "System.ComponentModel.INotifyPropertyChanged";
 	internal const string INotifyPropertyChanging = "System.ComponentModel.INotifyPropertyChanging";
 	internal const string List = "System.Collections.Generic.List";

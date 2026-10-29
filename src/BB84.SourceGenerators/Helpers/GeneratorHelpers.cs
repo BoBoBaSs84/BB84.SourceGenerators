@@ -98,25 +98,17 @@ internal static class GeneratorHelpers
 		string attributeShortName = StripAttributeSuffix(attributeFullName);
 		HashSet<string> excluded = new(StringComparer.Ordinal);
 
-		foreach (AttributeListSyntax attributeList in typeDeclaration.AttributeLists)
+		foreach (AttributeSyntax attribute in FindAttributes(typeDeclaration.AttributeLists, attributeFullName, attributeShortName))
 		{
-			foreach (AttributeSyntax attribute in attributeList.Attributes)
+			if (attribute.ArgumentList is null)
+				continue;
+
+			foreach (AttributeArgumentSyntax argument in attribute.ArgumentList.Arguments)
 			{
-				string name = attribute.Name.ToString();
+				Optional<object?> constantValue = semanticModel.GetConstantValue(argument.Expression);
 
-				if (name != attributeShortName && name != attributeFullName)
-					continue;
-
-				if (attribute.ArgumentList is null)
-					continue;
-
-				foreach (AttributeArgumentSyntax argument in attribute.ArgumentList.Arguments)
-				{
-					Optional<object?> constantValue = semanticModel.GetConstantValue(argument.Expression);
-
-					if (constantValue.HasValue && constantValue.Value is string value)
-						excluded.Add(value);
-				}
+				if (constantValue.HasValue && constantValue.Value is string value)
+					_ = excluded.Add(value);
 			}
 		}
 
@@ -154,37 +146,174 @@ internal static class GeneratorHelpers
 		string propertyName,
 		T defaultValue)
 	{
-		foreach (AttributeListSyntax attributeList in typeDeclaration.AttributeLists)
+		foreach (AttributeSyntax attribute in FindAttributes(typeDeclaration.AttributeLists, attributeFullName, attributeShortName))
+		{
+			if (attribute.ArgumentList is null)
+				return defaultValue;
+
+			foreach (AttributeArgumentSyntax arg in attribute.ArgumentList.Arguments)
+			{
+				if (arg.NameEquals?.Name.Identifier.Text != propertyName)
+					continue;
+
+				Optional<object?> value = semanticModel.GetConstantValue(arg.Expression);
+
+				if (value.HasValue && value.Value is T typedValue)
+					return typedValue;
+
+				break;
+			}
+
+			return defaultValue;
+		}
+
+		return defaultValue;
+	}
+
+	/// <summary>
+	/// Finds the attributes in the given attribute lists whose name, as written in source, matches
+	/// <paramref name="attributeFullName"/> or <paramref name="attributeShortName"/>.
+	/// </summary>
+	/// <param name="attributeLists">The attribute lists of a declaration.</param>
+	/// <param name="attributeFullName">The simple type name of the attribute (e.g., "AlsoNotifyAttribute").</param>
+	/// <param name="attributeShortName">The attribute name without the "Attribute" suffix (e.g., "AlsoNotify").</param>
+	/// <returns>The matching attributes, in declaration order.</returns>
+	internal static IEnumerable<AttributeSyntax> FindAttributes(SyntaxList<AttributeListSyntax> attributeLists, string attributeFullName, string attributeShortName)
+	{
+		foreach (AttributeListSyntax attributeList in attributeLists)
 		{
 			foreach (AttributeSyntax attribute in attributeList.Attributes)
 			{
 				string name = attribute.Name.ToString();
 
-				if (name != attributeShortName && name != attributeFullName)
-					continue;
-
-				if (attribute.ArgumentList is null)
-					return defaultValue;
-
-				foreach (AttributeArgumentSyntax arg in attribute.ArgumentList.Arguments)
-				{
-					if (arg.NameEquals?.Name.Identifier.Text != propertyName)
-						continue;
-
-					Optional<object?> value = semanticModel.GetConstantValue(arg.Expression);
-
-					if (value.HasValue && value.Value is T typedValue)
-						return typedValue;
-
-					break;
-				}
-
-				return defaultValue;
+				if (name == attributeFullName || name == attributeShortName)
+					yield return attribute;
 			}
+		}
+	}
+
+	/// <summary>
+	/// Gets the value of a named argument from attribute data.
+	/// </summary>
+	/// <typeparam name="T">The expected type of the argument value.</typeparam>
+	/// <param name="attribute">The attribute data to inspect.</param>
+	/// <param name="name">The name of the named argument.</param>
+	/// <param name="defaultValue">The default value to return if the argument is not found.</param>
+	/// <returns>The argument value, or <paramref name="defaultValue"/> if not found.</returns>
+	internal static T GetNamedArgument<T>(AttributeData attribute, string name, T defaultValue)
+	{
+		foreach (KeyValuePair<string, TypedConstant> argument in attribute.NamedArguments)
+		{
+			if (argument.Key == name && argument.Value.Value is T value)
+				return value;
 		}
 
 		return defaultValue;
 	}
+
+	/// <summary>
+	/// Gets the elements of an array-valued named argument from attribute data.
+	/// </summary>
+	/// <param name="attribute">The attribute data to inspect.</param>
+	/// <param name="name">The name of the named argument.</param>
+	/// <returns>The array elements, or <see langword="null"/> if the argument is not set.</returns>
+	internal static ImmutableArray<TypedConstant>? GetNamedArrayArgument(AttributeData attribute, string name)
+	{
+		foreach (KeyValuePair<string, TypedConstant> argument in attribute.NamedArguments)
+		{
+			if (argument.Key == name && argument.Value.Kind is TypedConstantKind.Array)
+				return argument.Value.Values;
+		}
+
+		return null;
+	}
+
+	/// <summary>
+	/// Gets the single constructor argument of the first attribute on <paramref name="symbol"/> whose
+	/// class matches <paramref name="attributeName"/> and has exactly one argument of type <typeparamref name="T"/>.
+	/// </summary>
+	/// <typeparam name="T">The expected type of the argument value.</typeparam>
+	/// <param name="symbol">The symbol to inspect.</param>
+	/// <param name="attributeName">The fully qualified name of the attribute.</param>
+	/// <param name="value">When this method returns <see langword="true"/>, contains the argument value.</param>
+	/// <returns><see langword="true"/> if a matching attribute was found; otherwise, <see langword="false"/>.</returns>
+	internal static bool TryGetSingleCtorArg<T>(ISymbol symbol, string attributeName, out T value)
+	{
+		foreach (AttributeData attributeData in symbol.GetAttributes())
+		{
+			if (attributeData.AttributeClass?.ToDisplayString() == attributeName
+				&& attributeData.ConstructorArguments.Length == 1
+				&& attributeData.ConstructorArguments[0].Value is T typedValue)
+			{
+				value = typedValue;
+				return true;
+			}
+		}
+
+		value = default!;
+		return false;
+	}
+
+	/// <summary>
+	/// Checks whether the given type implements the interface with the given fully qualified name.
+	/// </summary>
+	/// <param name="typeSymbol">The type symbol to inspect.</param>
+	/// <param name="interfaceFullName">The fully qualified name of the interface.</param>
+	/// <returns><see langword="true"/> if the type implements the interface; otherwise, <see langword="false"/>.</returns>
+	internal static bool ImplementsInterface(ITypeSymbol typeSymbol, string interfaceFullName)
+	{
+		foreach (INamedTypeSymbol iface in typeSymbol.AllInterfaces)
+		{
+			if (iface.ToDisplayString() == interfaceFullName)
+				return true;
+		}
+
+		return false;
+	}
+
+	/// <summary>
+	/// Gets the C# keyword prefix for a parameter based on its ref kind. <c>out</c> and <c>ref</c> are
+	/// always emitted; the remaining modifiers only when requested.
+	/// </summary>
+	/// <param name="parameter">The parameter symbol.</param>
+	/// <param name="includeIn">Whether <c>in</c> is emitted for <see cref="RefKind.In"/> parameters.</param>
+	/// <param name="includeParams">Whether <c>params</c> is emitted for params parameters, taking precedence over the ref kind.</param>
+	/// <param name="includeRefReadOnly">Whether <c>ref readonly</c> is emitted for <see cref="RefKind.RefReadOnlyParameter"/> parameters.</param>
+	/// <returns>The modifier keyword followed by a space, or an empty string if none applies.</returns>
+	internal static string GetRefKindModifier(IParameterSymbol parameter, bool includeIn, bool includeParams, bool includeRefReadOnly)
+	{
+		return includeParams && parameter.IsParams
+			? "params "
+			: parameter.RefKind switch
+			{
+				RefKind.Out => "out ",
+				RefKind.Ref => "ref ",
+				RefKind.In when includeIn => "in ",
+				RefKind.RefReadOnlyParameter when includeRefReadOnly => "ref readonly ",
+				_ => string.Empty
+			};
+	}
+
+	/// <summary>
+	/// Converts a field name to a property name by removing a leading underscore and
+	/// capitalizing the first letter.
+	/// </summary>
+	/// <param name="fieldName">The field name to convert.</param>
+	/// <returns>The converted property name, or an empty string if nothing remains.</returns>
+	internal static string FieldNameToPropertyName(string fieldName)
+	{
+		string name = fieldName.StartsWith("_", StringComparison.OrdinalIgnoreCase) ? fieldName[1..] : fieldName;
+		return name.Length == 0 ? name : $"{char.ToUpperInvariant(name[0])}{name[1..]}";
+	}
+
+	/// <summary>
+	/// Converts a property name to a backing field name by prefixing an underscore
+	/// and lowercasing the first letter.
+	/// </summary>
+	/// <param name="propertyName">The property name to convert.</param>
+	/// <returns>The converted field name.</returns>
+	internal static string PropertyNameToFieldName(string propertyName)
+		=> $"_{char.ToLowerInvariant(propertyName[0])}{propertyName[1..]}";
 
 	/// <summary>
 	/// Gets the value of a positional constructor argument from an attribute on a type symbol.
@@ -234,6 +363,18 @@ internal static class GeneratorHelpers
 	}
 
 	/// <summary>
+	/// Adds the source built by <paramref name="sb"/> to the compilation, using the hint name
+	/// produced by <see cref="BuildHintName(List{ValueTuple{string, string}}, string, string?)"/>.
+	/// </summary>
+	/// <param name="context">The source production context.</param>
+	/// <param name="outerClasses">The outer (nesting) classes, from outermost to innermost.</param>
+	/// <param name="typeName">The name of the generated or extended type.</param>
+	/// <param name="feature">The optional feature suffix (e.g., "Equality").</param>
+	/// <param name="sb">The source builder containing the generated source.</param>
+	internal static void AddTypeSource(SourceProductionContext context, List<(string Accessibility, string Name)> outerClasses, string typeName, string? feature, SourceBuilder sb)
+		=> context.AddSource(BuildHintName(outerClasses, typeName, feature), sb.ToString());
+
+	/// <summary>
 	/// Builds the hint name for a generated source file, in the form
 	/// <c>{Outer.Classes.}{TypeName}{.Feature}.g.cs</c>.
 	/// </summary>
@@ -243,6 +384,10 @@ internal static class GeneratorHelpers
 	/// <returns>The hint name to pass to <see cref="SourceProductionContext.AddSource(string, string)"/>.</returns>
 	internal static string BuildHintName(List<(string Accessibility, string Name)> outerClasses, string typeName, string? feature = null)
 		=> BuildHintName(outerClasses.Select(static o => o.Name), outerClasses.Count, typeName, feature);
+
+	/// <inheritdoc cref="BuildHintName(List{ValueTuple{string, string}}, string, string?)"/>
+	internal static string BuildHintName(string typeName, string? feature = null)
+		=> BuildHintName([], 0, typeName, feature);
 
 	/// <inheritdoc cref="BuildHintName(List{ValueTuple{string, string}}, string, string?)"/>
 	internal static string BuildHintName(List<(string Accessibility, string Name, bool IsStatic)> outerClasses, string typeName, string? feature = null)
@@ -273,17 +418,8 @@ internal static class GeneratorHelpers
 		=> value.Replace("\"", "\"\"");
 
 	/// <summary>
-	/// Transforms a <see cref="GeneratorAttributeSyntaxContext"/> into a tuple of class declaration syntax and semantic model.
-	/// </summary>
-	/// <param name="context">The generator attribute syntax context.</param>
-	/// <returns>A tuple of class declaration syntax and semantic model, or null if the target node is not a class declaration.</returns>
-	internal static (ClassDeclarationSyntax ClassSyntax, SemanticModel SemanticModel)? TransformClassSyntax(GeneratorAttributeSyntaxContext context)
-		=> context.TargetNode is not ClassDeclarationSyntax classSyntax ? null : (classSyntax, context.SemanticModel);
-
-	/// <summary>
 	/// Registers a class-based incremental source generator pipeline that filters for classes
-	/// decorated with the specified attribute, transforms them via <see cref="TransformClassSyntax"/>,
-	/// and invokes the provided <paramref name="execute"/> callback.
+	/// decorated with the specified attribute and invokes the provided <paramref name="execute"/> callback.
 	/// </summary>
 	/// <param name="context">The generator initialization context.</param>
 	/// <param name="attributeMetadataName">The fully qualified metadata name of the trigger attribute.</param>
@@ -292,17 +428,34 @@ internal static class GeneratorHelpers
 		IncrementalGeneratorInitializationContext context,
 		string attributeMetadataName,
 		Action<SourceProductionContext, (ClassDeclarationSyntax ClassSyntax, SemanticModel SemanticModel)?> execute)
-	{
-		IncrementalValuesProvider<(ClassDeclarationSyntax ClassSyntax, SemanticModel SemanticModel)?> provider =
-			context.SyntaxProvider
-				.ForAttributeWithMetadataName(
-					fullyQualifiedMetadataName: attributeMetadataName,
-					predicate: static (node, _) => node is ClassDeclarationSyntax,
-					transform: static (ctx, _) => TransformClassSyntax(ctx))
-				.Where(static result => result is not null);
+		=> RegisterTypeGenerator(context, attributeMetadataName, IsClass, execute);
 
-		context.RegisterSourceOutput(provider, execute);
-	}
+	/// <summary>
+	/// Registers a class-or-record-based incremental source generator pipeline that filters for classes and
+	/// records (excluding record structs) decorated with the specified attribute and invokes the provided
+	/// <paramref name="execute"/> callback.
+	/// </summary>
+	/// <param name="context">The generator initialization context.</param>
+	/// <param name="attributeMetadataName">The fully qualified metadata name of the trigger attribute.</param>
+	/// <param name="execute">The callback to execute for each matched class or record.</param>
+	internal static void RegisterClassOrRecordGenerator(
+		IncrementalGeneratorInitializationContext context,
+		string attributeMetadataName,
+		Action<SourceProductionContext, (TypeDeclarationSyntax TypeSyntax, SemanticModel SemanticModel)?> execute)
+		=> RegisterTypeGenerator(context, attributeMetadataName, IsClassOrRecordClass, execute);
+
+	/// <summary>
+	/// Registers a struct-based incremental source generator pipeline that filters for structs
+	/// decorated with the specified attribute and invokes the provided <paramref name="execute"/> callback.
+	/// </summary>
+	/// <param name="context">The generator initialization context.</param>
+	/// <param name="attributeMetadataName">The fully qualified metadata name of the trigger attribute.</param>
+	/// <param name="execute">The callback to execute for each matched struct.</param>
+	internal static void RegisterStructGenerator(
+		IncrementalGeneratorInitializationContext context,
+		string attributeMetadataName,
+		Action<SourceProductionContext, (StructDeclarationSyntax StructSyntax, SemanticModel SemanticModel)?> execute)
+		=> RegisterTypeGenerator(context, attributeMetadataName, IsStruct, execute);
 
 	/// <summary>
 	/// Attempts to create a <see cref="GeneratorContext"/> from the given input tuple.
@@ -314,72 +467,11 @@ internal static class GeneratorHelpers
 	internal static bool TryCreateContext(
 		(ClassDeclarationSyntax ClassSyntax, SemanticModel SemanticModel)? input,
 		out GeneratorContext context)
-	{
-		context = null!;
-
-		if (input is null)
-			return false;
-
-		ClassDeclarationSyntax classDeclaration = input.Value.ClassSyntax;
-		SemanticModel semanticModel = input.Value.SemanticModel;
-
-		INamedTypeSymbol? classSymbol = semanticModel.GetDeclaredSymbol(classDeclaration);
-		if (classSymbol is null)
-			return false;
-
-		string className = classSymbol.Name;
-		string namespaceName = classDeclaration.GetNamespace();
-		string accessibility = GetAccessibility(classDeclaration);
-		List<(string Accessibility, string Name)> outerClasses = GetOuterClasses(classDeclaration);
-
-		context = new GeneratorContext(classDeclaration, semanticModel, classSymbol, className, namespaceName, accessibility, outerClasses);
-		return true;
-	}
-
-	/// <summary>
-	/// Transforms a <see cref="GeneratorAttributeSyntaxContext"/> into a tuple of type declaration syntax and
-	/// semantic model, accepting both class and record (record class) declarations.
-	/// </summary>
-	/// <param name="context">The generator attribute syntax context.</param>
-	/// <returns>
-	/// A tuple of type declaration syntax and semantic model, or <see langword="null"/> if the target node is
-	/// not a class declaration or a record (non-struct) declaration.
-	/// </returns>
-	internal static (TypeDeclarationSyntax TypeSyntax, SemanticModel SemanticModel)? TransformClassOrRecordSyntax(GeneratorAttributeSyntaxContext context)
-	{
-		if (context.TargetNode is ClassDeclarationSyntax classSyntax)
-			return (classSyntax, context.SemanticModel);
-
-		if (context.TargetNode is RecordDeclarationSyntax recordSyntax && !recordSyntax.ClassOrStructKeyword.IsKind(SyntaxKind.StructKeyword))
-			return (recordSyntax, context.SemanticModel);
-
-		return null;
-	}
-
-	/// <summary>
-	/// Registers a class-or-record-based incremental source generator pipeline that filters for classes and
-	/// records (excluding record structs) decorated with the specified attribute, transforms them via
-	/// <see cref="TransformClassOrRecordSyntax"/>, and invokes the provided <paramref name="execute"/> callback.
-	/// </summary>
-	/// <param name="context">The generator initialization context.</param>
-	/// <param name="attributeMetadataName">The fully qualified metadata name of the trigger attribute.</param>
-	/// <param name="execute">The callback to execute for each matched class or record.</param>
-	internal static void RegisterClassOrRecordGenerator(
-		IncrementalGeneratorInitializationContext context,
-		string attributeMetadataName,
-		Action<SourceProductionContext, (TypeDeclarationSyntax TypeSyntax, SemanticModel SemanticModel)?> execute)
-	{
-		IncrementalValuesProvider<(TypeDeclarationSyntax TypeSyntax, SemanticModel SemanticModel)?> provider =
-			context.SyntaxProvider
-				.ForAttributeWithMetadataName(
-					fullyQualifiedMetadataName: attributeMetadataName,
-					predicate: static (node, _) => node is ClassDeclarationSyntax
-						|| (node is RecordDeclarationSyntax record && !record.ClassOrStructKeyword.IsKind(SyntaxKind.StructKeyword)),
-					transform: static (ctx, _) => TransformClassOrRecordSyntax(ctx))
-				.Where(static result => result is not null);
-
-		context.RegisterSourceOutput(provider, execute);
-	}
+		=> TryCreateContextCore(
+			input,
+			static (classDeclaration, semanticModel, classSymbol, namespaceName, accessibility, outerClasses)
+				=> new GeneratorContext(classDeclaration, semanticModel, classSymbol, classSymbol.Name, namespaceName, accessibility, outerClasses),
+			out context);
 
 	/// <summary>
 	/// Attempts to create a <see cref="TypeGeneratorContext"/> from the given input tuple.
@@ -392,27 +484,81 @@ internal static class GeneratorHelpers
 	internal static bool TryCreateContext(
 		(TypeDeclarationSyntax TypeSyntax, SemanticModel SemanticModel)? input,
 		out TypeGeneratorContext context)
+		=> TryCreateContextCore(
+			input,
+			static (typeDeclaration, semanticModel, typeSymbol, namespaceName, accessibility, outerClasses)
+				=> new TypeGeneratorContext(
+					typeDeclaration,
+					semanticModel,
+					typeSymbol,
+					typeSymbol.Name,
+					namespaceName,
+					accessibility,
+					outerClasses,
+					typeDeclaration is RecordDeclarationSyntax,
+					(typeDeclaration as RecordDeclarationSyntax)?.ParameterList),
+			out context);
+
+	/// <summary>
+	/// Reports a diagnostic located at the identifier of the given type declaration.
+	/// </summary>
+	/// <param name="context">The source production context.</param>
+	/// <param name="typeDeclaration">The type declaration whose identifier is the diagnostic location.</param>
+	/// <param name="descriptor">The diagnostic descriptor.</param>
+	/// <param name="messageArgs">The arguments of the diagnostic message.</param>
+	internal static void ReportAtClass(SourceProductionContext context, TypeDeclarationSyntax typeDeclaration, DiagnosticDescriptor descriptor, params object?[] messageArgs)
+		=> context.ReportDiagnostic(Diagnostic.Create(descriptor, typeDeclaration.Identifier.GetLocation(), messageArgs));
+
+	private static bool IsClass(SyntaxNode node)
+		=> node is ClassDeclarationSyntax;
+
+	private static bool IsClassOrRecordClass(SyntaxNode node)
+		=> node is ClassDeclarationSyntax
+			|| (node is RecordDeclarationSyntax record && !record.ClassOrStructKeyword.IsKind(SyntaxKind.StructKeyword));
+
+	private static bool IsStruct(SyntaxNode node)
+		=> node is StructDeclarationSyntax;
+
+	private static void RegisterTypeGenerator<TSyntax>(
+		IncrementalGeneratorInitializationContext context,
+		string attributeMetadataName,
+		Func<SyntaxNode, bool> isTarget,
+		Action<SourceProductionContext, (TSyntax Syntax, SemanticModel SemanticModel)?> execute)
+		where TSyntax : TypeDeclarationSyntax
+	{
+		IncrementalValuesProvider<(TSyntax Syntax, SemanticModel SemanticModel)?> provider =
+			context.SyntaxProvider
+				.ForAttributeWithMetadataName(
+					fullyQualifiedMetadataName: attributeMetadataName,
+					predicate: (node, _) => isTarget(node),
+					transform: (ctx, _) => ctx.TargetNode is TSyntax syntax && isTarget(syntax)
+						? ((TSyntax Syntax, SemanticModel SemanticModel)?)(syntax, ctx.SemanticModel)
+						: null)
+				.Where(static result => result is not null);
+
+		context.RegisterSourceOutput(provider, execute);
+	}
+
+	private static bool TryCreateContextCore<TSyntax, TContext>(
+		(TSyntax Syntax, SemanticModel SemanticModel)? input,
+		Func<TSyntax, SemanticModel, INamedTypeSymbol, string, string, List<(string Accessibility, string Name)>, TContext> create,
+		out TContext context)
+		where TSyntax : TypeDeclarationSyntax
+		where TContext : class
 	{
 		context = null!;
 
 		if (input is null)
 			return false;
 
-		TypeDeclarationSyntax typeDeclaration = input.Value.TypeSyntax;
+		TSyntax typeDeclaration = input.Value.Syntax;
 		SemanticModel semanticModel = input.Value.SemanticModel;
 
 		INamedTypeSymbol? typeSymbol = semanticModel.GetDeclaredSymbol(typeDeclaration);
 		if (typeSymbol is null)
 			return false;
 
-		string typeName = typeSymbol.Name;
-		string namespaceName = typeDeclaration.GetNamespace();
-		string accessibility = GetAccessibility(typeDeclaration);
-		List<(string Accessibility, string Name)> outerClasses = GetOuterClasses(typeDeclaration);
-		bool isRecord = typeDeclaration is RecordDeclarationSyntax;
-		ParameterListSyntax? positionalParameterList = (typeDeclaration as RecordDeclarationSyntax)?.ParameterList;
-
-		context = new TypeGeneratorContext(typeDeclaration, semanticModel, typeSymbol, typeName, namespaceName, accessibility, outerClasses, isRecord, positionalParameterList);
+		context = create(typeDeclaration, semanticModel, typeSymbol, typeDeclaration.GetNamespace(), GetAccessibility(typeDeclaration), GetOuterClasses(typeDeclaration));
 		return true;
 	}
 
@@ -479,44 +625,13 @@ internal static class GeneratorHelpers
 			int? order = null;
 
 			if (cloneableAttributeName is not null)
-			{
-				foreach (AttributeData attributeData in propertySymbol.Type.GetAttributes())
-				{
-					if (attributeData.AttributeClass?.ToDisplayString() == cloneableAttributeName)
-					{
-						isCloneable = true;
-						break;
-					}
-				}
-			}
+				isCloneable = HasAttribute(propertySymbol.Type, cloneableAttributeName);
 
-			if (toStringFormatAttributeName is not null)
-			{
-				foreach (AttributeData attributeData in propertySymbol.GetAttributes())
-				{
-					if (attributeData.AttributeClass?.ToDisplayString() == toStringFormatAttributeName
-						&& attributeData.ConstructorArguments.Length == 1
-						&& attributeData.ConstructorArguments[0].Value is string fmt)
-					{
-						formatString = fmt;
-						break;
-					}
-				}
-			}
+			if (toStringFormatAttributeName is not null && TryGetSingleCtorArg(propertySymbol, toStringFormatAttributeName, out string fmt))
+				formatString = fmt;
 
-			if (toStringOrderAttributeName is not null)
-			{
-				foreach (AttributeData attributeData in propertySymbol.GetAttributes())
-				{
-					if (attributeData.AttributeClass?.ToDisplayString() == toStringOrderAttributeName
-						&& attributeData.ConstructorArguments.Length == 1
-						&& attributeData.ConstructorArguments[0].Value is int ord)
-					{
-						order = ord;
-						break;
-					}
-				}
-			}
+			if (toStringOrderAttributeName is not null && TryGetSingleCtorArg(propertySymbol, toStringOrderAttributeName, out int ord))
+				order = ord;
 
 			bool isFormattable = false;
 
@@ -530,14 +645,7 @@ internal static class GeneratorHelpers
 					effectiveType = namedNullable.TypeArguments[0];
 				}
 
-				foreach (INamedTypeSymbol iface in effectiveType.AllInterfaces)
-				{
-					if (iface.ToDisplayString() == "System.IFormattable")
-					{
-						isFormattable = true;
-						break;
-					}
-				}
+				isFormattable = ImplementsInterface(effectiveType, TypeNames.IFormattable);
 			}
 
 			// Detect collection types when explicitly requested or when cloneability checks are active
@@ -622,11 +730,14 @@ internal static class GeneratorHelpers
 	}
 
 	/// <summary>
-	/// Checks whether a type symbol has a specific attribute.
+	/// Checks whether a symbol has an attribute with the given fully qualified name.
 	/// </summary>
-	private static bool HasAttribute(ITypeSymbol typeSymbol, string attributeName)
+	/// <param name="symbol">The symbol to inspect.</param>
+	/// <param name="attributeName">The fully qualified name of the attribute.</param>
+	/// <returns><see langword="true"/> if the attribute is present; otherwise, <see langword="false"/>.</returns>
+	internal static bool HasAttribute(ISymbol symbol, string attributeName)
 	{
-		foreach (AttributeData attr in typeSymbol.GetAttributes())
+		foreach (AttributeData attr in symbol.GetAttributes())
 		{
 			if (attr.AttributeClass?.ToDisplayString() == attributeName)
 				return true;

@@ -14,8 +14,8 @@ public sealed class SourceBuilderTests
 	public void OpenClassWithoutBaseTypesEmitsPartialClassDeclaration()
 	{
 		SourceBuilder sb = new();
-		sb.OpenClass("public", "Foo");
-		sb.CloseClass();
+		_ = sb.OpenClass("public", "Foo");
+		_ = sb.CloseClass();
 
 		string result = sb.ToString();
 
@@ -27,8 +27,8 @@ public sealed class SourceBuilderTests
 	public void OpenClassWithBaseTypesEmitsPartialClassDeclarationWithBaseTypes()
 	{
 		SourceBuilder sb = new();
-		sb.OpenClass("public", "Foo", "IDisposable");
-		sb.CloseClass();
+		_ = sb.OpenClass("public", "Foo", "IDisposable");
+		_ = sb.CloseClass();
 
 		string result = sb.ToString();
 
@@ -39,8 +39,8 @@ public sealed class SourceBuilderTests
 	public void OpenSealedClassWithoutBaseTypesEmitsSealedClassDeclaration()
 	{
 		SourceBuilder sb = new();
-		sb.OpenSealedClass("public", "Foo");
-		sb.CloseClass();
+		_ = sb.OpenSealedClass("public", "Foo");
+		_ = sb.CloseClass();
 
 		string result = sb.ToString();
 
@@ -52,8 +52,8 @@ public sealed class SourceBuilderTests
 	public void OpenSealedClassWithBaseTypesEmitsSealedClassDeclarationWithBaseTypes()
 	{
 		SourceBuilder sb = new();
-		sb.OpenSealedClass("public", "Foo", "IDisposable");
-		sb.CloseClass();
+		_ = sb.OpenSealedClass("public", "Foo", "IDisposable");
+		_ = sb.CloseClass();
 
 		string result = sb.ToString();
 
@@ -64,8 +64,8 @@ public sealed class SourceBuilderTests
 	public void OpenStructWithoutBaseTypesEmitsPartialStructDeclaration()
 	{
 		SourceBuilder sb = new();
-		sb.OpenStruct("public", "Foo");
-		sb.CloseStruct();
+		_ = sb.OpenStruct("public", "Foo");
+		_ = sb.CloseStruct();
 
 		string result = sb.ToString();
 
@@ -77,8 +77,8 @@ public sealed class SourceBuilderTests
 	public void OpenStructWithBaseTypesEmitsPartialStructDeclarationWithBaseTypes()
 	{
 		SourceBuilder sb = new();
-		sb.OpenStruct("public", "Foo", "IEquatable<Foo>");
-		sb.CloseStruct();
+		_ = sb.OpenStruct("public", "Foo", "IEquatable<Foo>");
+		_ = sb.CloseStruct();
 
 		string result = sb.ToString();
 
@@ -89,8 +89,8 @@ public sealed class SourceBuilderTests
 	public void OpenRecordWithoutBaseTypesEmitsPartialRecordDeclaration()
 	{
 		SourceBuilder sb = new();
-		sb.OpenRecord("public", "Bar");
-		sb.CloseRecord();
+		_ = sb.OpenRecord("public", "Bar");
+		_ = sb.CloseRecord();
 
 		string result = sb.ToString();
 
@@ -102,8 +102,8 @@ public sealed class SourceBuilderTests
 	public void OpenRecordWithBaseTypesEmitsPartialRecordDeclarationWithBaseTypes()
 	{
 		SourceBuilder sb = new();
-		sb.OpenRecord("public", "Bar", "IDisposable");
-		sb.CloseRecord();
+		_ = sb.OpenRecord("public", "Bar", "IDisposable");
+		_ = sb.CloseRecord();
 
 		string result = sb.ToString();
 
@@ -114,8 +114,8 @@ public sealed class SourceBuilderTests
 	public void OpenSealedRecordWithoutBaseTypesEmitsSealedPartialRecordDeclaration()
 	{
 		SourceBuilder sb = new();
-		sb.OpenSealedRecord("public", "Bar");
-		sb.CloseRecord();
+		_ = sb.OpenSealedRecord("public", "Bar");
+		_ = sb.CloseRecord();
 
 		string result = sb.ToString();
 
@@ -127,8 +127,8 @@ public sealed class SourceBuilderTests
 	public void OpenSealedRecordWithBaseTypesEmitsSealedPartialRecordDeclarationWithBaseTypes()
 	{
 		SourceBuilder sb = new();
-		sb.OpenSealedRecord("public", "Bar", "BaseRecord");
-		sb.CloseRecord();
+		_ = sb.OpenSealedRecord("public", "Bar", "BaseRecord");
+		_ = sb.CloseRecord();
 
 		string result = sb.ToString();
 
@@ -139,8 +139,8 @@ public sealed class SourceBuilderTests
 	public void OpenRecordStructWithoutBaseTypesEmitsPartialRecordStructDeclaration()
 	{
 		SourceBuilder sb = new();
-		sb.OpenRecordStruct("public", "Baz");
-		sb.CloseRecordStruct();
+		_ = sb.OpenRecordStruct("public", "Baz");
+		_ = sb.CloseRecordStruct();
 
 		string result = sb.ToString();
 
@@ -152,8 +152,8 @@ public sealed class SourceBuilderTests
 	public void OpenRecordStructWithBaseTypesEmitsPartialRecordStructDeclarationWithBaseTypes()
 	{
 		SourceBuilder sb = new();
-		sb.OpenRecordStruct("public", "Baz", "IEquatable<Baz>");
-		sb.CloseRecordStruct();
+		_ = sb.OpenRecordStruct("public", "Baz", "IEquatable<Baz>");
+		_ = sb.CloseRecordStruct();
 
 		string result = sb.ToString();
 
@@ -166,9 +166,9 @@ public sealed class SourceBuilderTests
 		SourceBuilder sb = new();
 
 		Assert.AreEqual(0, sb.IndentLevel);
-		sb.OpenStruct("public", "Foo");
+		_ = sb.OpenStruct("public", "Foo");
 		Assert.AreEqual(1, sb.IndentLevel);
-		sb.CloseStruct();
+		_ = sb.CloseStruct();
 		Assert.AreEqual(0, sb.IndentLevel);
 	}
 
@@ -178,9 +178,51 @@ public sealed class SourceBuilderTests
 		SourceBuilder sb = new();
 
 		Assert.AreEqual(0, sb.IndentLevel);
-		sb.OpenRecord("public", "Bar");
+		_ = sb.OpenRecord("public", "Bar");
 		Assert.AreEqual(1, sb.IndentLevel);
-		sb.CloseRecord();
+		_ = sb.CloseRecord();
+		Assert.AreEqual(0, sb.IndentLevel);
+	}
+
+	[TestMethod]
+	public void AppendSummaryEmitsSingleLineSummaryBlock()
+	{
+		SourceBuilder sb = new();
+		_ = sb.AppendSummary("Does things.");
+
+		string[] lines = sb.ToString().Split([Environment.NewLine], StringSplitOptions.RemoveEmptyEntries);
+
+		string[] expected = ["/// <summary>", "/// Does things.", "/// </summary>"];
+		Assert.AreSequenceEqual(expected, lines);
+	}
+
+	[TestMethod]
+	public void BeginAndEndTypeFileEmitHeaderNamespaceAndOuterClasses()
+	{
+		SourceBuilder sb = new();
+		_ = sb.BeginTypeFile("Tool", "My.Space", [("public", "Outer")], ["System"]);
+		_ = sb.AppendLine("// body");
+		_ = sb.EndTypeFile([("public", "Outer")]);
+
+		string result = sb.ToString();
+
+		Assert.Contains("//     Tool: Tool", result);
+		Assert.Contains($"#nullable enable{Environment.NewLine}using System;{Environment.NewLine}{Environment.NewLine}namespace My.Space", result);
+		Assert.Contains($"  public partial class Outer{Environment.NewLine}  {{{Environment.NewLine}    // body", result);
+		Assert.AreEqual(0, sb.IndentLevel);
+	}
+
+	[TestMethod]
+	public void OpenOuterClassesWithStaticFlagEmitsStaticModifier()
+	{
+		SourceBuilder sb = new();
+		_ = sb.OpenOuterClasses([("public", "Outer", true), ("internal", "Inner", false)]);
+		_ = sb.CloseOuterClasses([("public", "Outer", true), ("internal", "Inner", false)]);
+
+		string result = sb.ToString();
+
+		Assert.Contains("public static partial class Outer", result);
+		Assert.Contains("internal partial class Inner", result);
 		Assert.AreEqual(0, sb.IndentLevel);
 	}
 
@@ -190,9 +232,9 @@ public sealed class SourceBuilderTests
 		SourceBuilder sb = new();
 
 		Assert.AreEqual(0, sb.IndentLevel);
-		sb.OpenRecordStruct("public", "Baz");
+		_ = sb.OpenRecordStruct("public", "Baz");
 		Assert.AreEqual(1, sb.IndentLevel);
-		sb.CloseRecordStruct();
+		_ = sb.CloseRecordStruct();
 		Assert.AreEqual(0, sb.IndentLevel);
 	}
 }
