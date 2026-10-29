@@ -46,34 +46,39 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 
 	/// <inheritdoc/>
 	public void Initialize(IncrementalGeneratorInitializationContext context)
-		=> GeneratorHelpers.RegisterClassGenerator(context, AttributeNames.MetadataName, Execute);
+		=> GeneratorHelpers.RegisterRequestGenerator<ValidatorRequest>(context, AttributeNames.MetadataName, GeneratorHelpers.IsClassNode, Transform, TrackingNames.Validator, Execute);
 
-	private void Execute(SourceProductionContext context, (ClassDeclarationSyntax ClassSyntax, SemanticModel SemanticModel)? input)
+	private static GeneratorResult<ValidatorRequest>? Transform(GeneratorAttributeSyntaxContext context, CancellationToken cancellationToken)
 	{
-		if (!GeneratorHelpers.TryCreateContext(input, out GeneratorContext ctx))
-			return;
+		if (context.TargetNode is not ClassDeclarationSyntax classDeclaration || context.TargetSymbol is not INamedTypeSymbol classSymbol)
+			return null;
 
-		if (ctx.ClassSymbol.IsAbstract)
-		{
-			GeneratorHelpers.ReportAtClass(context, ctx.ClassDeclaration, DiagnosticDescriptors.AbstractClassDiagnostic, ctx.ClassName);
-			return;
-		}
+		TypeTargetInfo type = TypeTargetInfo.Create(classDeclaration, classSymbol);
 
-		ImmutableArray<PropertyValidationInfo> validatedProperties = GetValidatedProperties(ctx.ClassSymbol);
+		if (classSymbol.IsAbstract)
+			return GeneratorResult<ValidatorRequest>.FromDiagnostics(type.CreateDiagnostic(DiagnosticDescriptors.AbstractClassDiagnostic, type.Name));
 
-		SourceBuilder sb = new();
+		EquatableArray<PropertyValidationInfo> validatedProperties = GetValidatedProperties(classSymbol);
+		bool implementsIValidatableObject = GeneratorHelpers.ImplementsInterface(classSymbol, DataAnnotationNames.IValidatableObject);
 
-		sb.BeginTypeFile(GeneratorNames.ValidatorGeneratorFullName, ctx.NamespaceName, ctx.OuterClasses, FileUsings);
-
-		bool implementsIValidatableObject = GeneratorHelpers.ImplementsInterface(ctx.ClassSymbol, DataAnnotationNames.IValidatableObject);
-		AppendPartialClass(sb, ctx.ClassName, ctx.Accessibility, validatedProperties, implementsIValidatableObject);
-
-		sb.EndTypeFile(ctx.OuterClasses);
-
-		GeneratorHelpers.AddTypeSource(context, ctx.OuterClasses, ctx.ClassName, "Validator", sb);
+		return GeneratorResult<ValidatorRequest>.FromRequest(new ValidatorRequest(type, validatedProperties, implementsIValidatableObject));
 	}
 
-	private static void AppendPartialClass(SourceBuilder sb, string className, string accessibility, ImmutableArray<PropertyValidationInfo> validatedProperties, bool implementsIValidatableObject)
+	private static void Execute(SourceProductionContext context, ValidatorRequest request)
+	{
+		TypeTargetInfo type = request.Type;
+		SourceBuilder sb = new();
+
+		sb.BeginTypeFile(GeneratorNames.ValidatorGeneratorFullName, type.NamespaceName, type.OuterClasses, FileUsings);
+
+		AppendPartialClass(sb, type.Name, type.Accessibility, request.Properties, request.ImplementsIValidatableObject);
+
+		sb.EndTypeFile(type.OuterClasses);
+
+		GeneratorHelpers.AddTypeSource(context, type.OuterClasses, type.Name, "Validator", sb);
+	}
+
+	private static void AppendPartialClass(SourceBuilder sb, string className, string accessibility, EquatableArray<PropertyValidationInfo> validatedProperties, bool implementsIValidatableObject)
 	{
 		sb.OpenClass(accessibility, className);
 
@@ -98,7 +103,7 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 			sb.AppendLine();
 	}
 
-	private static void AppendValidateAll(SourceBuilder sb, ImmutableArray<PropertyValidationInfo> validatedProperties, bool implementsIValidatableObject, Dictionary<string, RegexFieldInfo> regexFields)
+	private static void AppendValidateAll(SourceBuilder sb, EquatableArray<PropertyValidationInfo> validatedProperties, bool implementsIValidatableObject, Dictionary<string, RegexFieldInfo> regexFields)
 	{
 		// Generate Validate() returning Dictionary<string, List<string>>
 		sb.AppendSummary("Validates the current instance and returns a dictionary of validation errors grouped by property name.");
@@ -336,7 +341,7 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 		sb.CloseBrace();
 	}
 
-	private static ImmutableArray<PropertyValidationInfo> GetValidatedProperties(INamedTypeSymbol classSymbol)
+	private static EquatableArray<PropertyValidationInfo> GetValidatedProperties(INamedTypeSymbol classSymbol)
 	{
 		ImmutableArray<PropertyValidationInfo>.Builder builder = ImmutableArray.CreateBuilder<PropertyValidationInfo>();
 		HashSet<string> seen = [];
@@ -382,11 +387,11 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 				string typeName = propertySymbol.Type.ToMinimalDisplayString();
 				bool isCollection = IsCollectionType(propertySymbol.Type);
 				bool isArray = propertySymbol.Type.TypeKind == TypeKind.Array;
-				builder.Add(new PropertyValidationInfo(propertySymbol.Name, typeName, isCollection, isArray, rules.ToImmutable()));
+				builder.Add(new PropertyValidationInfo(propertySymbol.Name, typeName, isCollection, isArray, rules.ToImmutable().ToEquatableArray()));
 			}
 		}
 
-		return builder.ToImmutable();
+		return builder.ToImmutable().ToEquatableArray();
 	}
 
 	private static ValidationRule ParseRequiredAttribute(AttributeData attribute)
@@ -403,8 +408,8 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 		if (args.Length < 2)
 			return null;
 
-		string? minValue = args[0].Value?.ToString();
-		string? maxValue = args[1].Value?.ToString();
+		string? minValue = GeneratorHelpers.FormatInvariant(args[0].Value);
+		string? maxValue = GeneratorHelpers.FormatInvariant(args[1].Value);
 
 		if (minValue is null || maxValue is null)
 			return null;
@@ -490,13 +495,13 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 
 		string? errorMessage = GeneratorHelpers.GetNamedArgument<string?>(attribute, ErrorMessageArgumentName, null);
 
-		return new ValidationRule(kind) { Values = values, ErrorMessage = errorMessage };
+		return new ValidationRule(kind) { Values = values.ToEquatableArray(), ErrorMessage = errorMessage };
 	}
 
 	private static bool TryGetFirstArgString(AttributeData attribute, out string value)
 	{
 		ImmutableArray<TypedConstant> args = attribute.ConstructorArguments;
-		string? text = args.Length < 1 ? null : args[0].Value?.ToString();
+		string? text = args.Length < 1 ? null : GeneratorHelpers.FormatInvariant(args[0].Value);
 
 		value = text ?? string.Empty;
 		return text is not null;
@@ -512,7 +517,7 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 			string str => $"\"{GeneratorHelpers.EscapeString(str)}\"",
 			char c => $"'{c}'",
 			bool b => b ? "true" : "false",
-			_ => constant.Value?.ToString()
+			_ => GeneratorHelpers.FormatInvariant(constant.Value)
 		};
 	}
 
@@ -580,28 +585,22 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 		CustomValidation
 	}
 
-	private sealed class ValidationRule(ValidationKind kind)
+	private sealed record ValidationRule(ValidationKind Kind)
 	{
-		public ValidationKind Kind { get; } = kind;
 		public string? MinValue { get; set; }
 		public string? MaxValue { get; set; }
 		public string? Pattern { get; set; }
 		public string? ErrorMessage { get; set; }
 		public string? CompareProperty { get; set; }
 		public string? CustomAttributeTypeName { get; set; }
-		public ImmutableArray<string>? Values { get; set; }
+		public EquatableArray<string>? Values { get; set; }
 	}
 
-	private readonly struct PropertyValidationInfo(string name, string typeName, bool isCollection, bool isArray, ImmutableArray<ValidatorGenerator.ValidationRule> rules)
-	{
-		public string Name { get; } = name;
-		public string TypeName { get; } = typeName;
-		public bool IsCollection { get; } = isCollection;
-		public bool IsArray { get; } = isArray;
-		public ImmutableArray<ValidationRule> Rules { get; } = rules;
-	}
+	private readonly record struct PropertyValidationInfo(string Name, string TypeName, bool IsCollection, bool IsArray, EquatableArray<ValidationRule> Rules);
 
-	private static Dictionary<string, RegexFieldInfo> CollectRegexPatterns(ImmutableArray<PropertyValidationInfo> validatedProperties)
+	private sealed record ValidatorRequest(TypeTargetInfo Type, EquatableArray<PropertyValidationInfo> Properties, bool ImplementsIValidatableObject);
+
+	private static Dictionary<string, RegexFieldInfo> CollectRegexPatterns(EquatableArray<PropertyValidationInfo> validatedProperties)
 	{
 		Dictionary<string, RegexFieldInfo> patterns = [];
 		int counter = 0;

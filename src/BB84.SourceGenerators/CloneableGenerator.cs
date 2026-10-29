@@ -9,6 +9,7 @@ using BB84.SourceGenerators.Attributes;
 using BB84.SourceGenerators.Extensions;
 using BB84.SourceGenerators.Helpers;
 using BB84.SourceGenerators.Models;
+using BB84.SourceGenerators.Requests;
 
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -33,38 +34,43 @@ public sealed class CloneableGenerator : IIncrementalGenerator
 	public void Initialize(IncrementalGeneratorInitializationContext context)
 	{
 		// Register for classes
-		GeneratorHelpers.RegisterClassGenerator(context, AttributeNames.MetadataName, ExecuteClass);
+		GeneratorHelpers.RegisterRequestGenerator<CloneableRequest>(context, AttributeNames.MetadataName, GeneratorHelpers.IsClassNode, Transform, TrackingNames.CloneableClass, ExecuteClass);
 
 		// Register for structs
-		GeneratorHelpers.RegisterStructGenerator(context, AttributeNames.MetadataName, ExecuteStruct);
+		GeneratorHelpers.RegisterRequestGenerator<CloneableRequest>(context, AttributeNames.MetadataName, GeneratorHelpers.IsStructNode, Transform, TrackingNames.CloneableStruct, ExecuteStruct);
 	}
 
-	private void ExecuteClass(SourceProductionContext context, (ClassDeclarationSyntax ClassSyntax, SemanticModel SemanticModel)? input)
+	private static GeneratorResult<CloneableRequest>? Transform(GeneratorAttributeSyntaxContext context, CancellationToken cancellationToken)
 	{
-		if (!GeneratorHelpers.TryCreateContext(input, out GeneratorContext ctx))
-			return;
+		if (context.TargetNode is not TypeDeclarationSyntax typeDeclaration || context.TargetSymbol is not INamedTypeSymbol typeSymbol)
+			return null;
 
-		HashSet<string> excludedProperties = GeneratorHelpers.GetExcludedProperties(ctx.ClassDeclaration, ctx.SemanticModel, nameof(GenerateCloneableAttribute));
-		ImmutableArray<PropertyDescriptor> properties = GeneratorHelpers.GetPropertyDescriptors(ctx.ClassSymbol, excludedProperties, requireSetter: true, cloneableAttributeName: AttributeNames.MetadataName);
+		HashSet<string> excludedProperties = GeneratorHelpers.GetExcludedProperties(typeDeclaration, context.SemanticModel, nameof(GenerateCloneableAttribute));
+		ImmutableArray<PropertyDescriptor> properties = GeneratorHelpers.GetPropertyDescriptors(typeSymbol, excludedProperties, requireSetter: true, cloneableAttributeName: AttributeNames.MetadataName);
+
+		return GeneratorResult<CloneableRequest>.FromRequest(new CloneableRequest(TypeTargetInfo.Create(typeDeclaration, typeSymbol), properties.ToEquatableArray()));
+	}
+
+	private static void ExecuteClass(SourceProductionContext context, CloneableRequest request)
+	{
+		TypeTargetInfo type = request.Type;
+		ImmutableArray<PropertyDescriptor> properties = request.Properties.AsImmutableArray();
 
 		SourceBuilder sb = new();
 
-		sb.BeginTypeFile(GeneratorNames.CloneableGeneratorFullName, ctx.NamespaceName, ctx.OuterClasses, GetUsings(properties));
+		sb.BeginTypeFile(GeneratorNames.CloneableGeneratorFullName, type.NamespaceName, type.OuterClasses, GetUsings(properties));
 
-		AppendPartialClass(sb, ctx.ClassName, ctx.Accessibility, properties);
+		AppendPartialClass(sb, type.Name, type.Accessibility, properties);
 
-		sb.EndTypeFile(ctx.OuterClasses);
+		sb.EndTypeFile(type.OuterClasses);
 
-		GeneratorHelpers.AddTypeSource(context, ctx.OuterClasses, ctx.ClassName, "Cloneable", sb);
+		GeneratorHelpers.AddTypeSource(context, type.OuterClasses, type.Name, "Cloneable", sb);
 	}
 
-	private void ExecuteStruct(SourceProductionContext context, (StructDeclarationSyntax StructSyntax, SemanticModel SemanticModel)? input)
+	private static void ExecuteStruct(SourceProductionContext context, CloneableRequest request)
 	{
-		if (!GeneratorHelpers.TryCreateContext(input, out TypeGeneratorContext ctx))
-			return;
-
-		HashSet<string> excludedProperties = GeneratorHelpers.GetExcludedProperties(ctx.ClassDeclaration, ctx.SemanticModel, nameof(GenerateCloneableAttribute));
-		ImmutableArray<PropertyDescriptor> properties = GeneratorHelpers.GetPropertyDescriptors(ctx.ClassSymbol, excludedProperties, requireSetter: true, cloneableAttributeName: AttributeNames.MetadataName);
+		TypeTargetInfo type = request.Type;
+		ImmutableArray<PropertyDescriptor> properties = request.Properties.AsImmutableArray();
 
 		SourceBuilder sb = new();
 
@@ -76,13 +82,13 @@ public sealed class CloneableGenerator : IIncrementalGenerator
 			sb.AppendUsing(@namespace);
 
 		sb.AppendLine();
-		sb.OpenNamespace(ctx.NamespaceName);
+		sb.OpenNamespace(type.NamespaceName);
 
-		AppendPartialStruct(sb, ctx.ClassName, ctx.Accessibility, properties);
+		AppendPartialStruct(sb, type.Name, type.Accessibility, properties);
 
 		sb.CloseNamespace();
 
-		context.AddSource(GeneratorHelpers.BuildHintName(ctx.ClassName, "Cloneable"), sb.ToString());
+		context.AddSource(GeneratorHelpers.BuildHintName(type.Name, "Cloneable"), sb.ToString());
 	}
 
 	private static List<string> GetUsings(ImmutableArray<PropertyDescriptor> properties)

@@ -8,6 +8,7 @@ using System.Collections.Immutable;
 using BB84.SourceGenerators.Attributes;
 using BB84.SourceGenerators.Helpers;
 using BB84.SourceGenerators.Models;
+using BB84.SourceGenerators.Requests;
 
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -35,32 +36,49 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 
 	/// <inheritdoc/>
 	public void Initialize(IncrementalGeneratorInitializationContext context)
-		=> GeneratorHelpers.RegisterClassOrRecordGenerator(context, AttributeNames.MetadataName, Execute);
+		=> GeneratorHelpers.RegisterRequestGenerator<ToStringRequest>(context, AttributeNames.MetadataName, GeneratorHelpers.IsClassOrRecordClassNode, Transform, TrackingNames.ToStringOverride, Execute);
 
-	private void Execute(SourceProductionContext context, (TypeDeclarationSyntax TypeSyntax, SemanticModel SemanticModel)? input)
+	private static GeneratorResult<ToStringRequest>? Transform(GeneratorAttributeSyntaxContext context, CancellationToken cancellationToken)
 	{
-		if (!GeneratorHelpers.TryCreateContext(input, out TypeGeneratorContext ctx))
-			return;
+		if (context.TargetNode is not TypeDeclarationSyntax typeDeclaration || context.TargetSymbol is not INamedTypeSymbol typeSymbol)
+			return null;
 
-		CollectionFormat collectionFormat = GetCollectionFormat(ctx.ClassDeclaration, ctx.SemanticModel);
-		string separator = GetSeparator(ctx.ClassDeclaration, ctx.SemanticModel);
-		bool formattable = GetFormattable(ctx.ClassDeclaration, ctx.SemanticModel);
-		string? nullPlaceholder = GetNullPlaceholder(ctx.ClassDeclaration, ctx.SemanticModel);
-		bool includeInherited = GetIncludeInherited(ctx.ClassDeclaration, ctx.SemanticModel);
-		HashSet<string> excludedProperties = GeneratorHelpers.GetExcludedProperties(ctx.ClassDeclaration, ctx.SemanticModel, nameof(GenerateToStringAttribute));
-		ImmutableArray<PropertyDescriptor> properties = GeneratorHelpers.GetPropertyDescriptors(ctx.ClassSymbol, excludedProperties, detectCollections: true, toStringFormatAttributeName: ToStringFormatAttributeName, toStringOrderAttributeName: ToStringOrderAttributeName, includeInherited: includeInherited);
-		bool printMembersIsOverride = ctx.IsRecord
-			&& ctx.ClassSymbol.BaseType is { IsRecord: true, SpecialType: not SpecialType.System_Object };
+		SemanticModel semanticModel = context.SemanticModel;
+		bool isRecord = typeDeclaration is RecordDeclarationSyntax;
 
+		CollectionFormat collectionFormat = GetCollectionFormat(typeDeclaration, semanticModel);
+		string separator = GetSeparator(typeDeclaration, semanticModel);
+		bool formattable = GetFormattable(typeDeclaration, semanticModel);
+		string? nullPlaceholder = GetNullPlaceholder(typeDeclaration, semanticModel);
+		bool includeInherited = GetIncludeInherited(typeDeclaration, semanticModel);
+		HashSet<string> excludedProperties = GeneratorHelpers.GetExcludedProperties(typeDeclaration, semanticModel, nameof(GenerateToStringAttribute));
+		ImmutableArray<PropertyDescriptor> properties = GeneratorHelpers.GetPropertyDescriptors(typeSymbol, excludedProperties, detectCollections: true, toStringFormatAttributeName: ToStringFormatAttributeName, toStringOrderAttributeName: ToStringOrderAttributeName, includeInherited: includeInherited);
+		bool printMembersIsOverride = isRecord
+			&& typeSymbol.BaseType is { IsRecord: true, SpecialType: not SpecialType.System_Object };
+
+		return GeneratorResult<ToStringRequest>.FromRequest(new ToStringRequest(
+			TypeTargetInfo.Create(typeDeclaration, typeSymbol),
+			isRecord,
+			properties.ToEquatableArray(),
+			collectionFormat,
+			separator,
+			formattable,
+			nullPlaceholder,
+			printMembersIsOverride));
+	}
+
+	private static void Execute(SourceProductionContext context, ToStringRequest request)
+	{
+		TypeTargetInfo type = request.Type;
 		SourceBuilder sb = new();
 
-		sb.BeginTypeFile(GeneratorNames.ToStringGeneratorFullName, ctx.NamespaceName, ctx.OuterClasses, FileUsings);
+		sb.BeginTypeFile(GeneratorNames.ToStringGeneratorFullName, type.NamespaceName, type.OuterClasses, FileUsings);
 
-		AppendPartialType(sb, ctx.ClassName, ctx.Accessibility, properties, collectionFormat, separator, formattable, nullPlaceholder, ctx.IsRecord, printMembersIsOverride);
+		AppendPartialType(sb, type.Name, type.Accessibility, request.Properties.AsImmutableArray(), request.CollectionFormat, request.Separator, request.Formattable, request.NullPlaceholder, request.IsRecord, request.PrintMembersIsOverride);
 
-		sb.EndTypeFile(ctx.OuterClasses);
+		sb.EndTypeFile(type.OuterClasses);
 
-		GeneratorHelpers.AddTypeSource(context, ctx.OuterClasses, ctx.ClassName, "ToString", sb);
+		GeneratorHelpers.AddTypeSource(context, type.OuterClasses, type.Name, "ToString", sb);
 	}
 
 	private static void AppendPartialType(SourceBuilder sb, string className, string accessibility, ImmutableArray<PropertyDescriptor> properties, CollectionFormat collectionFormat, string separator, bool formattable, string? nullPlaceholder, bool isRecord, bool printMembersIsOverride)

@@ -8,6 +8,7 @@ using BB84.SourceGenerators.Attributes;
 using BB84.SourceGenerators.Extensions;
 using BB84.SourceGenerators.Helpers;
 using BB84.SourceGenerators.Models;
+using BB84.SourceGenerators.Requests;
 
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -29,84 +30,89 @@ public sealed class FactoryGenerator : IIncrementalGenerator
 
 	/// <inheritdoc/>
 	public void Initialize(IncrementalGeneratorInitializationContext context)
-		=> GeneratorHelpers.RegisterClassGenerator(context, AttributeNames.MetadataName, Execute);
+		=> GeneratorHelpers.RegisterRequestGenerator<FactoryRequest>(context, AttributeNames.MetadataName, GeneratorHelpers.IsClassNode, Transform, TrackingNames.Factory, Execute);
 
-	private void Execute(
-		SourceProductionContext context,
-		(ClassDeclarationSyntax ClassSyntax, SemanticModel SemanticModel)? input)
+	private static GeneratorResult<FactoryRequest>? Transform(GeneratorAttributeSyntaxContext context, CancellationToken cancellationToken)
 	{
-		if (!GeneratorHelpers.TryCreateContext(input, out GeneratorContext ctx))
-			return;
+		if (context.TargetNode is not ClassDeclarationSyntax classDeclaration || context.TargetSymbol is not INamedTypeSymbol classSymbol)
+			return null;
 
-		Compilation compilation = ctx.SemanticModel.Compilation;
+		TypeTargetInfo type = TypeTargetInfo.Create(classDeclaration, classSymbol);
 
 		// Get the interface type from the attribute
-		INamedTypeSymbol? interfaceSymbol = GetInterfaceTypeFromAttribute(ctx.ClassSymbol);
+		INamedTypeSymbol? interfaceSymbol = GetInterfaceTypeFromAttribute(classSymbol);
 		if (interfaceSymbol is null)
-			return;
+			return null;
 
 		if (interfaceSymbol.TypeKind != TypeKind.Interface)
-		{
-			GeneratorHelpers.ReportAtClass(context, ctx.ClassDeclaration, DiagnosticDescriptors.FactoryRequiresInterfaceTypeDiagnostic, ctx.ClassName, interfaceSymbol.Name);
-			return;
-		}
+			return GeneratorResult<FactoryRequest>.FromDiagnostics(type.CreateDiagnostic(DiagnosticDescriptors.FactoryRequiresInterfaceTypeDiagnostic, type.Name, interfaceSymbol.Name));
 
-		if (DiscoverImplementations(context, ctx, compilation, interfaceSymbol) is not { } implementations)
-			return;
+		List<DiagnosticInfo> diagnostics = [];
+		List<(string TypeName, string Key)> implementations = DiscoverImplementations(diagnostics, type, context.SemanticModel.Compilation, interfaceSymbol);
 
-		string interfaceName = interfaceSymbol.ToFullyQualifiedDisplayString();
-		string interfaceShortName = interfaceSymbol.ToMinimalDisplayString();
+		if (diagnostics.Count > 0)
+			return GeneratorResult<FactoryRequest>.FromDiagnostics([.. diagnostics]);
 
+		FactoryRequest request = new(
+			type,
+			interfaceSymbol.ToFullyQualifiedDisplayString(),
+			interfaceSymbol.ToMinimalDisplayString(),
+			implementations.ToEquatableArray());
+
+		return GeneratorResult<FactoryRequest>.FromRequest(request);
+	}
+
+	private static void Execute(SourceProductionContext context, FactoryRequest request)
+	{
+		TypeTargetInfo type = request.Type;
 		SourceBuilder sb = new();
 
-		sb.BeginTypeFile(GeneratorNames.FactoryGeneratorFullName, ctx.NamespaceName, ctx.OuterClasses, []);
+		sb.BeginTypeFile(GeneratorNames.FactoryGeneratorFullName, type.NamespaceName, type.OuterClasses, []);
 
-		AppendPartialClass(sb, ctx.ClassName, ctx.Accessibility, interfaceName, interfaceShortName, implementations);
+		AppendPartialClass(sb, type.Name, type.Accessibility, request.InterfaceFullName, request.InterfaceShortName, request.Implementations);
 
-		sb.EndTypeFile(ctx.OuterClasses);
+		sb.EndTypeFile(type.OuterClasses);
 
-		GeneratorHelpers.AddTypeSource(context, ctx.OuterClasses, ctx.ClassName, "Factory", sb);
+		GeneratorHelpers.AddTypeSource(context, type.OuterClasses, type.Name, "Factory", sb);
 	}
 
 	/// <summary>
 	/// Discovers all concrete, publicly constructible implementations of the interface in the compilation,
-	/// reporting a diagnostic for each duplicate factory key.
+	/// adding a diagnostic for each duplicate factory key.
 	/// </summary>
-	/// <param name="context">The source production context used to report diagnostics.</param>
-	/// <param name="ctx">The generator context of the factory class.</param>
+	/// <param name="diagnostics">The list the duplicate key diagnostics are added to.</param>
+	/// <param name="type">The factory class.</param>
 	/// <param name="compilation">The compilation to search.</param>
 	/// <param name="interfaceSymbol">The target interface.</param>
-	/// <returns>The implementations and their keys, or <see langword="null"/> when duplicate keys were found.</returns>
-	private static List<(INamedTypeSymbol Type, string Key)>? DiscoverImplementations(SourceProductionContext context, GeneratorContext ctx, Compilation compilation, INamedTypeSymbol interfaceSymbol)
+	/// <returns>The fully qualified implementation type names and their keys.</returns>
+	private static List<(string TypeName, string Key)> DiscoverImplementations(List<DiagnosticInfo> diagnostics, TypeTargetInfo type, Compilation compilation, INamedTypeSymbol interfaceSymbol)
 	{
-		List<(INamedTypeSymbol Type, string Key)> implementations = [];
+		List<(string TypeName, string Key)> implementations = [];
 		HashSet<string> seenKeys = new(StringComparer.Ordinal);
-		bool hasDuplicates = false;
 
-		foreach (INamedTypeSymbol type in GetAllNamedTypes(compilation.GlobalNamespace))
+		foreach (INamedTypeSymbol candidate in GetAllNamedTypes(compilation.GlobalNamespace))
 		{
-			if (type.TypeKind != TypeKind.Class || type.IsAbstract || type.IsStatic)
+			if (candidate.TypeKind != TypeKind.Class || candidate.IsAbstract || candidate.IsStatic)
 				continue;
 
-			if (!ImplementsInterface(type, interfaceSymbol))
+			if (!ImplementsInterface(candidate, interfaceSymbol))
 				continue;
 
-			if (!HasParameterlessConstructor(type))
+			if (!HasParameterlessConstructor(candidate))
 				continue;
 
-			string key = GetFactoryKey(type);
+			string key = GetFactoryKey(candidate);
 
 			if (!seenKeys.Add(key))
 			{
-				GeneratorHelpers.ReportAtClass(context, ctx.ClassDeclaration, DiagnosticDescriptors.FactoryDuplicateKeyDiagnostic, key, interfaceSymbol.Name);
-				hasDuplicates = true;
+				diagnostics.Add(type.CreateDiagnostic(DiagnosticDescriptors.FactoryDuplicateKeyDiagnostic, key, interfaceSymbol.Name));
 				continue;
 			}
 
-			implementations.Add((type, key));
+			implementations.Add((candidate.ToFullyQualifiedDisplayString(), key));
 		}
 
-		return hasDuplicates ? null : implementations;
+		return implementations;
 	}
 
 	private static void AppendPartialClass(
@@ -115,7 +121,7 @@ public sealed class FactoryGenerator : IIncrementalGenerator
 		string accessibility,
 		string interfaceFullName,
 		string interfaceShortName,
-		List<(INamedTypeSymbol Type, string Key)> implementations)
+		EquatableArray<(string TypeName, string Key)> implementations)
 	{
 		sb.OpenClass(accessibility, className);
 
@@ -126,7 +132,7 @@ public sealed class FactoryGenerator : IIncrementalGenerator
 		sb.CloseClass();
 	}
 
-	private static void AppendCreateMethod(SourceBuilder sb, string interfaceFullName, string interfaceShortName, List<(INamedTypeSymbol Type, string Key)> implementations)
+	private static void AppendCreateMethod(SourceBuilder sb, string interfaceFullName, string interfaceShortName, EquatableArray<(string TypeName, string Key)> implementations)
 	{
 		sb.AppendSummary($"Creates an instance of <see cref=\"{interfaceShortName}\"/> based on the specified key.");
 		sb.AppendLine("/// <param name=\"key\">The key identifying the implementation to create.</param>");
@@ -137,9 +143,8 @@ public sealed class FactoryGenerator : IIncrementalGenerator
 		sb.AppendLine("return key switch");
 		sb.OpenBrace();
 
-		foreach ((INamedTypeSymbol type, string key) in implementations)
+		foreach ((string fullTypeName, string key) in implementations)
 		{
-			string fullTypeName = type.ToFullyQualifiedDisplayString();
 			sb.AppendLine($"\"{GeneratorHelpers.EscapeString(key)}\" => new {fullTypeName}(),");
 		}
 
@@ -149,7 +154,7 @@ public sealed class FactoryGenerator : IIncrementalGenerator
 		sb.CloseBrace();
 	}
 
-	private static void AppendGetKeysMethod(SourceBuilder sb, List<(INamedTypeSymbol Type, string Key)> implementations)
+	private static void AppendGetKeysMethod(SourceBuilder sb, EquatableArray<(string TypeName, string Key)> implementations)
 	{
 		sb.AppendSummary("Gets all registered factory keys.");
 		sb.AppendLine("/// <returns>An enumerable of all registered keys.</returns>");

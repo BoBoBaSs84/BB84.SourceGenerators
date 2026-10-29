@@ -10,6 +10,7 @@ using BB84.SourceGenerators.Attributes;
 using BB84.SourceGenerators.Extensions;
 using BB84.SourceGenerators.Helpers;
 using BB84.SourceGenerators.Models;
+using BB84.SourceGenerators.Requests;
 
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -35,47 +36,101 @@ public sealed class DecoratorGenerator : IIncrementalGenerator
 
 	/// <inheritdoc/>
 	public void Initialize(IncrementalGeneratorInitializationContext context)
-		=> GeneratorHelpers.RegisterClassGenerator(context, AttributeNames.MetadataName, Execute);
+		=> GeneratorHelpers.RegisterRequestGenerator<DecoratorRequest>(context, AttributeNames.MetadataName, GeneratorHelpers.IsClassNode, Transform, TrackingNames.Decorator, Execute);
 
-	private void Execute(SourceProductionContext context, (ClassDeclarationSyntax ClassSyntax, SemanticModel SemanticModel)? input)
+	private static GeneratorResult<DecoratorRequest>? Transform(GeneratorAttributeSyntaxContext context, CancellationToken cancellationToken)
 	{
-		if (!GeneratorHelpers.TryCreateContext(input, out GeneratorContext ctx))
-			return;
+		if (context.TargetNode is not ClassDeclarationSyntax classDeclaration || context.TargetSymbol is not INamedTypeSymbol classSymbol)
+			return null;
 
-		ImmutableArray<INamedTypeSymbol> interfaces = ctx.ClassSymbol.Interfaces;
+		TypeTargetInfo type = TypeTargetInfo.Create(classDeclaration, classSymbol);
+
+		ImmutableArray<INamedTypeSymbol> interfaces = classSymbol.Interfaces;
 		if (interfaces.Length == 0)
+			return GeneratorResult<DecoratorRequest>.FromDiagnostics(type.CreateDiagnostic(DiagnosticDescriptors.DecoratorRequiresInterfaceDiagnostic, type.Name));
+
+		// Use the first direct interface as the inner field type
+		INamedTypeSymbol primaryInterface = interfaces[0];
+
+		// Collect all interfaces that the primary interface already covers (itself + its full hierarchy)
+		HashSet<string> primaryCovers = new(StringComparer.Ordinal)
 		{
-			GeneratorHelpers.ReportAtClass(context, ctx.ClassDeclaration, DiagnosticDescriptors.DecoratorRequiresInterfaceDiagnostic, ctx.ClassName);
-			return;
-		}
+			primaryInterface.ToDisplayString()
+		};
+		foreach (INamedTypeSymbol inherited in primaryInterface.AllInterfaces)
+			primaryCovers.Add(inherited.ToDisplayString());
 
 		// Collect all interface members across all implemented interfaces (including inherited)
-		List<InterfaceInfo> interfaceInfos = [];
-		foreach (INamedTypeSymbol interfaceSymbol in GetAllInterfaces(interfaces))
-			interfaceInfos.Add(new InterfaceInfo(interfaceSymbol));
+		EquatableArray<DecoratorInterface> interfaceInfos = GetAllInterfaces(interfaces)
+			.Select(interfaceSymbol => CreateInterface(interfaceSymbol, primaryCovers))
+			.ToEquatableArray();
 
-		SourceBuilder sb = new();
-
-		sb.BeginTypeFile(GeneratorNames.DecoratorGeneratorFullName, ctx.NamespaceName, ctx.OuterClasses, FileUsings);
-
-		AppendPartialClass(sb, ctx.ClassName, ctx.Accessibility, interfaces, interfaceInfos);
-
-		sb.EndTypeFile(ctx.OuterClasses);
-
-		GeneratorHelpers.AddTypeSource(context, ctx.OuterClasses, ctx.ClassName, "Decorator", sb);
+		return GeneratorResult<DecoratorRequest>.FromRequest(new DecoratorRequest(type, primaryInterface.ToMinimalDisplayString(), interfaceInfos));
 	}
 
-	private static void AppendPartialClass(SourceBuilder sb, string className, string accessibility, ImmutableArray<INamedTypeSymbol> directInterfaces, List<InterfaceInfo> interfaceInfos)
+	private static DecoratorInterface CreateInterface(INamedTypeSymbol interfaceSymbol, HashSet<string> primaryCovers)
 	{
-		// Use the first direct interface as the inner field type
-		INamedTypeSymbol primaryInterface = directInterfaces[0];
-		string innerTypeName = primaryInterface.ToMinimalDisplayString();
+		// Determine the inner accessor expression - cast if the interface is not covered by the primary interface type
+		string innerAccess = primaryCovers.Contains(interfaceSymbol.ToDisplayString())
+			? "_inner"
+			: $"(({interfaceSymbol.ToMinimalDisplayString()})_inner)";
 
+		List<DecoratorMethod> methods = [];
+		List<DecoratorProperty> properties = [];
+		List<(string TypeName, string Name)> events = [];
+
+		foreach (ISymbol member in interfaceSymbol.GetMembers())
+		{
+			switch (member)
+			{
+				case IMethodSymbol method when method.MethodKind == MethodKind.Ordinary:
+					methods.Add(new DecoratorMethod(
+						method.ReturnType.ToMinimalDisplayString(),
+						method.Name,
+						GetTypeParameterList(method),
+						GetTypeParameterConstraints(method),
+						GetParameterList(method),
+						GetArgumentList(method),
+						GetTypeArgumentList(method),
+						method.ReturnsVoid));
+					break;
+				case IPropertySymbol property:
+					properties.Add(new DecoratorProperty(
+						property.Type.ToMinimalDisplayString(),
+						property.Name,
+						property.GetMethod is not null && property.GetMethod.DeclaredAccessibility == Accessibility.Public,
+						property.SetMethod is not null && property.SetMethod.DeclaredAccessibility == Accessibility.Public));
+					break;
+				case IEventSymbol evt:
+					events.Add((evt.Type.ToMinimalDisplayString(), evt.Name));
+					break;
+			}
+		}
+
+		return new DecoratorInterface(innerAccess, methods.ToEquatableArray(), properties.ToEquatableArray(), events.ToEquatableArray());
+	}
+
+	private static void Execute(SourceProductionContext context, DecoratorRequest request)
+	{
+		TypeTargetInfo type = request.Type;
+		SourceBuilder sb = new();
+
+		sb.BeginTypeFile(GeneratorNames.DecoratorGeneratorFullName, type.NamespaceName, type.OuterClasses, FileUsings);
+
+		AppendPartialClass(sb, type.Name, type.Accessibility, request.InnerTypeName, request.Interfaces);
+
+		sb.EndTypeFile(type.OuterClasses);
+
+		GeneratorHelpers.AddTypeSource(context, type.OuterClasses, type.Name, "Decorator", sb);
+	}
+
+	private static void AppendPartialClass(SourceBuilder sb, string className, string accessibility, string innerTypeName, EquatableArray<DecoratorInterface> interfaceInfos)
+	{
 		sb.OpenClass(accessibility, className);
 
 		AppendConstructor(sb, className, innerTypeName);
 		AppendHooks(sb, interfaceInfos);
-		AppendMemberDelegations(sb, primaryInterface, interfaceInfos);
+		AppendMemberDelegations(sb, interfaceInfos);
 
 		sb.CloseClass();
 	}
@@ -98,13 +153,13 @@ public sealed class DecoratorGenerator : IIncrementalGenerator
 		sb.CloseBrace();
 	}
 
-	private static void AppendHooks(SourceBuilder sb, List<InterfaceInfo> interfaceInfos)
+	private static void AppendHooks(SourceBuilder sb, EquatableArray<DecoratorInterface> interfaceInfos)
 	{
 		// Generate partial method hooks
 		HashSet<string> emittedHooks = new(StringComparer.Ordinal);
-		foreach (InterfaceInfo info in interfaceInfos)
+		foreach (DecoratorInterface info in interfaceInfos)
 		{
-			foreach (IMethodSymbol method in info.Methods)
+			foreach (DecoratorMethod method in info.Methods)
 			{
 				if (emittedHooks.Add(method.Name))
 				{
@@ -116,54 +171,36 @@ public sealed class DecoratorGenerator : IIncrementalGenerator
 		}
 	}
 
-	private static void AppendMemberDelegations(SourceBuilder sb, INamedTypeSymbol primaryInterface, List<InterfaceInfo> interfaceInfos)
+	private static void AppendMemberDelegations(SourceBuilder sb, EquatableArray<DecoratorInterface> interfaceInfos)
 	{
-		// Collect all interfaces that the primary interface already covers (itself + its full hierarchy)
-		HashSet<string> primaryCovers = new(StringComparer.Ordinal)
-		{
-			primaryInterface.ToDisplayString()
-		};
-		foreach (INamedTypeSymbol inherited in primaryInterface.AllInterfaces)
-			primaryCovers.Add(inherited.ToDisplayString());
-
 		// Generate members for all interfaces
-		foreach (InterfaceInfo info in interfaceInfos)
+		foreach (DecoratorInterface info in interfaceInfos)
 		{
-			// Determine the inner accessor expression - cast if the interface is not covered by the primary interface type
-			string innerAccess = primaryCovers.Contains(info.InterfaceSymbol.ToDisplayString())
-				? "_inner"
-				: $"(({info.InterfaceSymbol.ToMinimalDisplayString()})_inner)";
+			string innerAccess = info.InnerAccess;
 
-			foreach (IMethodSymbol method in info.Methods)
+			foreach (DecoratorMethod method in info.Methods)
 			{
 				sb.AppendLine();
 				AppendMethodDelegation(sb, method, innerAccess);
 			}
 
-			foreach (IPropertySymbol property in info.Properties)
+			foreach (DecoratorProperty property in info.Properties)
 			{
 				sb.AppendLine();
 				AppendPropertyDelegation(sb, property, innerAccess);
 			}
 
-			foreach (IEventSymbol evt in info.Events)
+			foreach ((string eventType, string eventName) in info.Events)
 			{
 				sb.AppendLine();
-				AppendEventDelegation(sb, evt, innerAccess);
+				AppendEventDelegation(sb, eventType, eventName, innerAccess);
 			}
 		}
 	}
 
-	private static void AppendMethodDelegation(SourceBuilder sb, IMethodSymbol method, string innerAccess)
+	private static void AppendMethodDelegation(SourceBuilder sb, DecoratorMethod method, string innerAccess)
 	{
-		string returnType = method.ReturnType.ToMinimalDisplayString();
-		string methodName = method.Name;
-		string typeParameters = GetTypeParameterList(method);
-		string typeConstraints = GetTypeParameterConstraints(method);
-		string parameters = GetParameterList(method);
-		string arguments = GetArgumentList(method);
-		string typeArguments = GetTypeArgumentList(method);
-		bool isVoid = method.ReturnsVoid;
+		(string returnType, string methodName, string typeParameters, string typeConstraints, string parameters, string arguments, string typeArguments, bool isVoid) = method;
 
 		sb.AppendLine("/// <inheritdoc/>");
 		sb.AppendLine($"public virtual {returnType} {methodName}{typeParameters}({parameters}){typeConstraints}");
@@ -183,13 +220,9 @@ public sealed class DecoratorGenerator : IIncrementalGenerator
 		sb.CloseBrace();
 	}
 
-	private static void AppendPropertyDelegation(SourceBuilder sb, IPropertySymbol property, string innerAccess)
+	private static void AppendPropertyDelegation(SourceBuilder sb, DecoratorProperty property, string innerAccess)
 	{
-		string propertyType = property.Type.ToMinimalDisplayString();
-		string propertyName = property.Name;
-
-		bool hasGetter = property.GetMethod is not null && property.GetMethod.DeclaredAccessibility == Accessibility.Public;
-		bool hasSetter = property.SetMethod is not null && property.SetMethod.DeclaredAccessibility == Accessibility.Public;
+		(string propertyType, string propertyName, bool hasGetter, bool hasSetter) = property;
 
 		sb.AppendLine("/// <inheritdoc/>");
 
@@ -217,11 +250,8 @@ public sealed class DecoratorGenerator : IIncrementalGenerator
 		}
 	}
 
-	private static void AppendEventDelegation(SourceBuilder sb, IEventSymbol evt, string innerAccess)
+	private static void AppendEventDelegation(SourceBuilder sb, string eventType, string eventName, string innerAccess)
 	{
-		string eventType = evt.Type.ToMinimalDisplayString();
-		string eventName = evt.Name;
-
 		sb.AppendLine("/// <inheritdoc/>");
 		sb.AppendLine($"public virtual event {eventType} {eventName}");
 		sb.OpenBrace();
@@ -333,33 +363,5 @@ public sealed class DecoratorGenerator : IIncrementalGenerator
 		}
 
 		result.Add(iface);
-	}
-
-	private sealed class InterfaceInfo
-	{
-		public INamedTypeSymbol InterfaceSymbol { get; }
-		public List<IMethodSymbol> Methods { get; } = [];
-		public List<IPropertySymbol> Properties { get; } = [];
-		public List<IEventSymbol> Events { get; } = [];
-
-		public InterfaceInfo(INamedTypeSymbol interfaceSymbol)
-		{
-			InterfaceSymbol = interfaceSymbol;
-			foreach (ISymbol member in interfaceSymbol.GetMembers())
-			{
-				switch (member)
-				{
-					case IMethodSymbol method when method.MethodKind == MethodKind.Ordinary:
-						Methods.Add(method);
-						break;
-					case IPropertySymbol property:
-						Properties.Add(property);
-						break;
-					case IEventSymbol evt:
-						Events.Add(evt);
-						break;
-				}
-			}
-		}
 	}
 }

@@ -82,11 +82,11 @@ namespace TestNamespace
         errors[nameof(Age)].Add("The field Age must be between 1 and 150.");
       }
 
-      if (Ratio < 0,5 || Ratio > 9,5)
+      if (Ratio < 0.5 || Ratio > 9.5)
       {
         if (!errors.ContainsKey(nameof(Ratio)))
           errors[nameof(Ratio)] = new List<string>();
-        errors[nameof(Ratio)].Add("The field Ratio must be between 0,5 and 9,5.");
+        errors[nameof(Ratio)].Add("The field Ratio must be between 0.5 and 9.5.");
       }
 
       if (Bio != null && (Bio.Length < 3 || Bio.Length > 500))

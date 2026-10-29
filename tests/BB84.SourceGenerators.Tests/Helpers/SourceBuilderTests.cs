@@ -196,6 +196,12 @@ public sealed class SourceBuilderTests
 		Assert.AreSequenceEqual(expected, lines);
 	}
 
+	// NOTE: BeginTypeFile/EndTypeFile and OpenOuterClasses/CloseOuterClasses accept System.ValueTuple lists.
+	// Invoking them across the netstandard2.0 -> net4x assembly boundary throws MissingMethodException
+	// under Mono (the Linux CI host for the .NET Framework targets), whose ValueTuple identity does not
+	// unify with the generator assembly's. The logic is runtime-independent and fully covered by the
+	// modern-.NET run, so these cases are excluded on .NET Framework.
+#if !NETFRAMEWORK
 	[TestMethod]
 	public void BeginAndEndTypeFileEmitHeaderNamespaceAndOuterClasses()
 	{
@@ -225,6 +231,7 @@ public sealed class SourceBuilderTests
 		Assert.Contains("internal partial class Inner", result);
 		Assert.AreEqual(0, sb.IndentLevel);
 	}
+#endif
 
 	[TestMethod]
 	public void OpenRecordStructIncreasesIndentLevel()

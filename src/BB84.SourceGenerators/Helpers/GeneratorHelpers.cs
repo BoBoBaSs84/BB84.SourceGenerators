@@ -364,14 +364,14 @@ internal static class GeneratorHelpers
 
 	/// <summary>
 	/// Adds the source built by <paramref name="sb"/> to the compilation, using the hint name
-	/// produced by <see cref="BuildHintName(List{ValueTuple{string, string}}, string, string?)"/>.
+	/// produced by <see cref="BuildHintName(IReadOnlyList{ValueTuple{string, string}}, string, string?)"/>.
 	/// </summary>
 	/// <param name="context">The source production context.</param>
 	/// <param name="outerClasses">The outer (nesting) classes, from outermost to innermost.</param>
 	/// <param name="typeName">The name of the generated or extended type.</param>
 	/// <param name="feature">The optional feature suffix (e.g., "Equality").</param>
 	/// <param name="sb">The source builder containing the generated source.</param>
-	internal static void AddTypeSource(SourceProductionContext context, List<(string Accessibility, string Name)> outerClasses, string typeName, string? feature, SourceBuilder sb)
+	internal static void AddTypeSource(SourceProductionContext context, IReadOnlyList<(string Accessibility, string Name)> outerClasses, string typeName, string? feature, SourceBuilder sb)
 		=> context.AddSource(BuildHintName(outerClasses, typeName, feature), sb.ToString());
 
 	/// <summary>
@@ -382,15 +382,15 @@ internal static class GeneratorHelpers
 	/// <param name="typeName">The name of the generated or extended type.</param>
 	/// <param name="feature">The optional feature suffix (e.g., "Equality").</param>
 	/// <returns>The hint name to pass to <see cref="SourceProductionContext.AddSource(string, string)"/>.</returns>
-	internal static string BuildHintName(List<(string Accessibility, string Name)> outerClasses, string typeName, string? feature = null)
+	internal static string BuildHintName(IReadOnlyList<(string Accessibility, string Name)> outerClasses, string typeName, string? feature = null)
 		=> BuildHintName(outerClasses.Select(static o => o.Name), outerClasses.Count, typeName, feature);
 
-	/// <inheritdoc cref="BuildHintName(List{ValueTuple{string, string}}, string, string?)"/>
+	/// <inheritdoc cref="BuildHintName(IReadOnlyList{ValueTuple{string, string}}, string, string?)"/>
 	internal static string BuildHintName(string typeName, string? feature = null)
 		=> BuildHintName([], 0, typeName, feature);
 
-	/// <inheritdoc cref="BuildHintName(List{ValueTuple{string, string}}, string, string?)"/>
-	internal static string BuildHintName(List<(string Accessibility, string Name, bool IsStatic)> outerClasses, string typeName, string? feature = null)
+	/// <inheritdoc cref="BuildHintName(IReadOnlyList{ValueTuple{string, string}}, string, string?)"/>
+	internal static string BuildHintName(IReadOnlyList<(string Accessibility, string Name, bool IsStatic)> outerClasses, string typeName, string? feature = null)
 		=> BuildHintName(outerClasses.Select(static o => o.Name), outerClasses.Count, typeName, feature);
 
 	private static string BuildHintName(IEnumerable<string> outerClassNames, int outerClassCount, string typeName, string? feature)
@@ -418,94 +418,85 @@ internal static class GeneratorHelpers
 		=> value.Replace("\"", "\"\"");
 
 	/// <summary>
-	/// Registers a class-based incremental source generator pipeline that filters for classes
-	/// decorated with the specified attribute and invokes the provided <paramref name="execute"/> callback.
+	/// Formats a constant value with the invariant culture, so that generated code does not depend on
+	/// the culture of the build machine (e.g. <c>0.5</c> instead of <c>0,5</c>).
 	/// </summary>
+	/// <param name="value">The constant value.</param>
+	/// <returns>The formatted value, or <see langword="null"/> if <paramref name="value"/> is <see langword="null"/>.</returns>
+	internal static string? FormatInvariant(object? value)
+		=> value is IFormattable formattable
+			? formattable.ToString(null, System.Globalization.CultureInfo.InvariantCulture)
+			: value?.ToString();
+
+	/// <summary>
+	/// Registers an incremental source generator pipeline for the given trigger attribute. The transform
+	/// produces a cacheable <see cref="GeneratorResult{TRequest}"/>; requests are passed to
+	/// <paramref name="emit"/>, and diagnostics are reported with their locations resolved against the
+	/// compilation. Only results that carry diagnostics depend on the compilation, so diagnostic-free
+	/// results stay cached across edits.
+	/// </summary>
+	/// <typeparam name="TRequest">The request type, holding only equatable data.</typeparam>
 	/// <param name="context">The generator initialization context.</param>
 	/// <param name="attributeMetadataName">The fully qualified metadata name of the trigger attribute.</param>
-	/// <param name="execute">The callback to execute for each matched class.</param>
-	internal static void RegisterClassGenerator(
+	/// <param name="predicate">The syntactic filter for the attributed nodes.</param>
+	/// <param name="transform">The transform producing the result for an attributed node.</param>
+	/// <param name="trackingName">The tracking name of the transform step.</param>
+	/// <param name="emit">The callback emitting the source for a request.</param>
+	internal static void RegisterRequestGenerator<TRequest>(
 		IncrementalGeneratorInitializationContext context,
 		string attributeMetadataName,
-		Action<SourceProductionContext, (ClassDeclarationSyntax ClassSyntax, SemanticModel SemanticModel)?> execute)
-		=> RegisterTypeGenerator(context, attributeMetadataName, IsClass, execute);
+		Func<SyntaxNode, CancellationToken, bool> predicate,
+		Func<GeneratorAttributeSyntaxContext, CancellationToken, GeneratorResult<TRequest>?> transform,
+		string trackingName,
+		Action<SourceProductionContext, TRequest> emit)
+		where TRequest : class
+	{
+		IncrementalValuesProvider<GeneratorResult<TRequest>> results =
+			context.SyntaxProvider
+				.ForAttributeWithMetadataName(attributeMetadataName, predicate, transform)
+				.WithTrackingName(trackingName)
+				.Where(static result => result is not null)
+				.Select(static (result, _) => result!);
+
+		context.RegisterSourceOutput(
+			results.Where(static result => result.Request is not null).Select(static (result, _) => result.Request!),
+			emit);
+
+		context.RegisterSourceOutput(
+			results.Where(static result => !result.Diagnostics.IsEmpty).Select(static (result, _) => result.Diagnostics).Combine(context.CompilationProvider),
+			static (spc, input) =>
+			{
+				foreach (DiagnosticInfo diagnostic in input.Left)
+					spc.ReportDiagnostic(diagnostic.ToDiagnostic(input.Right));
+			});
+	}
 
 	/// <summary>
-	/// Registers a class-or-record-based incremental source generator pipeline that filters for classes and
-	/// records (excluding record structs) decorated with the specified attribute and invokes the provided
-	/// <paramref name="execute"/> callback.
+	/// Determines whether the node is a class declaration.
 	/// </summary>
-	/// <param name="context">The generator initialization context.</param>
-	/// <param name="attributeMetadataName">The fully qualified metadata name of the trigger attribute.</param>
-	/// <param name="execute">The callback to execute for each matched class or record.</param>
-	internal static void RegisterClassOrRecordGenerator(
-		IncrementalGeneratorInitializationContext context,
-		string attributeMetadataName,
-		Action<SourceProductionContext, (TypeDeclarationSyntax TypeSyntax, SemanticModel SemanticModel)?> execute)
-		=> RegisterTypeGenerator(context, attributeMetadataName, IsClassOrRecordClass, execute);
+	/// <param name="node">The syntax node.</param>
+	/// <param name="cancellationToken">The cancellation token.</param>
+	/// <returns><see langword="true"/> if the node is a class declaration; otherwise, <see langword="false"/>.</returns>
+	internal static bool IsClassNode(SyntaxNode node, CancellationToken cancellationToken)
+		=> IsClass(node);
 
 	/// <summary>
-	/// Registers a struct-based incremental source generator pipeline that filters for structs
-	/// decorated with the specified attribute and invokes the provided <paramref name="execute"/> callback.
+	/// Determines whether the node is a class or record class declaration.
 	/// </summary>
-	/// <param name="context">The generator initialization context.</param>
-	/// <param name="attributeMetadataName">The fully qualified metadata name of the trigger attribute.</param>
-	/// <param name="execute">The callback to execute for each matched struct.</param>
-	internal static void RegisterStructGenerator(
-		IncrementalGeneratorInitializationContext context,
-		string attributeMetadataName,
-		Action<SourceProductionContext, (StructDeclarationSyntax StructSyntax, SemanticModel SemanticModel)?> execute)
-		=> RegisterTypeGenerator(context, attributeMetadataName, IsStruct, execute);
+	/// <param name="node">The syntax node.</param>
+	/// <param name="cancellationToken">The cancellation token.</param>
+	/// <returns><see langword="true"/> if the node is a class or record class declaration; otherwise, <see langword="false"/>.</returns>
+	internal static bool IsClassOrRecordClassNode(SyntaxNode node, CancellationToken cancellationToken)
+		=> IsClassOrRecordClass(node);
 
 	/// <summary>
-	/// Attempts to create a <see cref="GeneratorContext"/> from the given input tuple.
-	/// Resolves the class symbol, extracts name, namespace, accessibility, and outer classes.
+	/// Determines whether the node is a struct declaration.
 	/// </summary>
-	/// <param name="input">The input tuple from the incremental pipeline, or <see langword="null"/>.</param>
-	/// <param name="context">When this method returns <see langword="true"/>, contains the created context.</param>
-	/// <returns><see langword="true"/> if the context was created successfully; otherwise, <see langword="false"/>.</returns>
-	internal static bool TryCreateContext(
-		(ClassDeclarationSyntax ClassSyntax, SemanticModel SemanticModel)? input,
-		out GeneratorContext context)
-		=> TryCreateContextCore(
-			input,
-			static (classDeclaration, semanticModel, classSymbol, namespaceName, accessibility, outerClasses)
-				=> new GeneratorContext(classDeclaration, semanticModel, classSymbol, classSymbol.Name, namespaceName, accessibility, outerClasses),
-			out context);
-
-	/// <summary>
-	/// Attempts to create a <see cref="TypeGeneratorContext"/> from the given input tuple.
-	/// Resolves the type symbol, extracts name, namespace, accessibility, outer classes, and record-related
-	/// information.
-	/// </summary>
-	/// <param name="input">The input tuple from the incremental pipeline, or <see langword="null"/>.</param>
-	/// <param name="context">When this method returns <see langword="true"/>, contains the created context.</param>
-	/// <returns><see langword="true"/> if the context was created successfully; otherwise, <see langword="false"/>.</returns>
-	internal static bool TryCreateContext(
-		(TypeDeclarationSyntax TypeSyntax, SemanticModel SemanticModel)? input,
-		out TypeGeneratorContext context)
-		=> TryCreateContextCore(input, CreateTypeContext, out context);
-
-	/// <summary>
-	/// Attempts to create a <see cref="TypeGeneratorContext"/> from the given struct input tuple.
-	/// </summary>
-	/// <param name="input">The input tuple from the incremental pipeline, or <see langword="null"/>.</param>
-	/// <param name="context">When this method returns <see langword="true"/>, contains the created context.</param>
-	/// <returns><see langword="true"/> if the context was created successfully; otherwise, <see langword="false"/>.</returns>
-	internal static bool TryCreateContext(
-		(StructDeclarationSyntax StructSyntax, SemanticModel SemanticModel)? input,
-		out TypeGeneratorContext context)
-		=> TryCreateContextCore(input, CreateTypeContext, out context);
-
-	/// <summary>
-	/// Reports a diagnostic located at the identifier of the given type declaration.
-	/// </summary>
-	/// <param name="context">The source production context.</param>
-	/// <param name="typeDeclaration">The type declaration whose identifier is the diagnostic location.</param>
-	/// <param name="descriptor">The diagnostic descriptor.</param>
-	/// <param name="messageArgs">The arguments of the diagnostic message.</param>
-	internal static void ReportAtClass(SourceProductionContext context, TypeDeclarationSyntax typeDeclaration, DiagnosticDescriptor descriptor, params object?[] messageArgs)
-		=> context.ReportDiagnostic(Diagnostic.Create(descriptor, typeDeclaration.Identifier.GetLocation(), messageArgs));
+	/// <param name="node">The syntax node.</param>
+	/// <param name="cancellationToken">The cancellation token.</param>
+	/// <returns><see langword="true"/> if the node is a struct declaration; otherwise, <see langword="false"/>.</returns>
+	internal static bool IsStructNode(SyntaxNode node, CancellationToken cancellationToken)
+		=> IsStruct(node);
 
 	private static bool IsClass(SyntaxNode node)
 		=> node is ClassDeclarationSyntax;
@@ -516,67 +507,6 @@ internal static class GeneratorHelpers
 
 	private static bool IsStruct(SyntaxNode node)
 		=> node is StructDeclarationSyntax;
-
-	private static void RegisterTypeGenerator<TSyntax>(
-		IncrementalGeneratorInitializationContext context,
-		string attributeMetadataName,
-		Func<SyntaxNode, bool> isTarget,
-		Action<SourceProductionContext, (TSyntax Syntax, SemanticModel SemanticModel)?> execute)
-		where TSyntax : TypeDeclarationSyntax
-	{
-		IncrementalValuesProvider<(TSyntax Syntax, SemanticModel SemanticModel)?> provider =
-			context.SyntaxProvider
-				.ForAttributeWithMetadataName(
-					fullyQualifiedMetadataName: attributeMetadataName,
-					predicate: (node, _) => isTarget(node),
-					transform: (ctx, _) => ctx.TargetNode is TSyntax syntax && isTarget(syntax)
-						? ((TSyntax Syntax, SemanticModel SemanticModel)?)(syntax, ctx.SemanticModel)
-						: null)
-				.Where(static result => result is not null);
-
-		context.RegisterSourceOutput(provider, execute);
-	}
-
-	private static TypeGeneratorContext CreateTypeContext(
-		TypeDeclarationSyntax typeDeclaration,
-		SemanticModel semanticModel,
-		INamedTypeSymbol typeSymbol,
-		string namespaceName,
-		string accessibility,
-		List<(string Accessibility, string Name)> outerClasses)
-		=> new(
-			typeDeclaration,
-			semanticModel,
-			typeSymbol,
-			typeSymbol.Name,
-			namespaceName,
-			accessibility,
-			outerClasses,
-			typeDeclaration is RecordDeclarationSyntax,
-			(typeDeclaration as RecordDeclarationSyntax)?.ParameterList);
-
-	private static bool TryCreateContextCore<TSyntax, TContext>(
-		(TSyntax Syntax, SemanticModel SemanticModel)? input,
-		Func<TSyntax, SemanticModel, INamedTypeSymbol, string, string, List<(string Accessibility, string Name)>, TContext> create,
-		out TContext context)
-		where TSyntax : TypeDeclarationSyntax
-		where TContext : class
-	{
-		context = null!;
-
-		if (input is null)
-			return false;
-
-		TSyntax typeDeclaration = input.Value.Syntax;
-		SemanticModel semanticModel = input.Value.SemanticModel;
-
-		INamedTypeSymbol? typeSymbol = semanticModel.GetDeclaredSymbol(typeDeclaration);
-		if (typeSymbol is null)
-			return false;
-
-		context = create(typeDeclaration, semanticModel, typeSymbol, typeDeclaration.GetNamespace(), GetAccessibility(typeDeclaration), GetOuterClasses(typeDeclaration));
-		return true;
-	}
 
 	/// <summary>
 	/// Gets all public readable properties from the given class symbol, optionally excluding specific properties.

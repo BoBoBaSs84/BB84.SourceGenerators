@@ -1,4 +1,4 @@
-﻿// Copyright: 2026 Robert Peter Meyer
+// Copyright: 2026 Robert Peter Meyer
 // License: MIT
 //
 // This source code is licensed under the MIT license found in the
@@ -39,58 +39,65 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 
 	/// <inheritdoc/>
 	public void Initialize(IncrementalGeneratorInitializationContext context)
-		=> GeneratorHelpers.RegisterClassOrRecordGenerator(context, AttributeNames.MetadataName, Execute);
+		=> GeneratorHelpers.RegisterRequestGenerator<NotificationsRequest>(context, AttributeNames.MetadataName, GeneratorHelpers.IsClassOrRecordClassNode, Transform, TrackingNames.Notifications, Execute);
 
-	private void Execute(SourceProductionContext context, (TypeDeclarationSyntax TypeSyntax, SemanticModel SemanticModel)? input)
+	private static GeneratorResult<NotificationsRequest>? Transform(GeneratorAttributeSyntaxContext context, CancellationToken cancellationToken)
 	{
-		if (!GeneratorHelpers.TryCreateContext(input, out TypeGeneratorContext ctx))
-			return;
+		if (context.TargetNode is not TypeDeclarationSyntax typeDeclaration || context.TargetSymbol is not INamedTypeSymbol typeSymbol)
+			return null;
 
-		if (ctx.IsRecord && ctx.PositionalParameterList is not null)
-		{
-			GeneratorHelpers.ReportAtClass(context, ctx.ClassDeclaration, DiagnosticDescriptors.NotificationsPositionalRecordNotSupportedDiagnostic, ctx.ClassName);
-			return;
-		}
+		TypeTargetInfo type = TypeTargetInfo.Create(typeDeclaration, typeSymbol);
+		bool isRecord = typeDeclaration is RecordDeclarationSyntax;
 
-		if (BuildOptions(context, ctx) is not NotificationOptions options)
-			return;
+		if (isRecord && ((RecordDeclarationSyntax)typeDeclaration).ParameterList is not null)
+			return GeneratorResult<NotificationsRequest>.FromDiagnostics(type.CreateDiagnostic(DiagnosticDescriptors.NotificationsPositionalRecordNotSupportedDiagnostic, type.Name));
+
+		List<DiagnosticInfo> diagnostics = [];
+
+		if (BuildOptions(diagnostics, type, typeSymbol, context.SemanticModel.Compilation) is not NotificationOptions options)
+			return GeneratorResult<NotificationsRequest>.FromDiagnostics([.. diagnostics]);
 
 		if (!options.RaiseChanged && !options.RaiseChanging)
-			return;
+			return null;
 
-		NotificationMembers members = CollectMembers(context, ctx);
+		(EquatableArray<NotifyingField> fields, EquatableArray<NotifyingPartialProperty> partialProperties) = CollectMembers(diagnostics, typeDeclaration, typeSymbol, context.SemanticModel);
 
-		EmitSource(context, ctx, options, members);
+		bool isSealed = typeDeclaration.Modifiers.Any(SyntaxKind.SealedKeyword);
+
+		NotificationsRequest request = new(type, isRecord, isSealed, options, fields, partialProperties);
+
+		return new GeneratorResult<NotificationsRequest>(request, diagnostics.ToEquatableArray());
 	}
 
 	/// <summary>
 	/// Builds the notification options of the type from its attribute and its base type chain,
-	/// reporting a diagnostic when a base type lacks an accessible raise method.
+	/// adding a diagnostic when a base type lacks an accessible raise method.
 	/// </summary>
-	/// <param name="context">The source production context used to report diagnostics.</param>
-	/// <param name="ctx">The type generator context.</param>
-	/// <returns>The notification options, or <see langword="null"/> when a diagnostic was reported.</returns>
-	private static NotificationOptions? BuildOptions(SourceProductionContext context, TypeGeneratorContext ctx)
+	/// <param name="diagnostics">The list the diagnostics are added to.</param>
+	/// <param name="type">The type description.</param>
+	/// <param name="typeSymbol">The type symbol.</param>
+	/// <param name="compilation">The compilation used to resolve base type members.</param>
+	/// <returns>The notification options, or <see langword="null"/> when a diagnostic was added.</returns>
+	private static NotificationOptions? BuildOptions(List<DiagnosticInfo> diagnostics, TypeTargetInfo type, INamedTypeSymbol typeSymbol, Compilation compilation)
 	{
-		bool generatePropertyChanged = GetPropertyChanged(ctx.ClassSymbol);
-		bool generatePropertyChanging = GetPropertyChanging(ctx.ClassSymbol);
-		bool generateHasChanged = GetHasChanged(ctx.ClassSymbol);
-		bool generatePartialMethods = GetPartialMethods(ctx.ClassSymbol);
+		bool generatePropertyChanged = GetPropertyChanged(typeSymbol);
+		bool generatePropertyChanging = GetPropertyChanging(typeSymbol);
+		bool generateHasChanged = GetHasChanged(typeSymbol);
+		bool generatePartialMethods = GetPartialMethods(typeSymbol);
 
-		Compilation compilation = ctx.SemanticModel.Compilation;
-		InheritedFeature inheritedChanged = GetInheritedFeature(ctx.ClassSymbol, compilation, PropertyChangedInterfaceName, RaisePropertyChangedMethodName, GetPropertyChanged);
-		InheritedFeature inheritedChanging = GetInheritedFeature(ctx.ClassSymbol, compilation, PropertyChangingInterfaceName, RaisePropertyChangingMethodName, GetPropertyChanging);
+		InheritedFeature inheritedChanged = GetInheritedFeature(typeSymbol, compilation, PropertyChangedInterfaceName, RaisePropertyChangedMethodName, GetPropertyChanged);
+		InheritedFeature inheritedChanging = GetInheritedFeature(typeSymbol, compilation, PropertyChangingInterfaceName, RaisePropertyChangingMethodName, GetPropertyChanging);
 
 		foreach (InheritedFeature feature in new[] { inheritedChanged, inheritedChanging })
 		{
 			if (feature.MissingRaiseMethodIn is null)
 				continue;
 
-			GeneratorHelpers.ReportAtClass(context, ctx.ClassDeclaration, DiagnosticDescriptors.NotificationsBaseRaiseMethodMissingDiagnostic, ctx.ClassName, feature.MissingRaiseMethodIn.Name, feature.InterfaceName, feature.MethodName);
+			diagnostics.Add(type.CreateDiagnostic(DiagnosticDescriptors.NotificationsBaseRaiseMethodMissingDiagnostic, type.Name, feature.MissingRaiseMethodIn.Name, feature.InterfaceName, feature.MethodName));
 			return null;
 		}
 
-		bool inheritedHasChanged = GetInheritedHasChanged(ctx.ClassSymbol, compilation);
+		bool inheritedHasChanged = GetInheritedHasChanged(typeSymbol, compilation);
 
 		return new NotificationOptions(
 			DeclareChanged: generatePropertyChanged && !inheritedChanged.IsProvided,
@@ -106,44 +113,75 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 
 	/// <summary>
 	/// Collects the notifying fields and partial properties of the type together with the commands
-	/// each of them notifies, reporting diagnostics for invalid partial properties and unknown commands.
+	/// each of them notifies, adding diagnostics for invalid partial properties and unknown commands.
 	/// </summary>
-	/// <param name="context">The source production context used to report diagnostics.</param>
-	/// <param name="ctx">The type generator context.</param>
-	/// <returns>The collected members.</returns>
-	private static NotificationMembers CollectMembers(SourceProductionContext context, TypeGeneratorContext ctx)
+	/// <param name="diagnostics">The list the diagnostics are added to.</param>
+	/// <param name="typeDeclaration">The type declaration syntax.</param>
+	/// <param name="typeSymbol">The type symbol.</param>
+	/// <param name="semanticModel">The semantic model of the type declaration.</param>
+	/// <returns>The notifying fields, one per declared variable, and the partial properties to implement.</returns>
+	private static (EquatableArray<NotifyingField> Fields, EquatableArray<NotifyingPartialProperty> PartialProperties) CollectMembers(List<DiagnosticInfo> diagnostics, TypeDeclarationSyntax typeDeclaration, INamedTypeSymbol typeSymbol, SemanticModel semanticModel)
 	{
-		List<FieldDeclarationSyntax> fields = [.. ctx.ClassDeclaration.Members
+		List<FieldDeclarationSyntax> fieldDeclarations = [.. typeDeclaration.Members
 			.OfType<FieldDeclarationSyntax>()
 			.Where(field => !HasAttribute(field, nameof(ExcludeFromNotificationAttribute)))];
 
-		List<PartialPropertyInfo> partialProperties = GetPartialProperties(context, ctx);
+		List<PartialPropertyInfo> partialProperties = GetPartialProperties(diagnostics, typeDeclaration, typeSymbol, semanticModel);
 
-		HashSet<string> knownCommands = GetKnownCommandNames(ctx.ClassSymbol);
+		HashSet<string> knownCommands = GetKnownCommandNames(typeSymbol);
 		Dictionary<MemberDeclarationSyntax, List<string>> notifyCommands = [];
-		foreach (MemberDeclarationSyntax member in fields.Cast<MemberDeclarationSyntax>().Concat(partialProperties.Select(static p => p.Syntax)))
-			notifyCommands[member] = GetNotifyCanExecuteChangedCommands(context, member, knownCommands);
+		foreach (MemberDeclarationSyntax member in fieldDeclarations.Cast<MemberDeclarationSyntax>().Concat(partialProperties.Select(static p => p.Syntax)))
+			notifyCommands[member] = GetNotifyCanExecuteChangedCommands(diagnostics, member, knownCommands);
 
-		return new NotificationMembers(fields, partialProperties, notifyCommands);
+		List<NotifyingField> fields = [];
+		foreach (FieldDeclarationSyntax fieldDeclaration in fieldDeclarations)
+		{
+			EquatableArray<string> alsoNotifyFor = GetAlsoNotifyForProperties(fieldDeclaration).ToEquatableArray();
+			EquatableArray<string> commands = notifyCommands[fieldDeclaration].ToEquatableArray();
+			string fieldType = $"{fieldDeclaration.Declaration.Type}";
+
+			foreach (VariableDeclaratorSyntax variable in fieldDeclaration.Declaration.Variables)
+			{
+				string fieldName = variable.Identifier.Text;
+				fields.Add(new NotifyingField(fieldName, fieldType, GeneratorHelpers.FieldNameToPropertyName(fieldName), alsoNotifyFor, commands));
+			}
+		}
+
+		EquatableArray<NotifyingPartialProperty> properties = partialProperties
+			.Select(property => new NotifyingPartialProperty(
+				$"{property.Syntax.Modifiers}",
+				property.Syntax.Identifier.Text,
+				property.TypeName,
+				property.FieldName,
+				property.Symbol.Type.IsReferenceType && property.Symbol.Type.NullableAnnotation != NullableAnnotation.Annotated ? " = default!;" : ";",
+				GetAccessorPrefix(property.Getter),
+				GetAccessorPrefix(property.Setter),
+				property.IsExcluded,
+				property.IsExcluded ? EquatableArray<string>.Empty : GetAlsoNotifyForProperties(property.Syntax).ToEquatableArray(),
+				notifyCommands[property.Syntax].ToEquatableArray()))
+			.ToEquatableArray();
+
+		return (fields.ToEquatableArray(), properties);
 	}
 
-	private static void EmitSource(SourceProductionContext context, TypeGeneratorContext ctx, NotificationOptions options, NotificationMembers members)
+	private static void Execute(SourceProductionContext context, NotificationsRequest request)
 	{
-		bool isSealed = ctx.ClassDeclaration.Modifiers.Any(SyntaxKind.SealedKeyword);
+		TypeTargetInfo type = request.Type;
+		NotificationOptions options = request.Options;
 
 		SourceBuilder sb = new();
 
-		sb.BeginTypeFile(GeneratorNames.NotificationsGeneratorFullName, ctx.NamespaceName, ctx.OuterClasses, FileUsings);
+		sb.BeginTypeFile(GeneratorNames.NotificationsGeneratorFullName, type.NamespaceName, type.OuterClasses, FileUsings);
 
-		AppendClassStart(sb, ctx.ClassName, ctx.Accessibility, options, ctx.IsRecord);
-		AppendProperties(sb, members.Fields, members.NotifyCommands, options);
-		AppendPartialProperties(sb, members.PartialProperties, members.NotifyCommands, members.Fields.Count > 0, options);
-		AppendRaiseMethods(sb, options.DeclareChanged, options.DeclareChanging, isSealed);
+		AppendClassStart(sb, type.Name, type.Accessibility, options, request.IsRecord);
+		AppendProperties(sb, request.Fields, options);
+		AppendPartialProperties(sb, request.PartialProperties, request.Fields.Count > 0, options);
+		AppendRaiseMethods(sb, options.DeclareChanged, options.DeclareChanging, request.IsSealed);
 
-		sb.CloseClassOrRecord(ctx.IsRecord);
-		sb.EndTypeFile(ctx.OuterClasses);
+		sb.CloseClassOrRecord(request.IsRecord);
+		sb.EndTypeFile(type.OuterClasses);
 
-		GeneratorHelpers.AddTypeSource(context, ctx.OuterClasses, ctx.ClassName, null, sb);
+		GeneratorHelpers.AddTypeSource(context, type.OuterClasses, type.Name, null, sb);
 	}
 
 	private static bool GetPropertyChanged(INamedTypeSymbol namedTypeSymbol)
@@ -309,75 +347,60 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 		}
 	}
 
-	private static void AppendProperties(SourceBuilder sb, List<FieldDeclarationSyntax> members, Dictionary<MemberDeclarationSyntax, List<string>> notifyCommands, NotificationOptions options)
+	private static void AppendProperties(SourceBuilder sb, EquatableArray<NotifyingField> fields, NotificationOptions options)
 	{
 		bool first = true;
-		foreach (FieldDeclarationSyntax member in members)
-		{
-			List<string> alsoNotifyFor = GetAlsoNotifyForProperties(member);
-			List<string> commands = notifyCommands[member];
-
-			foreach (VariableDeclaratorSyntax variable in member.Declaration.Variables)
-			{
-				if (!first)
-					sb.AppendLine();
-				first = false;
-
-				string fieldName = variable.Identifier.Text;
-				string fieldType = $"{member.Declaration.Type}";
-				string propertyName = GeneratorHelpers.FieldNameToPropertyName(fieldName);
-
-				sb.AppendLine($"public {fieldType} {propertyName}");
-				sb.OpenBrace();
-				sb.AppendLine($"get => {fieldName};");
-				sb.AppendLine("set");
-				AppendNotifyingSetterBody(sb, fieldName, propertyName, fieldType, alsoNotifyFor, commands, options);
-				sb.CloseBrace();
-
-				if (options.PartialMethods)
-					AppendPartialMethodDeclarations(sb, propertyName, fieldType);
-			}
-		}
-	}
-
-	private static void AppendPartialProperties(SourceBuilder sb, List<PartialPropertyInfo> properties, Dictionary<MemberDeclarationSyntax, List<string>> notifyCommands, bool hasPrecedingMembers, NotificationOptions options)
-	{
-		bool first = !hasPrecedingMembers;
-		foreach (PartialPropertyInfo property in properties)
+		foreach ((string fieldName, string fieldType, string propertyName, EquatableArray<string> alsoNotifyFor, EquatableArray<string> commands) in fields)
 		{
 			if (!first)
 				sb.AppendLine();
 			first = false;
 
-			string initializer = property.Symbol.Type.IsReferenceType && property.Symbol.Type.NullableAnnotation != NullableAnnotation.Annotated
-				? " = default!;"
-				: ";";
-
-			sb.AppendLine($"private {property.TypeName} {property.FieldName}{initializer}");
-			sb.AppendLine();
-			sb.AppendLine($"{property.Syntax.Modifiers} {property.TypeName} {property.Syntax.Identifier.Text}");
+			sb.AppendLine($"public {fieldType} {propertyName}");
 			sb.OpenBrace();
-			sb.AppendLine($"{GetAccessorPrefix(property.Getter)}get => {property.FieldName};");
+			sb.AppendLine($"get => {fieldName};");
+			sb.AppendLine("set");
+			AppendNotifyingSetterBody(sb, fieldName, propertyName, fieldType, alsoNotifyFor, commands, options);
+			sb.CloseBrace();
+
+			if (options.PartialMethods)
+				AppendPartialMethodDeclarations(sb, propertyName, fieldType);
+		}
+	}
+
+	private static void AppendPartialProperties(SourceBuilder sb, EquatableArray<NotifyingPartialProperty> properties, bool hasPrecedingMembers, NotificationOptions options)
+	{
+		bool first = !hasPrecedingMembers;
+		foreach (NotifyingPartialProperty property in properties)
+		{
+			if (!first)
+				sb.AppendLine();
+			first = false;
+
+			sb.AppendLine($"private {property.TypeName} {property.FieldName}{property.Initializer}");
+			sb.AppendLine();
+			sb.AppendLine($"{property.Modifiers} {property.TypeName} {property.Name}");
+			sb.OpenBrace();
+			sb.AppendLine($"{property.GetterPrefix}get => {property.FieldName};");
 
 			if (property.IsExcluded)
 			{
-				sb.AppendLine($"{GetAccessorPrefix(property.Setter)}set => {property.FieldName} = value;");
+				sb.AppendLine($"{property.SetterPrefix}set => {property.FieldName} = value;");
 			}
 			else
 			{
-				List<string> alsoNotifyFor = GetAlsoNotifyForProperties(property.Syntax);
-				sb.AppendLine($"{GetAccessorPrefix(property.Setter)}set");
-				AppendNotifyingSetterBody(sb, property.FieldName, property.Syntax.Identifier.Text, property.TypeName, alsoNotifyFor, notifyCommands[property.Syntax], options);
+				sb.AppendLine($"{property.SetterPrefix}set");
+				AppendNotifyingSetterBody(sb, property.FieldName, property.Name, property.TypeName, property.AlsoNotifyFor, property.Commands, options);
 			}
 
 			sb.CloseBrace();
 
 			if (options.PartialMethods && !property.IsExcluded)
-				AppendPartialMethodDeclarations(sb, property.Syntax.Identifier.Text, property.TypeName);
+				AppendPartialMethodDeclarations(sb, property.Name, property.TypeName);
 		}
 	}
 
-	private static void AppendNotifyingSetterBody(SourceBuilder sb, string fieldName, string propertyName, string typeName, List<string> alsoNotifyFor, List<string> commands, NotificationOptions options)
+	private static void AppendNotifyingSetterBody(SourceBuilder sb, string fieldName, string propertyName, string typeName, EquatableArray<string> alsoNotifyFor, EquatableArray<string> commands, NotificationOptions options)
 	{
 		sb.OpenBrace();
 		sb.AppendLine($"if ({fieldName} != value)");
@@ -415,7 +438,7 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 	/// <param name="propertyName">The name of the changed property.</param>
 	/// <param name="alsoNotifyFor">The names of the additionally notified properties.</param>
 	/// <param name="supportsParams">Indicates whether a <c>params string[]</c> overload of the raise method is available.</param>
-	private static void AppendRaiseCall(SourceBuilder sb, string methodName, string propertyName, List<string> alsoNotifyFor, bool supportsParams)
+	private static void AppendRaiseCall(SourceBuilder sb, string methodName, string propertyName, EquatableArray<string> alsoNotifyFor, bool supportsParams)
 	{
 		if (alsoNotifyFor.Count == 0)
 		{
@@ -465,30 +488,32 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 		=> accessor.Modifiers.Count == 0 ? string.Empty : $"{accessor.Modifiers} ";
 
 	/// <summary>
-	/// Collects the partial property defining declarations of the type and reports diagnostics
+	/// Collects the partial property defining declarations of the type and adds diagnostics
 	/// for those that cannot be implemented with change notification.
 	/// </summary>
-	/// <param name="context">The source production context used to report diagnostics.</param>
-	/// <param name="ctx">The type generator context.</param>
+	/// <param name="diagnostics">The list the diagnostics are added to.</param>
+	/// <param name="typeDeclaration">The type declaration syntax.</param>
+	/// <param name="typeSymbol">The type symbol.</param>
+	/// <param name="semanticModel">The semantic model of the type declaration.</param>
 	/// <returns>The partial properties that can be implemented.</returns>
-	private static List<PartialPropertyInfo> GetPartialProperties(SourceProductionContext context, TypeGeneratorContext ctx)
+	private static List<PartialPropertyInfo> GetPartialProperties(List<DiagnosticInfo> diagnostics, TypeDeclarationSyntax typeDeclaration, INamedTypeSymbol typeSymbol, SemanticModel semanticModel)
 	{
 		List<PartialPropertyInfo> properties = [];
 
-		foreach (PropertyDeclarationSyntax property in ctx.ClassDeclaration.Members.OfType<PropertyDeclarationSyntax>())
+		foreach (PropertyDeclarationSyntax property in typeDeclaration.Members.OfType<PropertyDeclarationSyntax>())
 		{
 			if (!property.Modifiers.Any(SyntaxKind.PartialKeyword) || !IsDefiningDeclaration(property))
 				continue;
 
-			if (ctx.SemanticModel.GetDeclaredSymbol(property) is not IPropertySymbol symbol)
+			if (semanticModel.GetDeclaredSymbol(property) is not IPropertySymbol symbol)
 				continue;
 
 			string propertyName = property.Identifier.Text;
-			Location location = property.Identifier.GetLocation();
+			LocationInfo? location = LocationInfo.From(property.Identifier);
 
 			if (property.Modifiers.Any(SyntaxKind.StaticKeyword))
 			{
-				context.ReportDiagnostic(Diagnostic.Create(DiagnosticDescriptors.NotificationsStaticPartialPropertyDiagnostic, location, propertyName));
+				diagnostics.Add(DiagnosticInfo.Create(DiagnosticDescriptors.NotificationsStaticPartialPropertyDiagnostic, location, propertyName));
 				continue;
 			}
 
@@ -497,15 +522,15 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 
 			if (getter is null || setter is null)
 			{
-				context.ReportDiagnostic(Diagnostic.Create(DiagnosticDescriptors.NotificationsPartialPropertyRequiresSetterDiagnostic, location, propertyName));
+				diagnostics.Add(DiagnosticInfo.Create(DiagnosticDescriptors.NotificationsPartialPropertyRequiresSetterDiagnostic, location, propertyName));
 				continue;
 			}
 
 			string fieldName = GeneratorHelpers.PropertyNameToFieldName(propertyName);
 
-			if (!ctx.ClassSymbol.GetMembers(fieldName).IsEmpty)
+			if (!typeSymbol.GetMembers(fieldName).IsEmpty)
 			{
-				context.ReportDiagnostic(Diagnostic.Create(DiagnosticDescriptors.NotificationsBackingFieldConflictDiagnostic, location, propertyName, fieldName));
+				diagnostics.Add(DiagnosticInfo.Create(DiagnosticDescriptors.NotificationsBackingFieldConflictDiagnostic, location, propertyName, fieldName));
 				continue;
 			}
 
@@ -589,13 +614,13 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 
 	/// <summary>
 	/// Gets the commands referenced by the <see cref="NotifyCanExecuteChangedAttribute"/> of the given member,
-	/// reporting a diagnostic for each command that is neither an existing member nor a generated command.
+	/// adding a diagnostic for each command that is neither an existing member nor a generated command.
 	/// </summary>
-	/// <param name="context">The source production context used to report diagnostics.</param>
+	/// <param name="diagnostics">The list the diagnostics are added to.</param>
 	/// <param name="member">The field or partial property declaration.</param>
 	/// <param name="knownCommands">The names of the members and generated commands of the type.</param>
 	/// <returns>The names of the known commands to notify.</returns>
-	private static List<string> GetNotifyCanExecuteChangedCommands(SourceProductionContext context, MemberDeclarationSyntax member, HashSet<string> knownCommands)
+	private static List<string> GetNotifyCanExecuteChangedCommands(List<DiagnosticInfo> diagnostics, MemberDeclarationSyntax member, HashSet<string> knownCommands)
 	{
 		List<string> commands = [];
 
@@ -611,7 +636,7 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 				? string.Join(", ", field.Declaration.Variables.Select(static v => v.Identifier.Text))
 				: ((PropertyDeclarationSyntax)member).Identifier.Text;
 
-			context.ReportDiagnostic(Diagnostic.Create(DiagnosticDescriptors.NotifyCanExecuteChangedUnknownCommandDiagnostic, location, memberName, name));
+			diagnostics.Add(DiagnosticInfo.Create(DiagnosticDescriptors.NotifyCanExecuteChangedUnknownCommandDiagnostic, LocationInfo.From(location), memberName, name));
 		}
 
 		return commands;
@@ -691,15 +716,61 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 		bool IsExcluded);
 
 	/// <summary>
-	/// Describes the members of a type that are implemented with change notification.
+	/// Describes a request to implement change notification for a class or record.
 	/// </summary>
-	/// <param name="Fields">The field declarations that are turned into notifying properties.</param>
-	/// <param name="PartialProperties">The partial properties that are implemented.</param>
-	/// <param name="NotifyCommands">The commands notified by each field or partial property declaration.</param>
-	private sealed record NotificationMembers(
-		List<FieldDeclarationSyntax> Fields,
-		List<PartialPropertyInfo> PartialProperties,
-		Dictionary<MemberDeclarationSyntax, List<string>> NotifyCommands);
+	/// <param name="Type">The class or record to extend.</param>
+	/// <param name="IsRecord">Indicates whether the type is a record class.</param>
+	/// <param name="IsSealed">Indicates whether the type is sealed.</param>
+	/// <param name="Options">The notification options.</param>
+	/// <param name="Fields">The notifying fields, one per declared variable.</param>
+	/// <param name="PartialProperties">The partial properties to implement.</param>
+	private sealed record NotificationsRequest(
+		TypeTargetInfo Type,
+		bool IsRecord,
+		bool IsSealed,
+		NotificationOptions Options,
+		EquatableArray<NotifyingField> Fields,
+		EquatableArray<NotifyingPartialProperty> PartialProperties);
+
+	/// <summary>
+	/// Describes a field that is turned into a notifying property.
+	/// </summary>
+	/// <param name="FieldName">The name of the field.</param>
+	/// <param name="FieldType">The type of the field, as written in source.</param>
+	/// <param name="PropertyName">The name of the generated property.</param>
+	/// <param name="AlsoNotifyFor">The names of the additionally notified properties.</param>
+	/// <param name="Commands">The commands whose <c>CanExecuteChanged</c> is raised.</param>
+	private sealed record NotifyingField(
+		string FieldName,
+		string FieldType,
+		string PropertyName,
+		EquatableArray<string> AlsoNotifyFor,
+		EquatableArray<string> Commands);
+
+	/// <summary>
+	/// Describes a partial property that is implemented with change notification.
+	/// </summary>
+	/// <param name="Modifiers">The modifiers of the defining declaration, as written in source.</param>
+	/// <param name="Name">The name of the property.</param>
+	/// <param name="TypeName">The fully qualified property type name.</param>
+	/// <param name="FieldName">The name of the generated backing field.</param>
+	/// <param name="Initializer">The backing field initializer, including the terminating semicolon.</param>
+	/// <param name="GetterPrefix">The modifiers of the <c>get</c> accessor, followed by a space, or an empty string.</param>
+	/// <param name="SetterPrefix">The modifiers of the <c>set</c> accessor, followed by a space, or an empty string.</param>
+	/// <param name="IsExcluded">Indicates whether the property is excluded from change notification.</param>
+	/// <param name="AlsoNotifyFor">The names of the additionally notified properties.</param>
+	/// <param name="Commands">The commands whose <c>CanExecuteChanged</c> is raised.</param>
+	private sealed record NotifyingPartialProperty(
+		string Modifiers,
+		string Name,
+		string TypeName,
+		string FieldName,
+		string Initializer,
+		string GetterPrefix,
+		string SetterPrefix,
+		bool IsExcluded,
+		EquatableArray<string> AlsoNotifyFor,
+		EquatableArray<string> Commands);
 
 	/// <summary>
 	/// Describes whether a change notification is already provided by the base type chain.

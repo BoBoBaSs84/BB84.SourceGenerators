@@ -3,6 +3,8 @@
 //
 // This source code is licensed under the MIT license found in the
 // LICENSE file in the root directory of this source tree.
+using System.Globalization;
+
 using BB84.SourceGenerators.Tests.Helpers;
 
 using Microsoft.CodeAnalysis;
@@ -179,6 +181,28 @@ public sealed class SnapshotTests
 	public void Validator(string caseName)
 		=> Verify(nameof(ValidatorGenerator), caseName, SnapshotCases.Validator, new ValidatorGenerator());
 
+	/// <summary>
+	/// Runs the validator snapshot under a culture with a comma decimal separator, so that numeric
+	/// attribute arguments (e.g. <c>[Range(0.5, 9.5)]</c>) must be emitted culture-invariantly.
+	/// </summary>
+	[TestMethod]
+	public void ValidatorIsCultureInvariant()
+	{
+		CultureInfo previous = CultureInfo.CurrentCulture;
+		CultureInfo commaCulture = (CultureInfo)CultureInfo.InvariantCulture.Clone();
+		commaCulture.NumberFormat.NumberDecimalSeparator = ",";
+
+		try
+		{
+			CultureInfo.CurrentCulture = commaCulture;
+			Validator("AllRules");
+		}
+		finally
+		{
+			CultureInfo.CurrentCulture = previous;
+		}
+	}
+
 	private static void Verify(string generatorName, string caseName, IReadOnlyDictionary<string, SnapshotCase> cases, params IIncrementalGenerator[] generators)
 	{
 		SnapshotCase snapshotCase = cases[caseName];
@@ -187,21 +211,18 @@ public sealed class SnapshotTests
 	}
 #endif
 
-#if NETFRAMEWORK
+	/// <summary>
+	/// Runs the async disposal case against a minimal core library without <c>System.IAsyncDisposable</c>.
+	/// The runtime's own core library cannot be used: Mono's <c>mscorlib</c> defines the interface,
+	/// while the .NET Framework's does not, so the scenario would depend on the test host.
+	/// </summary>
 	[TestMethod]
 	public void DisposableAsyncUnsupported()
 	{
-		MetadataReference[] references =
-		[
-			MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
-			MetadataReference.CreateFromFile(typeof(Attribute).Assembly.Location),
-		];
-
 		GeneratorDriverRunResult result = GeneratorDriverHarness.Run(
-			GeneratorDriverHarness.CreateCompilation(SnapshotCases.DisposableAsyncUnsupported, references: references),
+			GeneratorDriverHarness.CreateCompilation(SnapshotCases.DisposableAsyncUnsupported, references: [MinimalCoreLibrary.Reference]),
 			new DisposableGenerator());
 
 		SnapshotAssert.Match(result, nameof(DisposableGenerator), "AsyncUnsupported");
 	}
-#endif
 }

@@ -208,14 +208,7 @@ public class Target { }";
 
 #if !NETFRAMEWORK // See the ValueTuple/Mono note above.
 	[TestMethod]
-	public void TryCreateContextShouldReturnFalseForNullInput()
-	{
-		Assert.IsFalse(GeneratorHelpers.TryCreateContext(null, out GeneratorContext context));
-		Assert.IsNull(context);
-	}
-
-	[TestMethod]
-	public void TryCreateContextShouldPopulateNameNamespaceAndAccessibility()
+	public void TypeTargetInfoCreateShouldPopulateNameNamespaceAndAccessibility()
 	{
 		const string source = @"
 namespace My.Space
@@ -225,12 +218,37 @@ namespace My.Space
 		CSharpCompilation compilation = Compile(source);
 		(_, ClassDeclarationSyntax syntax, SemanticModel model) = FindClass(compilation, "Model");
 
-		bool created = GeneratorHelpers.TryCreateContext((syntax, model), out GeneratorContext context);
+		TypeTargetInfo type = TypeTargetInfo.Create(syntax, model.GetDeclaredSymbol(syntax)!);
 
-		Assert.IsTrue(created);
-		Assert.AreEqual("Model", context.ClassName);
-		Assert.AreEqual("My.Space", context.NamespaceName);
-		Assert.AreEqual("internal", context.Accessibility);
+		Assert.AreEqual("Model", type.Name);
+		Assert.AreEqual("My.Space", type.NamespaceName);
+		Assert.AreEqual("internal", type.Accessibility);
+		Assert.IsEmpty(type.OuterClasses);
+		Assert.IsNotNull(type.IdentifierLocation);
+	}
+
+	[TestMethod]
+	public void TypeTargetInfoCreateShouldCaptureOuterClassesAndCompareByValue()
+	{
+		const string source = @"
+namespace My.Space
+{
+	public partial class Outer
+	{
+		internal partial class Model { }
+	}
+}";
+		CSharpCompilation compilation = Compile(source);
+		(_, ClassDeclarationSyntax syntax, SemanticModel model) = FindClass(compilation, "Model");
+		INamedTypeSymbol symbol = model.GetDeclaredSymbol(syntax)!;
+
+		TypeTargetInfo first = TypeTargetInfo.Create(syntax, symbol);
+		TypeTargetInfo second = TypeTargetInfo.Create(syntax, symbol);
+
+		Assert.HasCount(1, first.OuterClasses);
+		Assert.AreEqual(("public", "Outer"), first.OuterClasses[0]);
+		Assert.AreEqual(first, second);
+		Assert.AreEqual(first.GetHashCode(), second.GetHashCode());
 	}
 #endif
 

@@ -7,6 +7,7 @@ using BB84.SourceGenerators.Analyzers;
 using BB84.SourceGenerators.Attributes;
 using BB84.SourceGenerators.Helpers;
 using BB84.SourceGenerators.Models;
+using BB84.SourceGenerators.Requests;
 
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -25,33 +26,38 @@ public sealed class SingletonGenerator : IIncrementalGenerator
 
 	/// <inheritdoc/>
 	public void Initialize(IncrementalGeneratorInitializationContext context)
-		=> GeneratorHelpers.RegisterClassGenerator(context, AttributeNames.MetadataName, Execute);
+		=> GeneratorHelpers.RegisterRequestGenerator<SingletonRequest>(context, AttributeNames.MetadataName, GeneratorHelpers.IsClassNode, Transform, TrackingNames.Singleton, Execute);
 
-	private void Execute(SourceProductionContext context, (ClassDeclarationSyntax ClassSyntax, SemanticModel SemanticModel)? input)
+	private static GeneratorResult<SingletonRequest>? Transform(GeneratorAttributeSyntaxContext context, CancellationToken cancellationToken)
 	{
-		if (!GeneratorHelpers.TryCreateContext(input, out GeneratorContext ctx))
-			return;
+		if (context.TargetNode is not ClassDeclarationSyntax classDeclaration || context.TargetSymbol is not INamedTypeSymbol classSymbol)
+			return null;
+
+		TypeTargetInfo type = TypeTargetInfo.Create(classDeclaration, classSymbol);
 
 		// Check for required members that prevent parameterless initialization
-		ISymbol? requiredMember = ctx.ClassSymbol.GetMembers().FirstOrDefault(IsRequiredMember);
+		ISymbol? requiredMember = classSymbol.GetMembers().FirstOrDefault(IsRequiredMember);
 		if (requiredMember is not null)
-		{
-			GeneratorHelpers.ReportAtClass(context, ctx.ClassDeclaration, DiagnosticDescriptors.SingletonRequiresParameterlessInitializationDiagnostic, ctx.ClassName, requiredMember.Name);
-			return;
-		}
+			return GeneratorResult<SingletonRequest>.FromDiagnostics(type.CreateDiagnostic(DiagnosticDescriptors.SingletonRequiresParameterlessInitializationDiagnostic, type.Name, requiredMember.Name));
 
-		bool useLazy = GetUseLazy(ctx.ClassSymbol);
-		string instanceTypeName = GetFirstInterfaceName(ctx.ClassSymbol) ?? ctx.ClassName;
+		bool useLazy = GetUseLazy(classSymbol);
+		string instanceTypeName = GetFirstInterfaceName(classSymbol) ?? type.Name;
 
+		return GeneratorResult<SingletonRequest>.FromRequest(new SingletonRequest(type, useLazy, instanceTypeName));
+	}
+
+	private static void Execute(SourceProductionContext context, SingletonRequest request)
+	{
+		TypeTargetInfo type = request.Type;
 		SourceBuilder sb = new();
 
-		sb.BeginTypeFile(GeneratorNames.SingletonGeneratorFullName, ctx.NamespaceName, ctx.OuterClasses, []);
+		sb.BeginTypeFile(GeneratorNames.SingletonGeneratorFullName, type.NamespaceName, type.OuterClasses, []);
 
-		AppendPartialClass(sb, ctx.ClassName, ctx.Accessibility, useLazy, instanceTypeName);
+		AppendPartialClass(sb, type.Name, type.Accessibility, request.UseLazy, request.InstanceTypeName);
 
-		sb.EndTypeFile(ctx.OuterClasses);
+		sb.EndTypeFile(type.OuterClasses);
 
-		GeneratorHelpers.AddTypeSource(context, ctx.OuterClasses, ctx.ClassName, "Singleton", sb);
+		GeneratorHelpers.AddTypeSource(context, type.OuterClasses, type.Name, "Singleton", sb);
 	}
 
 	private static void AppendPartialClass(SourceBuilder sb, string className, string accessibility, bool useLazy, string instanceTypeName)
