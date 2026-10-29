@@ -3,6 +3,8 @@
 //
 // This source code is licensed under the MIT license found in the
 // LICENSE file in the root directory of this source tree.
+using System.Globalization;
+
 using BB84.SourceGenerators.Tests.Helpers;
 
 using Microsoft.CodeAnalysis;
@@ -178,6 +180,28 @@ public sealed class SnapshotTests
 	[DataRow("Diagnostics")]
 	public void Validator(string caseName)
 		=> Verify(nameof(ValidatorGenerator), caseName, SnapshotCases.Validator, new ValidatorGenerator());
+
+	/// <summary>
+	/// Runs the validator snapshot under a culture with a comma decimal separator, so that numeric
+	/// attribute arguments (e.g. <c>[Range(0.5, 9.5)]</c>) must be emitted culture-invariantly.
+	/// </summary>
+	[TestMethod]
+	public void ValidatorIsCultureInvariant()
+	{
+		CultureInfo previous = CultureInfo.CurrentCulture;
+		CultureInfo commaCulture = (CultureInfo)CultureInfo.InvariantCulture.Clone();
+		commaCulture.NumberFormat.NumberDecimalSeparator = ",";
+
+		try
+		{
+			CultureInfo.CurrentCulture = commaCulture;
+			Validator("AllRules");
+		}
+		finally
+		{
+			CultureInfo.CurrentCulture = previous;
+		}
+	}
 
 	private static void Verify(string generatorName, string caseName, IReadOnlyDictionary<string, SnapshotCase> cases, params IIncrementalGenerator[] generators)
 	{

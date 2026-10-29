@@ -166,6 +166,6 @@ public sealed class AssemblyInformationGenerator : IIncrementalGenerator
 			? string.Empty
 			: constant.Kind == TypedConstantKind.Array
 			? string.Join(", ", constant.Values.Select(FormatTypedConstant))
-			: constant.Value?.ToString() ?? string.Empty;
+			: GeneratorHelpers.FormatInvariant(constant.Value) ?? string.Empty;
 	}
 }

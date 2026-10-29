@@ -408,8 +408,8 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 		if (args.Length < 2)
 			return null;
 
-		string? minValue = args[0].Value?.ToString();
-		string? maxValue = args[1].Value?.ToString();
+		string? minValue = GeneratorHelpers.FormatInvariant(args[0].Value);
+		string? maxValue = GeneratorHelpers.FormatInvariant(args[1].Value);
 
 		if (minValue is null || maxValue is null)
 			return null;
@@ -501,7 +501,7 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 	private static bool TryGetFirstArgString(AttributeData attribute, out string value)
 	{
 		ImmutableArray<TypedConstant> args = attribute.ConstructorArguments;
-		string? text = args.Length < 1 ? null : args[0].Value?.ToString();
+		string? text = args.Length < 1 ? null : GeneratorHelpers.FormatInvariant(args[0].Value);
 
 		value = text ?? string.Empty;
 		return text is not null;
@@ -517,7 +517,7 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 			string str => $"\"{GeneratorHelpers.EscapeString(str)}\"",
 			char c => $"'{c}'",
 			bool b => b ? "true" : "false",
-			_ => constant.Value?.ToString()
+			_ => GeneratorHelpers.FormatInvariant(constant.Value)
 		};
 	}
 

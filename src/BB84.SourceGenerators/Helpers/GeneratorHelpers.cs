@@ -418,6 +418,17 @@ internal static class GeneratorHelpers
 		=> value.Replace("\"", "\"\"");
 
 	/// <summary>
+	/// Formats a constant value with the invariant culture, so that generated code does not depend on
+	/// the culture of the build machine (e.g. <c>0.5</c> instead of <c>0,5</c>).
+	/// </summary>
+	/// <param name="value">The constant value.</param>
+	/// <returns>The formatted value, or <see langword="null"/> if <paramref name="value"/> is <see langword="null"/>.</returns>
+	internal static string? FormatInvariant(object? value)
+		=> value is IFormattable formattable
+			? formattable.ToString(null, System.Globalization.CultureInfo.InvariantCulture)
+			: value?.ToString();
+
+	/// <summary>
 	/// Registers an incremental source generator pipeline for the given trigger attribute. The transform
 	/// produces a cacheable <see cref="GeneratorResult{TRequest}"/>; requests are passed to
 	/// <paramref name="emit"/>, and diagnostics are reported with their locations resolved against the
