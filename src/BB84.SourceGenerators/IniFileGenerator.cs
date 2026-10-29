@@ -44,6 +44,28 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 	private const int MaxSectionDepth = 8;
 	private static readonly string[] LineBreakSeparators = ["\r\n", "\n"];
 
+	private static readonly IniTypeFormat FallbackTypeFormat = new(SpecialType.None, v => v, x => $"{x}?.ToString() ?? string.Empty", x => $"{x}?.ToString() ?? string.Empty");
+
+	private static readonly Dictionary<string, IniTypeFormat> TypeFormats = new(StringComparer.Ordinal)
+	{
+		["string"] = new(SpecialType.System_String, v => v, x => x, x => x),
+		["int"] = InvariantFormat(SpecialType.System_Int32, "int"),
+		["long"] = InvariantFormat(SpecialType.System_Int64, "long"),
+		["float"] = InvariantFormat(SpecialType.System_Single, "float"),
+		["double"] = InvariantFormat(SpecialType.System_Double, "double"),
+		["decimal"] = InvariantFormat(SpecialType.System_Decimal, "decimal"),
+		["bool"] = new(SpecialType.System_Boolean, v => $"bool.Parse({v})", x => $"{x}.ToString()", x => $"{x}.ToString()"),
+		["DateTime"] = InvariantFormat(SpecialType.System_DateTime, "DateTime"),
+		["DateTimeOffset"] = InvariantFormat(SpecialType.None, "DateTimeOffset"),
+		["Guid"] = new(SpecialType.None, v => $"Guid.Parse({v})", x => $"{x}.ToString()", x => $"{x}.ToString()"),
+		// The "c" format applies to scalar values only; collection elements use the invariant culture.
+		["TimeSpan"] = InvariantFormat(SpecialType.None, "TimeSpan") with { ScalarToString = x => $"{x}.ToString(\"c\", CultureInfo.InvariantCulture)" },
+	};
+
+	private static readonly Dictionary<SpecialType, string> SimpleTypeNames = TypeFormats
+		.Where(entry => entry.Value.SpecialType != SpecialType.None)
+		.ToDictionary(entry => entry.Value.SpecialType, entry => entry.Key);
+
 	/// <inheritdoc/>
 	public void Initialize(IncrementalGeneratorInitializationContext context)
 		=> GeneratorHelpers.RegisterClassGenerator(context, AttributeNames.MetadataName, Execute);
@@ -57,16 +79,18 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 		string sectionDelimiter = GetSectionDelimiter(ctx.ClassSymbol);
 		bool serializeComments = GetSerializeComments(ctx.ClassDeclaration, ctx.SemanticModel);
 
-		List<SectionInfo> sections = GetSections(ctx.ClassSymbol, sectionDelimiter, serializeComments);
+		List<SectionInfo> sections = [];
+		CollectSections(new SectionWalkContext(sections, sectionDelimiter, serializeComments), ctx.ClassSymbol, null, null, 0);
 
-		if (!ValidateSectionProperties(context, ctx.ClassDeclaration, ctx.SemanticModel))
+		if (!ValidateSectionProperties(context, ctx.ClassSymbol, ctx.ClassDeclaration))
 			return;
 
 		SourceBuilder sb = new();
 
 		sb.BeginTypeFile(GeneratorNames.IniFileGeneratorFullName, ctx.NamespaceName, ctx.OuterClasses, FileUsings);
+		sb.OpenClass(ctx.Accessibility, ctx.ClassName);
 
-		AppendReadMethod(sb, ctx.ClassName, ctx.Accessibility, sections, stringComparison);
+		AppendReadMethod(sb, ctx.ClassName, sections, stringComparison);
 		AppendTryReadMethod(sb, ctx.ClassName);
 		AppendWriteMethod(sb, ctx.ClassName, sections, serializeComments);
 		AppendReadAsyncMethod(sb, ctx.ClassName);
@@ -79,9 +103,21 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 		GeneratorHelpers.AddTypeSource(context, ctx.OuterClasses, ctx.ClassName, null, sb);
 	}
 
-	private static void AppendReadMethod(SourceBuilder sb, string className, string accessibility, List<SectionInfo> sections, string stringComparison)
+	private static void AppendReadMethod(SourceBuilder sb, string className, List<SectionInfo> sections, string stringComparison)
 	{
-		sb.OpenClass(accessibility, className);
+		AppendReadLoopPreamble(sb, className);
+		AppendSectionDispatch(sb, sections, stringComparison);
+
+		sb.AppendLine();
+		sb.CloseBrace();
+		sb.AppendLine();
+		sb.AppendLine("return result;");
+		sb.CloseBrace();
+		sb.AppendLine();
+	}
+
+	private static void AppendReadLoopPreamble(SourceBuilder sb, string className)
+	{
 		sb.AppendLine("/// <summary>");
 		sb.AppendLine($"/// Reads the specified INI file content and deserializes it into a new instance");
 		sb.AppendLine($"/// of <see cref=\"{className}\"/>.");
@@ -118,7 +154,10 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 		sb.AppendLine("string key = line.Substring(0, equalsIndex).Trim();");
 		sb.AppendLine("string value = line.Substring(equalsIndex + 1).Trim();");
 		sb.AppendLine();
+	}
 
+	private static void AppendSectionDispatch(SourceBuilder sb, List<SectionInfo> sections, string stringComparison)
+	{
 		for (int s = 0; s < sections.Count; s++)
 		{
 			SectionInfo section = sections[s];
@@ -140,13 +179,6 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 
 			sb.CloseBrace();
 		}
-
-		sb.AppendLine();
-		sb.CloseBrace();
-		sb.AppendLine();
-		sb.AppendLine("return result;");
-		sb.CloseBrace();
-		sb.AppendLine();
 	}
 
 	private static void AppendTryReadMethod(SourceBuilder sb, string className)
@@ -212,25 +244,14 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 
 	private static void AppendReadAsyncMethod(SourceBuilder sb, string className)
 	{
+		string readReturns = $"/// <returns>A task representing the asynchronous operation, containing the deserialized <see cref=\"{className}\"/> instance.</returns>";
+
 		sb.AppendLine();
-		sb.AppendLine("#if NET5_0_OR_GREATER");
-		sb.AppendLine("/// <summary>");
-		sb.AppendLine($"/// Asynchronously reads INI file content from the specified file and deserializes it");
-		sb.AppendLine($"/// into a new instance of <see cref=\"{className}\"/>.");
-		sb.AppendLine("/// </summary>");
-		sb.AppendLine("/// <param name=\"filePath\">The path to the INI file to read.</param>");
-		sb.AppendLine("/// <param name=\"cancellationToken\">A cancellation token that can be used to cancel the asynchronous operation.</param>");
-		sb.AppendLine($"/// <returns>A task representing the asynchronous operation, containing the deserialized <see cref=\"{className}\"/> instance.</returns>");
-		sb.AppendLine($"public static async Task<{className}> ReadAsync(string filePath, CancellationToken cancellationToken = default)");
-		sb.AppendLine("#else");
-		sb.AppendLine("/// <summary>");
-		sb.AppendLine($"/// Asynchronously reads INI file content from the specified file and deserializes it");
-		sb.AppendLine($"/// into a new instance of <see cref=\"{className}\"/>.");
-		sb.AppendLine("/// </summary>");
-		sb.AppendLine("/// <param name=\"filePath\">The path to the INI file to read.</param>");
-		sb.AppendLine($"/// <returns>A task representing the asynchronous operation, containing the deserialized <see cref=\"{className}\"/> instance.</returns>");
-		sb.AppendLine($"public static async Task<{className}> ReadAsync(string filePath)");
-		sb.AppendLine("#endif");
+		AppendAsyncSignature(sb,
+			["Asynchronously reads INI file content from the specified file and deserializes it", $"into a new instance of <see cref=\"{className}\"/>."],
+			["/// <param name=\"filePath\">The path to the INI file to read.</param>"],
+			readReturns,
+			$"public static async Task<{className}> ReadAsync(string filePath");
 		sb.OpenBrace();
 		sb.AppendLine("using StreamReader reader = new StreamReader(filePath, Encoding.UTF8);");
 		sb.AppendLine("StringBuilder sb = new StringBuilder();");
@@ -246,24 +267,11 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 		sb.AppendLine("return Read(sb.ToString());");
 		sb.CloseBrace();
 		sb.AppendLine();
-		sb.AppendLine("#if NET5_0_OR_GREATER");
-		sb.AppendLine("/// <summary>");
-		sb.AppendLine($"/// Asynchronously reads INI file content from the specified <see cref=\"TextReader\"/> and deserializes it");
-		sb.AppendLine($"/// into a new instance of <see cref=\"{className}\"/>.");
-		sb.AppendLine("/// </summary>");
-		sb.AppendLine("/// <param name=\"reader\">The <see cref=\"TextReader\"/> to read from.</param>");
-		sb.AppendLine("/// <param name=\"cancellationToken\">A cancellation token that can be used to cancel the asynchronous operation.</param>");
-		sb.AppendLine($"/// <returns>A task representing the asynchronous operation, containing the deserialized <see cref=\"{className}\"/> instance.</returns>");
-		sb.AppendLine($"public static async Task<{className}> ReadAsync(TextReader reader, CancellationToken cancellationToken = default)");
-		sb.AppendLine("#else");
-		sb.AppendLine("/// <summary>");
-		sb.AppendLine($"/// Asynchronously reads INI file content from the specified <see cref=\"TextReader\"/> and deserializes it");
-		sb.AppendLine($"/// into a new instance of <see cref=\"{className}\"/>.");
-		sb.AppendLine("/// </summary>");
-		sb.AppendLine("/// <param name=\"reader\">The <see cref=\"TextReader\"/> to read from.</param>");
-		sb.AppendLine($"/// <returns>A task representing the asynchronous operation, containing the deserialized <see cref=\"{className}\"/> instance.</returns>");
-		sb.AppendLine($"public static async Task<{className}> ReadAsync(TextReader reader)");
-		sb.AppendLine("#endif");
+		AppendAsyncSignature(sb,
+			["Asynchronously reads INI file content from the specified <see cref=\"TextReader\"/> and deserializes it", $"into a new instance of <see cref=\"{className}\"/>."],
+			["/// <param name=\"reader\">The <see cref=\"TextReader\"/> to read from.</param>"],
+			readReturns,
+			$"public static async Task<{className}> ReadAsync(TextReader reader");
 		sb.OpenBrace();
 		sb.AppendLine("#if NET5_0_OR_GREATER");
 		sb.AppendLine("string content = await reader.ReadToEndAsync(cancellationToken).ConfigureAwait(false);");
@@ -273,24 +281,11 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 		sb.AppendLine("return Read(content);");
 		sb.CloseBrace();
 		sb.AppendLine();
-		sb.AppendLine("#if NET5_0_OR_GREATER");
-		sb.AppendLine("/// <summary>");
-		sb.AppendLine($"/// Asynchronously reads INI file content from the specified <see cref=\"Stream\"/> and deserializes it");
-		sb.AppendLine($"/// into a new instance of <see cref=\"{className}\"/>.");
-		sb.AppendLine("/// </summary>");
-		sb.AppendLine("/// <param name=\"stream\">The <see cref=\"Stream\"/> to read from.</param>");
-		sb.AppendLine("/// <param name=\"cancellationToken\">A cancellation token that can be used to cancel the asynchronous operation.</param>");
-		sb.AppendLine($"/// <returns>A task representing the asynchronous operation, containing the deserialized <see cref=\"{className}\"/> instance.</returns>");
-		sb.AppendLine($"public static async Task<{className}> ReadAsync(Stream stream, CancellationToken cancellationToken = default)");
-		sb.AppendLine("#else");
-		sb.AppendLine("/// <summary>");
-		sb.AppendLine($"/// Asynchronously reads INI file content from the specified <see cref=\"Stream\"/> and deserializes it");
-		sb.AppendLine($"/// into a new instance of <see cref=\"{className}\"/>.");
-		sb.AppendLine("/// </summary>");
-		sb.AppendLine("/// <param name=\"stream\">The <see cref=\"Stream\"/> to read from.</param>");
-		sb.AppendLine($"/// <returns>A task representing the asynchronous operation, containing the deserialized <see cref=\"{className}\"/> instance.</returns>");
-		sb.AppendLine($"public static async Task<{className}> ReadAsync(Stream stream)");
-		sb.AppendLine("#endif");
+		AppendAsyncSignature(sb,
+			["Asynchronously reads INI file content from the specified <see cref=\"Stream\"/> and deserializes it", $"into a new instance of <see cref=\"{className}\"/>."],
+			["/// <param name=\"stream\">The <see cref=\"Stream\"/> to read from.</param>"],
+			readReturns,
+			$"public static async Task<{className}> ReadAsync(Stream stream");
 		sb.OpenBrace();
 		sb.AppendLine("using StreamReader reader = new StreamReader(stream, Encoding.UTF8, true, 1024, leaveOpen: true);");
 		sb.AppendLine("#if NET5_0_OR_GREATER");
@@ -303,21 +298,15 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 
 	private static void AppendWriteAsyncMethod(SourceBuilder sb, string className)
 	{
+		const string writeReturns = "/// <returns>A task representing the asynchronous operation.</returns>";
+		string instanceParam = $"/// <param name=\"instance\">The <see cref=\"{className}\"/> instance to serialize.</param>";
+
 		sb.AppendLine();
-		sb.AppendLine("#if NET5_0_OR_GREATER");
-		sb.AppendSummary($"Asynchronously writes the specified <see cref=\"{className}\"/> instance to the specified <see cref=\"TextWriter\"/>.");
-		sb.AppendLine($"/// <param name=\"instance\">The <see cref=\"{className}\"/> instance to serialize.</param>");
-		sb.AppendLine("/// <param name=\"writer\">The <see cref=\"TextWriter\"/> to write to.</param>");
-		sb.AppendLine("/// <param name=\"cancellationToken\">A cancellation token that can be used to cancel the asynchronous operation.</param>");
-		sb.AppendLine("/// <returns>A task representing the asynchronous operation.</returns>");
-		sb.AppendLine($"public static async Task WriteAsync({className} instance, TextWriter writer, CancellationToken cancellationToken = default)");
-		sb.AppendLine("#else");
-		sb.AppendSummary($"Asynchronously writes the specified <see cref=\"{className}\"/> instance to the specified <see cref=\"TextWriter\"/>.");
-		sb.AppendLine($"/// <param name=\"instance\">The <see cref=\"{className}\"/> instance to serialize.</param>");
-		sb.AppendLine("/// <param name=\"writer\">The <see cref=\"TextWriter\"/> to write to.</param>");
-		sb.AppendLine("/// <returns>A task representing the asynchronous operation.</returns>");
-		sb.AppendLine($"public static async Task WriteAsync({className} instance, TextWriter writer)");
-		sb.AppendLine("#endif");
+		AppendAsyncSignature(sb,
+			[$"Asynchronously writes the specified <see cref=\"{className}\"/> instance to the specified <see cref=\"TextWriter\"/>."],
+			[instanceParam, "/// <param name=\"writer\">The <see cref=\"TextWriter\"/> to write to.</param>"],
+			writeReturns,
+			$"public static async Task WriteAsync({className} instance, TextWriter writer");
 		sb.OpenBrace();
 		sb.AppendLine("string content = Write(instance);");
 		sb.AppendLine("#if NET5_0_OR_GREATER");
@@ -328,20 +317,11 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 		sb.AppendLine("#endif");
 		sb.CloseBrace();
 		sb.AppendLine();
-		sb.AppendLine("#if NET5_0_OR_GREATER");
-		sb.AppendSummary($"Asynchronously writes the specified <see cref=\"{className}\"/> instance to the specified <see cref=\"Stream\"/>.");
-		sb.AppendLine($"/// <param name=\"instance\">The <see cref=\"{className}\"/> instance to serialize.</param>");
-		sb.AppendLine("/// <param name=\"stream\">The <see cref=\"Stream\"/> to write to.</param>");
-		sb.AppendLine("/// <param name=\"cancellationToken\">A cancellation token that can be used to cancel the asynchronous operation.</param>");
-		sb.AppendLine("/// <returns>A task representing the asynchronous operation.</returns>");
-		sb.AppendLine($"public static async Task WriteAsync({className} instance, Stream stream, CancellationToken cancellationToken = default)");
-		sb.AppendLine("#else");
-		sb.AppendSummary($"Asynchronously writes the specified <see cref=\"{className}\"/> instance to the specified <see cref=\"Stream\"/>.");
-		sb.AppendLine($"/// <param name=\"instance\">The <see cref=\"{className}\"/> instance to serialize.</param>");
-		sb.AppendLine("/// <param name=\"stream\">The <see cref=\"Stream\"/> to write to.</param>");
-		sb.AppendLine("/// <returns>A task representing the asynchronous operation.</returns>");
-		sb.AppendLine($"public static async Task WriteAsync({className} instance, Stream stream)");
-		sb.AppendLine("#endif");
+		AppendAsyncSignature(sb,
+			[$"Asynchronously writes the specified <see cref=\"{className}\"/> instance to the specified <see cref=\"Stream\"/>."],
+			[instanceParam, "/// <param name=\"stream\">The <see cref=\"Stream\"/> to write to.</param>"],
+			writeReturns,
+			$"public static async Task WriteAsync({className} instance, Stream stream");
 		sb.OpenBrace();
 		sb.AppendLine("using StreamWriter writer = new StreamWriter(stream, Encoding.UTF8, 1024, leaveOpen: true);");
 		sb.AppendLine("#if NET5_0_OR_GREATER");
@@ -350,6 +330,35 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 		sb.AppendLine("await WriteAsync(instance, writer).ConfigureAwait(false);");
 		sb.AppendLine("#endif");
 		sb.CloseBrace();
+	}
+
+	private static void AppendAsyncSignature(SourceBuilder sb, string[] summaryLines, string[] paramDocs, string returnsDoc, string signaturePrefix)
+	{
+		sb.AppendLine("#if NET5_0_OR_GREATER");
+		AppendAsyncDocs(sb, summaryLines, paramDocs, returnsDoc, true);
+		sb.AppendLine($"{signaturePrefix}, CancellationToken cancellationToken = default)");
+		sb.AppendLine("#else");
+		AppendAsyncDocs(sb, summaryLines, paramDocs, returnsDoc, false);
+		sb.AppendLine($"{signaturePrefix})");
+		sb.AppendLine("#endif");
+	}
+
+	private static void AppendAsyncDocs(SourceBuilder sb, string[] summaryLines, string[] paramDocs, string returnsDoc, bool includeCancellationToken)
+	{
+		sb.AppendLine("/// <summary>");
+
+		foreach (string line in summaryLines)
+			sb.AppendLine($"/// {line}");
+
+		sb.AppendLine("/// </summary>");
+
+		foreach (string paramDoc in paramDocs)
+			sb.AppendLine(paramDoc);
+
+		if (includeCancellationToken)
+			sb.AppendLine("/// <param name=\"cancellationToken\">A cancellation token that can be used to cancel the asynchronous operation.</param>");
+
+		sb.AppendLine(returnsDoc);
 	}
 
 	private static void AppendLoadMethod(SourceBuilder sb, string className, List<SectionInfo> sections)
@@ -369,43 +378,7 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 		sb.CloseBrace();
 	}
 
-	private static List<SectionInfo> GetSections(INamedTypeSymbol classSymbol, string sectionDelimiter, bool serializeComments)
-	{
-		List<SectionInfo> sections = [];
-
-		foreach (ISymbol member in classSymbol.GetMembers())
-		{
-			if (member is not IPropertySymbol propertySymbol)
-				continue;
-
-			AttributeData? sectionAttribute = FindAttribute(propertySymbol, SectionAttributeName);
-
-			if (sectionAttribute is null)
-				continue;
-
-			if (propertySymbol.Type is not INamedTypeSymbol sectionType)
-				continue;
-
-			string sectionName = GetExplicitNameOrDefault(sectionAttribute, propertySymbol.Name);
-			string propertyPath = propertySymbol.Name;
-			string? comment = serializeComments ? GetXmlSummaryComment(propertySymbol) : null;
-
-			List<ValueInfo> values = GetValues(sectionType, serializeComments);
-
-			sections.Add(new SectionInfo(
-				PropertyPath: propertyPath,
-				SectionName: sectionName,
-				Values: values,
-				Comment: comment
-			));
-
-			CollectNestedSections(sections, sectionType, sectionName, propertyPath, sectionDelimiter, 1, serializeComments);
-		}
-
-		return sections;
-	}
-
-	private static void CollectNestedSections(List<SectionInfo> sections, INamedTypeSymbol parentType, string parentSectionName, string parentPropertyPath, string sectionDelimiter, int depth, bool serializeComments)
+	private static void CollectSections(SectionWalkContext walk, INamedTypeSymbol parentType, string? parentSectionName, string? parentPropertyPath, int depth)
 	{
 		if (depth >= MaxSectionDepth)
 			return;
@@ -424,20 +397,20 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 				continue;
 
 			string sectionName = GetExplicitNameOrDefault(sectionAttribute, propertySymbol.Name);
-			string fullSectionName = $"{parentSectionName}{sectionDelimiter}{sectionName}";
-			string propertyPath = $"{parentPropertyPath}.{propertySymbol.Name}";
-			string? comment = serializeComments ? GetXmlSummaryComment(propertySymbol) : null;
+			string fullSectionName = parentSectionName is null ? sectionName : $"{parentSectionName}{walk.SectionDelimiter}{sectionName}";
+			string propertyPath = parentPropertyPath is null ? propertySymbol.Name : $"{parentPropertyPath}.{propertySymbol.Name}";
+			string? comment = walk.SerializeComments ? GetXmlSummaryComment(propertySymbol) : null;
 
-			List<ValueInfo> values = GetValues(sectionType, serializeComments);
+			List<ValueInfo> values = GetValues(sectionType, walk.SerializeComments);
 
-			sections.Add(new SectionInfo(
+			walk.Sections.Add(new SectionInfo(
 				PropertyPath: propertyPath,
 				SectionName: fullSectionName,
 				Values: values,
 				Comment: comment
-				));
+			));
 
-			CollectNestedSections(sections, sectionType, fullSectionName, propertyPath, sectionDelimiter, depth + 1, serializeComments);
+			CollectSections(walk, sectionType, fullSectionName, propertyPath, depth + 1);
 		}
 	}
 
@@ -549,53 +522,19 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 	}
 
 	private static string GetElementParseExpression(string elementTypeName, string variableName)
-	{
-		return elementTypeName switch
-		{
-			"string" => variableName,
-			"int" => $"int.Parse({variableName}, CultureInfo.InvariantCulture)",
-			"long" => $"long.Parse({variableName}, CultureInfo.InvariantCulture)",
-			"float" => $"float.Parse({variableName}, CultureInfo.InvariantCulture)",
-			"double" => $"double.Parse({variableName}, CultureInfo.InvariantCulture)",
-			"bool" => $"bool.Parse({variableName})",
-			"decimal" => $"decimal.Parse({variableName}, CultureInfo.InvariantCulture)",
-			"DateTime" => $"DateTime.Parse({variableName}, CultureInfo.InvariantCulture)",
-			"Guid" => $"Guid.Parse({variableName})",
-			"TimeSpan" => $"TimeSpan.Parse({variableName}, CultureInfo.InvariantCulture)",
-			"DateTimeOffset" => $"DateTimeOffset.Parse({variableName}, CultureInfo.InvariantCulture)",
-			_ => variableName,
-		};
-	}
+		=> GetTypeFormat(elementTypeName).Parse(variableName);
 
 	private static string GetSimpleTypeName(ITypeSymbol type)
-	{
-		return type.SpecialType switch
-		{
-			SpecialType.System_String => "string",
-			SpecialType.System_Int32 => "int",
-			SpecialType.System_Int64 => "long",
-			SpecialType.System_Single => "float",
-			SpecialType.System_Double => "double",
-			SpecialType.System_Boolean => "bool",
-			SpecialType.System_Decimal => "decimal",
-			SpecialType.System_DateTime => "DateTime",
-			_ => type.ToMinimalDisplayString()
-		};
-	}
+		=> SimpleTypeNames.TryGetValue(type.SpecialType, out string? name) ? name : type.ToMinimalDisplayString();
+
+	private static IniTypeFormat GetTypeFormat(string? typeName)
+		=> typeName is not null && TypeFormats.TryGetValue(typeName, out IniTypeFormat? format) ? format : FallbackTypeFormat;
 
 	private static string GetToStringExpression(string expression, ValueInfo value)
 	{
 		if (value.IsCollection)
 		{
-			string elementToString = value.CollectionElementTypeName switch
-			{
-				"string" => "e",
-				"bool" => "e.ToString()",
-				"DateTime" or "TimeSpan" or "DateTimeOffset" => "e.ToString(CultureInfo.InvariantCulture)",
-				"int" or "long" or "float" or "double" or "decimal" => "e.ToString(CultureInfo.InvariantCulture)",
-				"Guid" => "e.ToString()",
-				_ => "e?.ToString() ?? string.Empty"
-			};
+			string elementToString = GetTypeFormat(value.CollectionElementTypeName).ElementToString("e");
 
 			string emptyFallback = value.IsArray
 				? $"Array.Empty<{value.CollectionElementTypeName}>()"
@@ -608,17 +547,7 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 			? value.IsFlagsEnum
 				? $"string.Join(\" \", Enum.GetValues(typeof({value.EnumFullName})).Cast<{value.EnumFullName}>().Where(flag => flag != 0 && {expression}.HasFlag(flag)).Select(flag => flag.ToString()))"
 				: $"{expression}.ToString()"
-			: value.TypeName switch
-			{
-				"string" => expression,
-				"bool" => $"{expression}.ToString()",
-				"DateTime" or "DateTimeOffset" => $"{expression}.ToString(CultureInfo.InvariantCulture)",
-				"TimeSpan" => $"{expression}.ToString(\"c\", CultureInfo.InvariantCulture)",
-				"Guid" => $"{expression}.ToString()",
-				"int" or "long" or "float" or "double" or "decimal" =>
-					$"{expression}.ToString(CultureInfo.InvariantCulture)",
-				_ => $"{expression}?.ToString() ?? string.Empty",
-			};
+			: GetTypeFormat(value.TypeName).ScalarToString(expression);
 	}
 
 	private static StringComparison GetStringComparison(INamedTypeSymbol classSymbol)
@@ -676,13 +605,8 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 		return null;
 	}
 
-	private static bool ValidateSectionProperties(SourceProductionContext context, ClassDeclarationSyntax classDeclaration, SemanticModel semanticModel)
+	private static bool ValidateSectionProperties(SourceProductionContext context, INamedTypeSymbol classSymbol, ClassDeclarationSyntax classDeclaration)
 	{
-		INamedTypeSymbol? classSymbol = semanticModel.GetDeclaredSymbol(classDeclaration);
-
-		if (classSymbol is null)
-			return false;
-
 		bool isValid = true;
 		ValidateSectionPropertiesOnType(context, classSymbol, classDeclaration, ref isValid);
 		return isValid;
@@ -765,6 +689,25 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 			? explicitName
 			: defaultName;
 	}
+
+	private static IniTypeFormat InvariantFormat(SpecialType specialType, string typeName)
+		=> new(specialType,
+			v => $"{typeName}.Parse({v}, CultureInfo.InvariantCulture)",
+			x => $"{x}.ToString(CultureInfo.InvariantCulture)",
+			x => $"{x}.ToString(CultureInfo.InvariantCulture)");
+
+	private sealed record IniTypeFormat(
+		SpecialType SpecialType,
+		Func<string, string> Parse,
+		Func<string, string> ScalarToString,
+		Func<string, string> ElementToString
+	);
+
+	private sealed record SectionWalkContext(
+		List<SectionInfo> Sections,
+		string SectionDelimiter,
+		bool SerializeComments
+	);
 
 	private sealed record SectionInfo(
 		string PropertyPath,
