@@ -33,19 +33,11 @@ public sealed class SingletonGenerator : IIncrementalGenerator
 			return;
 
 		// Check for required members that prevent parameterless initialization
-		foreach (ISymbol member in ctx.ClassSymbol.GetMembers())
+		ISymbol? requiredMember = ctx.ClassSymbol.GetMembers().FirstOrDefault(IsRequiredMember);
+		if (requiredMember is not null)
 		{
-			if (member is IPropertySymbol propertySymbol && propertySymbol.IsRequired)
-			{
-				GeneratorHelpers.ReportAtClass(context, ctx.ClassDeclaration, DiagnosticDescriptors.SingletonRequiresParameterlessInitializationDiagnostic, ctx.ClassName, propertySymbol.Name);
-				return;
-			}
-
-			if (member is IFieldSymbol fieldSymbol && fieldSymbol.IsRequired)
-			{
-				GeneratorHelpers.ReportAtClass(context, ctx.ClassDeclaration, DiagnosticDescriptors.SingletonRequiresParameterlessInitializationDiagnostic, ctx.ClassName, fieldSymbol.Name);
-				return;
-			}
+			GeneratorHelpers.ReportAtClass(context, ctx.ClassDeclaration, DiagnosticDescriptors.SingletonRequiresParameterlessInitializationDiagnostic, ctx.ClassName, requiredMember.Name);
+			return;
 		}
 
 		bool useLazy = GetUseLazy(ctx.ClassSymbol);
@@ -70,22 +62,12 @@ public sealed class SingletonGenerator : IIncrementalGenerator
 		{
 			sb.AppendLine($"private static readonly Lazy<{className}> _lazyInstance = new Lazy<{className}>(() => new {className}());");
 			sb.AppendLine();
-			sb.AppendLine("/// <summary>");
-			if (instanceTypeName != className)
-				sb.AppendLine($"/// Gets the singleton instance of <see cref=\"{className}\"/> as <see cref=\"{instanceTypeName}\"/>.");
-			else
-				sb.AppendLine($"/// Gets the singleton instance of <see cref=\"{className}\"/>.");
-			sb.AppendLine("/// </summary>");
+			AppendInstanceSummary(sb, className, instanceTypeName);
 			sb.AppendLine($"public static {instanceTypeName} Instance => _lazyInstance.Value;");
 		}
 		else
 		{
-			sb.AppendLine("/// <summary>");
-			if (instanceTypeName != className)
-				sb.AppendLine($"/// Gets the singleton instance of <see cref=\"{className}\"/> as <see cref=\"{instanceTypeName}\"/>.");
-			else
-				sb.AppendLine($"/// Gets the singleton instance of <see cref=\"{className}\"/>.");
-			sb.AppendLine("/// </summary>");
+			AppendInstanceSummary(sb, className, instanceTypeName);
 			sb.AppendLine($"public static {instanceTypeName} Instance {{ get; }} = new {className}();");
 		}
 
@@ -93,6 +75,14 @@ public sealed class SingletonGenerator : IIncrementalGenerator
 		sb.AppendLine($"private {className}() {{ }}");
 		sb.CloseClass();
 	}
+
+	private static void AppendInstanceSummary(SourceBuilder sb, string className, string instanceTypeName)
+		=> sb.AppendSummary(instanceTypeName != className
+			? $"Gets the singleton instance of <see cref=\"{className}\"/> as <see cref=\"{instanceTypeName}\"/>."
+			: $"Gets the singleton instance of <see cref=\"{className}\"/>.");
+
+	private static bool IsRequiredMember(ISymbol member)
+		=> member is IPropertySymbol { IsRequired: true } or IFieldSymbol { IsRequired: true };
 
 	private static bool GetUseLazy(INamedTypeSymbol namedTypeSymbol)
 		=> GeneratorHelpers.GetConstructorArgumentValue(namedTypeSymbol, AttributeNames.TypeName, 0, true);
