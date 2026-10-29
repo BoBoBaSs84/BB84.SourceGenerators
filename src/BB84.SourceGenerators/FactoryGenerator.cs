@@ -23,12 +23,13 @@ namespace BB84.SourceGenerators;
 [Generator(LanguageNames.CSharp)]
 public sealed class FactoryGenerator : IIncrementalGenerator
 {
-	private static readonly string GeneratorAttributeName = typeof(GenerateFactoryAttribute).FullName;
+	private static readonly (string MetadataName, string TypeName, string ShortName) AttributeNames =
+		GeneratorHelpers.GetAttributeNames<GenerateFactoryAttribute>();
 	private static readonly string FactoryKeyAttributeName = typeof(GenerateFactoryKeyAttribute).FullName;
 
 	/// <inheritdoc/>
 	public void Initialize(IncrementalGeneratorInitializationContext context)
-		=> GeneratorHelpers.RegisterClassGenerator(context, GeneratorAttributeName, Execute);
+		=> GeneratorHelpers.RegisterClassGenerator(context, AttributeNames.MetadataName, Execute);
 
 	private void Execute(
 		SourceProductionContext context,
@@ -172,7 +173,7 @@ public sealed class FactoryGenerator : IIncrementalGenerator
 	{
 		foreach (AttributeData attribute in classSymbol.GetAttributes())
 		{
-			if (attribute.AttributeClass?.ToDisplayString() != GeneratorAttributeName)
+			if (attribute.AttributeClass?.ToDisplayString() != AttributeNames.MetadataName)
 				continue;
 
 			if (attribute.ConstructorArguments.Length > 0 && attribute.ConstructorArguments[0].Value is INamedTypeSymbol typeSymbol)

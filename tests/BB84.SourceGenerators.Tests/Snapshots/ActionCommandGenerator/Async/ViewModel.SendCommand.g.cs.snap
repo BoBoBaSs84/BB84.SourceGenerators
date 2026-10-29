@@ -13,12 +13,12 @@ namespace TestNamespace
 {
   internal partial class ViewModel
   {
-    private global::BB84.SourceGenerators.Commands.IAsyncActionCommand<string>? _sendCommand;
+    private BB84.SourceGenerators.Commands.IAsyncActionCommand<string>? _sendCommand;
 
     /// <summary>
     /// Gets the command that invokes <c>SendAsync</c>.
     /// </summary>
-    public global::BB84.SourceGenerators.Commands.IAsyncActionCommand<string> SendCommand
-      => _sendCommand ??= new global::BB84.SourceGenerators.Commands.AsyncActionCommand<string>((parameter, cancellationToken) => SendAsync(parameter));
+    public BB84.SourceGenerators.Commands.IAsyncActionCommand<string> SendCommand
+      => _sendCommand ??= new BB84.SourceGenerators.Commands.AsyncActionCommand<string>((parameter, cancellationToken) => SendAsync(parameter));
   }
 }

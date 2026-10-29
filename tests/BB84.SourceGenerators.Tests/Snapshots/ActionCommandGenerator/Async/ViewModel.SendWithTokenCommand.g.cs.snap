@@ -13,18 +13,18 @@ namespace TestNamespace
 {
   internal partial class ViewModel
   {
-    private global::BB84.SourceGenerators.Commands.IAsyncActionCommand<string>? _sendWithTokenCommand;
+    private BB84.SourceGenerators.Commands.IAsyncActionCommand<string>? _sendWithTokenCommand;
 
     /// <summary>
     /// Gets the command that invokes <c>SendWithTokenAsync</c>.
     /// </summary>
-    public global::BB84.SourceGenerators.Commands.IAsyncActionCommand<string> SendWithTokenCommand
-      => _sendWithTokenCommand ??= new global::BB84.SourceGenerators.Commands.AsyncActionCommand<string>((parameter, cancellationToken) => SendWithTokenAsync(parameter, cancellationToken));
+    public BB84.SourceGenerators.Commands.IAsyncActionCommand<string> SendWithTokenCommand
+      => _sendWithTokenCommand ??= new BB84.SourceGenerators.Commands.AsyncActionCommand<string>((parameter, cancellationToken) => SendWithTokenAsync(parameter, cancellationToken));
 
     /// <summary>
     /// Gets the command that cancels the running execution of <see cref="SendWithTokenCommand"/>.
     /// </summary>
-    public global::BB84.SourceGenerators.Commands.IActionCommand SendWithTokenCancelCommand
+    public BB84.SourceGenerators.Commands.IActionCommand SendWithTokenCancelCommand
       => SendWithTokenCommand.CancelCommand;
   }
 }

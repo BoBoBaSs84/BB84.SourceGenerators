@@ -18,7 +18,8 @@ namespace BB84.SourceGenerators;
 [Generator(LanguageNames.CSharp)]
 public sealed class AbstractionGenerator : IIncrementalGenerator
 {
-	private static readonly string GeneratorAttributeName = typeof(GenerateAbstractionAttribute).FullName;
+	private static readonly (string MetadataName, string TypeName, string ShortName) AttributeNames =
+		GeneratorHelpers.GetAttributeNames<GenerateAbstractionAttribute>();
 
 	/// <inheritdoc />
 	public void Initialize(IncrementalGeneratorInitializationContext context)
@@ -371,7 +372,7 @@ public sealed class AbstractionGenerator : IIncrementalGenerator
 
 		foreach (AttributeData attributeData in classSymbol.GetAttributes())
 		{
-			if (attributeData.AttributeClass?.ToDisplayString() == GeneratorAttributeName)
+			if (attributeData.AttributeClass?.ToDisplayString() == AttributeNames.MetadataName)
 			{
 				// Extract constructor arguments
 				TypedConstant targetTypeArg = attributeData.ConstructorArguments[0];

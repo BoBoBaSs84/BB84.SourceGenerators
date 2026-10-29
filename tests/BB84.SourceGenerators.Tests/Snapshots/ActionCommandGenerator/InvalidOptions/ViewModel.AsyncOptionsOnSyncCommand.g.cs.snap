@@ -13,12 +13,12 @@ namespace TestNamespace
 {
   public partial class ViewModel
   {
-    private global::BB84.SourceGenerators.Commands.IActionCommand? _asyncOptionsOnSyncCommand;
+    private BB84.SourceGenerators.Commands.IActionCommand? _asyncOptionsOnSyncCommand;
 
     /// <summary>
     /// Gets the command that invokes <c>AsyncOptionsOnSync</c>.
     /// </summary>
-    public global::BB84.SourceGenerators.Commands.IActionCommand AsyncOptionsOnSyncCommand
-      => _asyncOptionsOnSyncCommand ??= new global::BB84.SourceGenerators.Commands.ActionCommand(() => AsyncOptionsOnSync());
+    public BB84.SourceGenerators.Commands.IActionCommand AsyncOptionsOnSyncCommand
+      => _asyncOptionsOnSyncCommand ??= new BB84.SourceGenerators.Commands.ActionCommand(() => AsyncOptionsOnSync());
   }
 }

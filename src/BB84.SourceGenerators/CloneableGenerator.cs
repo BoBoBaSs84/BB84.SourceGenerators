@@ -26,19 +26,20 @@ namespace BB84.SourceGenerators;
 [Generator(LanguageNames.CSharp)]
 public sealed class CloneableGenerator : IIncrementalGenerator
 {
-	private static readonly string GeneratorAttributeName = typeof(GenerateCloneableAttribute).FullName;
+	private static readonly (string MetadataName, string TypeName, string ShortName) AttributeNames =
+		GeneratorHelpers.GetAttributeNames<GenerateCloneableAttribute>();
 
 	/// <inheritdoc/>
 	public void Initialize(IncrementalGeneratorInitializationContext context)
 	{
 		// Register for classes
-		GeneratorHelpers.RegisterClassGenerator(context, GeneratorAttributeName, ExecuteClass);
+		GeneratorHelpers.RegisterClassGenerator(context, AttributeNames.MetadataName, ExecuteClass);
 
 		// Register for structs
 		IncrementalValuesProvider<(StructDeclarationSyntax StructSyntax, SemanticModel SemanticModel)?> structProvider =
 			context.SyntaxProvider
 				.ForAttributeWithMetadataName(
-					fullyQualifiedMetadataName: GeneratorAttributeName,
+					fullyQualifiedMetadataName: AttributeNames.MetadataName,
 					predicate: static (node, _) => node is StructDeclarationSyntax,
 					transform: static (ctx, _) => ctx.TargetNode is not StructDeclarationSyntax structSyntax
 						? null
@@ -54,7 +55,7 @@ public sealed class CloneableGenerator : IIncrementalGenerator
 			return;
 
 		HashSet<string> excludedProperties = GeneratorHelpers.GetExcludedProperties(ctx.ClassDeclaration, ctx.SemanticModel, nameof(GenerateCloneableAttribute));
-		ImmutableArray<PropertyDescriptor> properties = GeneratorHelpers.GetPropertyDescriptors(ctx.ClassSymbol, excludedProperties, requireSetter: true, cloneableAttributeName: GeneratorAttributeName);
+		ImmutableArray<PropertyDescriptor> properties = GeneratorHelpers.GetPropertyDescriptors(ctx.ClassSymbol, excludedProperties, requireSetter: true, cloneableAttributeName: AttributeNames.MetadataName);
 
 		SourceBuilder sb = new();
 
@@ -93,7 +94,7 @@ public sealed class CloneableGenerator : IIncrementalGenerator
 		string accessibility = GeneratorHelpers.GetAccessibility(structDeclaration);
 
 		HashSet<string> excludedProperties = GeneratorHelpers.GetExcludedProperties(structDeclaration, semanticModel, nameof(GenerateCloneableAttribute));
-		ImmutableArray<PropertyDescriptor> properties = GeneratorHelpers.GetPropertyDescriptors(structSymbol, excludedProperties, requireSetter: true, cloneableAttributeName: GeneratorAttributeName);
+		ImmutableArray<PropertyDescriptor> properties = GeneratorHelpers.GetPropertyDescriptors(structSymbol, excludedProperties, requireSetter: true, cloneableAttributeName: AttributeNames.MetadataName);
 
 		SourceBuilder sb = new();
 

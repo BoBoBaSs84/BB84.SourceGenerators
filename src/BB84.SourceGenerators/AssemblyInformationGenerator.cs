@@ -19,7 +19,8 @@ namespace BB84.SourceGenerators;
 [Generator(LanguageNames.CSharp)]
 public sealed class AssemblyInformationGenerator : IIncrementalGenerator
 {
-	private static readonly string GeneratorAttributeName = typeof(GenerateAssemblyInformationAttribute).FullName;
+	private static readonly (string MetadataName, string TypeName, string ShortName) AttributeNames =
+		GeneratorHelpers.GetAttributeNames<GenerateAssemblyInformationAttribute>();
 
 	private static readonly (string AttributeName, string PropertyName)[] AssemblyAttributes =
 	[
@@ -39,7 +40,7 @@ public sealed class AssemblyInformationGenerator : IIncrementalGenerator
 
 	/// <inheritdoc/>
 	public void Initialize(IncrementalGeneratorInitializationContext context)
-		=> GeneratorHelpers.RegisterClassGenerator(context, GeneratorAttributeName, Execute);
+		=> GeneratorHelpers.RegisterClassGenerator(context, AttributeNames.MetadataName, Execute);
 
 	private void Execute(SourceProductionContext context, (ClassDeclarationSyntax ClassSyntax, SemanticModel SemanticModel)? input)
 	{

@@ -13,18 +13,18 @@ namespace TestNamespace
 {
   internal partial class ViewModel
   {
-    private global::BB84.SourceGenerators.Commands.IAsyncActionCommand? _goCommand;
+    private BB84.SourceGenerators.Commands.IAsyncActionCommand? _goCommand;
 
     /// <summary>
     /// Gets the command that invokes <c>RunAsync</c>.
     /// </summary>
-    public global::BB84.SourceGenerators.Commands.IAsyncActionCommand GoCommand
-      => _goCommand ??= new global::BB84.SourceGenerators.Commands.AsyncActionCommand(cancellationToken => RunAsync(), canExecute: () => CanRun, onException: exception => OnError(exception), allowConcurrentExecutions: true);
+    public BB84.SourceGenerators.Commands.IAsyncActionCommand GoCommand
+      => _goCommand ??= new BB84.SourceGenerators.Commands.AsyncActionCommand(cancellationToken => RunAsync(), canExecute: () => CanRun, onException: exception => OnError(exception), allowConcurrentExecutions: true);
 
     /// <summary>
     /// Gets the command that cancels the running execution of <see cref="GoCommand"/>.
     /// </summary>
-    public global::BB84.SourceGenerators.Commands.IActionCommand GoCancelCommand
+    public BB84.SourceGenerators.Commands.IActionCommand GoCancelCommand
       => GoCommand.CancelCommand;
   }
 }

@@ -13,12 +13,12 @@ namespace TestNamespace
 {
   public partial class ViewModel
   {
-    private global::BB84.SourceGenerators.Commands.IActionCommand? _stopCommand;
+    private BB84.SourceGenerators.Commands.IActionCommand? _stopCommand;
 
     /// <summary>
     /// Gets the command that invokes <c>Stop</c>.
     /// </summary>
-    public global::BB84.SourceGenerators.Commands.IActionCommand StopCommand
-      => _stopCommand ??= new global::BB84.SourceGenerators.Commands.ActionCommand(() => Stop(), canExecute: () => IsReady);
+    public BB84.SourceGenerators.Commands.IActionCommand StopCommand
+      => _stopCommand ??= new BB84.SourceGenerators.Commands.ActionCommand(() => Stop(), canExecute: () => IsReady);
   }
 }

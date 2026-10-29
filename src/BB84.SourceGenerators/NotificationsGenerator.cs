@@ -21,14 +21,17 @@ namespace BB84.SourceGenerators;
 [Generator(LanguageNames.CSharp)]
 public sealed class NotificationsGenerator : IIncrementalGenerator
 {
-	private static readonly (string MetadataName, string FullName, string ShortName) AttributeNames =
+	private static readonly (string MetadataName, string TypeName, string ShortName) AttributeNames =
 		GeneratorHelpers.GetAttributeNames<GenerateNotificationsAttribute>();
 
 	private static readonly SymbolDisplayFormat PropertyTypeFormat =
 		SymbolDisplayFormat.FullyQualifiedFormat.AddMiscellaneousOptions(SymbolDisplayMiscellaneousOptions.IncludeNullableReferenceTypeModifier);
 
-	private const string PropertyChangedInterfaceName = "System.ComponentModel.INotifyPropertyChanged";
-	private const string PropertyChangingInterfaceName = "System.ComponentModel.INotifyPropertyChanging";
+	private const string PropertyChangedInterfaceName = TypeNames.INotifyPropertyChanged;
+	private const string PropertyChangingInterfaceName = TypeNames.INotifyPropertyChanging;
+	private const string RaisePropertyChangedMethodName = "RaisePropertyChanged";
+	private const string RaisePropertyChangingMethodName = "RaisePropertyChanging";
+	private const string HasChangedPropertyName = "HasChanged";
 
 	/// <inheritdoc/>
 	public void Initialize(IncrementalGeneratorInitializationContext context)
@@ -54,8 +57,8 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 		bool generatePartialMethods = GetPartialMethods(ctx.ClassSymbol);
 
 		Compilation compilation = ctx.SemanticModel.Compilation;
-		InheritedFeature inheritedChanged = GetInheritedFeature(ctx.ClassSymbol, compilation, PropertyChangedInterfaceName, "RaisePropertyChanged", GetPropertyChanged);
-		InheritedFeature inheritedChanging = GetInheritedFeature(ctx.ClassSymbol, compilation, PropertyChangingInterfaceName, "RaisePropertyChanging", GetPropertyChanging);
+		InheritedFeature inheritedChanged = GetInheritedFeature(ctx.ClassSymbol, compilation, PropertyChangedInterfaceName, RaisePropertyChangedMethodName, GetPropertyChanged);
+		InheritedFeature inheritedChanging = GetInheritedFeature(ctx.ClassSymbol, compilation, PropertyChangingInterfaceName, RaisePropertyChangingMethodName, GetPropertyChanging);
 
 		foreach (InheritedFeature feature in new[] { inheritedChanged, inheritedChanging })
 		{
@@ -90,7 +93,6 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 
 		List<FieldDeclarationSyntax> members = [.. ctx.ClassDeclaration.Members
 			.OfType<FieldDeclarationSyntax>()
-			.Where(field => field is not null)
 			.Where(field => !HasAttribute(field, nameof(ExcludeFromNotificationAttribute)))];
 
 		List<PartialPropertyInfo> partialProperties = GetPartialProperties(context, ctx);
@@ -127,16 +129,16 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 	}
 
 	private static bool GetPropertyChanged(INamedTypeSymbol namedTypeSymbol)
-		=> GeneratorHelpers.GetConstructorArgumentValue(namedTypeSymbol, AttributeNames.FullName, 0, true);
+		=> GeneratorHelpers.GetConstructorArgumentValue(namedTypeSymbol, AttributeNames.TypeName, 0, true);
 
 	private static bool GetPropertyChanging(INamedTypeSymbol namedTypeSymbol)
-		=> GeneratorHelpers.GetConstructorArgumentValue(namedTypeSymbol, AttributeNames.FullName, 1, true);
+		=> GeneratorHelpers.GetConstructorArgumentValue(namedTypeSymbol, AttributeNames.TypeName, 1, true);
 
 	private static bool GetHasChanged(INamedTypeSymbol namedTypeSymbol)
-		=> GeneratorHelpers.GetConstructorArgumentValue(namedTypeSymbol, AttributeNames.FullName, 2, false);
+		=> GeneratorHelpers.GetConstructorArgumentValue(namedTypeSymbol, AttributeNames.TypeName, 2, false);
 
 	private static bool GetPartialMethods(INamedTypeSymbol namedTypeSymbol)
-		=> GeneratorHelpers.GetConstructorArgumentValue(namedTypeSymbol, AttributeNames.FullName, 3, false);
+		=> GeneratorHelpers.GetConstructorArgumentValue(namedTypeSymbol, AttributeNames.TypeName, 3, false);
 
 	/// <summary>
 	/// Determines whether the base type chain of the given type already provides the change notification
@@ -206,7 +208,7 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 			if (HasGenerateNotificationsAttribute(baseType) && GetHasChanged(baseType))
 				return true;
 
-			bool hasProperty = baseType.GetMembers("HasChanged")
+			bool hasProperty = baseType.GetMembers(HasChangedPropertyName)
 				.OfType<IPropertySymbol>()
 				.Any(p => p.Type.SpecialType == SpecialType.System_Boolean
 					&& p.SetMethod is not null
@@ -220,7 +222,7 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 	}
 
 	private static bool HasGenerateNotificationsAttribute(INamedTypeSymbol typeSymbol)
-		=> typeSymbol.GetAttributes().Any(static a => a.AttributeClass?.Name == AttributeNames.FullName);
+		=> typeSymbol.GetAttributes().Any(static a => a.AttributeClass?.Name == AttributeNames.TypeName);
 
 	private static void AppendClassStart(SourceBuilder sb, string className, string accessibility, NotificationOptions options, bool isRecord)
 	{
@@ -355,7 +357,7 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 			sb.AppendLine($"On{propertyName}Changing(__oldValue, value);");
 		}
 		if (options.RaiseChanging)
-			AppendRaiseCall(sb, "RaisePropertyChanging", propertyName, alsoNotifyFor, options.ChangingSupportsParams);
+			AppendRaiseCall(sb, RaisePropertyChangingMethodName, propertyName, alsoNotifyFor, options.ChangingSupportsParams);
 		sb.AppendLine($"{fieldName} = value;");
 		if (options.PartialMethods)
 		{
@@ -363,7 +365,7 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 			sb.AppendLine($"On{propertyName}Changed(__oldValue, value);");
 		}
 		if (options.RaiseChanged)
-			AppendRaiseCall(sb, "RaisePropertyChanged", propertyName, alsoNotifyFor, options.ChangedSupportsParams);
+			AppendRaiseCall(sb, RaisePropertyChangedMethodName, propertyName, alsoNotifyFor, options.ChangedSupportsParams);
 		foreach (string command in commands)
 			sb.AppendLine($"{command}.RaiseCanExecuteChanged();");
 		if (options.SetHasChanged)

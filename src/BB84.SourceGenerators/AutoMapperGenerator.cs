@@ -24,7 +24,8 @@ namespace BB84.SourceGenerators;
 [Generator(LanguageNames.CSharp)]
 public sealed class AutoMapperGenerator : IIncrementalGenerator
 {
-	private static readonly string GeneratorAttributeName = typeof(GenerateAutoMapperAttribute).FullName;
+	private static readonly (string MetadataName, string TypeName, string ShortName) AttributeNames =
+		GeneratorHelpers.GetAttributeNames<GenerateAutoMapperAttribute>();
 	private static readonly string PropertyMappingAttributeName = typeof(PropertyMappingAttribute).FullName;
 
 	/// <inheritdoc/>
@@ -33,7 +34,7 @@ public sealed class AutoMapperGenerator : IIncrementalGenerator
 		IncrementalValuesProvider<AutoMapperResult?> provider =
 			context.SyntaxProvider
 				.ForAttributeWithMetadataName(
-					fullyQualifiedMetadataName: GeneratorAttributeName,
+					fullyQualifiedMetadataName: AttributeNames.MetadataName,
 					predicate: static (node, _) => node is MethodDeclarationSyntax,
 					transform: static (ctx, _) => TransformMethod(ctx))
 				.Where(static result => result is not null);
@@ -90,8 +91,6 @@ public sealed class AutoMapperGenerator : IIncrementalGenerator
 
 		bool sourceIsNullable = sourceParameter.NullableAnnotation == NullableAnnotation.Annotated;
 
-		Microsoft.CodeAnalysis.Text.TextSpan methodIdentifierSpan = methodSyntax.Identifier.Span;
-
 		bool containingTypeIsStatic = containingClassSyntax.Modifiers.Any(SyntaxKind.StaticKeyword);
 
 		var autoMapperRequest = new AutoMapperRequest(
@@ -111,10 +110,7 @@ public sealed class AutoMapperGenerator : IIncrementalGenerator
 			mappings,
 			unmappedProperties,
 			typeMismatchProperties,
-			targetType.Name,
-			methodSyntax.SyntaxTree.FilePath,
-			methodIdentifierSpan.Start,
-			methodIdentifierSpan.End
+			targetType.Name
 			);
 
 		return AutoMapperResult.ForRequest(autoMapperRequest);

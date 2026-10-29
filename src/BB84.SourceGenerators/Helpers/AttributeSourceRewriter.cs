@@ -25,6 +25,11 @@ internal static class AttributeSourceRewriter
 	private const string ExcludeFromCodeCoverageName = "System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage";
 
 	/// <summary>
+	/// The namespace whose known types are always fully qualified, even without an explicit <c>using</c>.
+	/// </summary>
+	private const string SystemNamespace = "System";
+
+	/// <summary>
 	/// A mapping of simple type names (from <c>using</c> directives) to their fully qualified equivalents
 	/// prefixed with <c>global::</c>.
 	/// </summary>
@@ -71,23 +76,12 @@ internal static class AttributeSourceRewriter
 		// Always register System types for fully-qualified replacement.
 		// These types may be available via implicit usings (no explicit 'using System;')
 		// but must still be fully qualified in emitted source since all usings are stripped.
-		HashSet<string> importedNames =
-		[
-			"Type",
-			"Attribute",
-			"AttributeUsage",
-			"AttributeUsageAttribute",
-			"AttributeTargets",
-		];
+		HashSet<string> importedNames = [.. GetKnownTypeNames(SystemNamespace)];
 
 		foreach (UsingDirectiveSyntax usingDirective in root.Usings)
 		{
 			string ns = usingDirective.Name?.ToString() ?? string.Empty;
-			if (ns.Equals("System.ComponentModel", StringComparison.Ordinal))
-			{
-				importedNames.Add("INotifyPropertyChanging");
-				importedNames.Add("INotifyPropertyChanged");
-			}
+			importedNames.UnionWith(GetKnownTypeNames(ns));
 		}
 
 		Rewriter rewriter = new(importedNames);
@@ -101,6 +95,16 @@ internal static class AttributeSourceRewriter
 
 		return sb.ToString();
 	}
+
+	/// <summary>
+	/// Gets the simple names of the known types that are declared directly in the given namespace.
+	/// </summary>
+	/// <param name="ns">The namespace imported by a <c>using</c> directive.</param>
+	/// <returns>The simple names of the known types in that namespace.</returns>
+	private static IEnumerable<string> GetKnownTypeNames(string ns)
+		=> KnownTypeReplacements
+			.Where(entry => entry.Value.Equals($"{ns}.{entry.Key}", StringComparison.Ordinal))
+			.Select(entry => entry.Key);
 
 	/// <summary>
 	/// A syntax rewriter that transforms attribute source code for emission.
@@ -160,14 +164,6 @@ internal static class AttributeSourceRewriter
 					.WithLeadingTrivia(node.GetLeadingTrivia())
 					.WithTrailingTrivia(node.GetTrailingTrivia())
 				: base.VisitIdentifierName(node);
-		}
-
-		/// <summary>
-		/// Converts primary constructors to traditional constructors with explicit properties.
-		/// </summary>
-		public override SyntaxNode? VisitParameterList(ParameterListSyntax node)
-		{
-			return node.Parent is ClassDeclarationSyntax ? base.VisitParameterList(node) : base.VisitParameterList(node);
 		}
 
 		private static ClassDeclarationSyntax ReplaceAccessibility(ClassDeclarationSyntax node)

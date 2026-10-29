@@ -20,7 +20,7 @@ namespace BB84.SourceGenerators;
 [Generator(LanguageNames.CSharp)]
 public sealed class SingletonGenerator : IIncrementalGenerator
 {
-	private static readonly (string MetadataName, string FullName, string ShortName) AttributeNames =
+	private static readonly (string MetadataName, string TypeName, string ShortName) AttributeNames =
 		GeneratorHelpers.GetAttributeNames<GenerateSingletonAttribute>();
 
 	/// <inheritdoc/>
@@ -112,7 +112,7 @@ public sealed class SingletonGenerator : IIncrementalGenerator
 	}
 
 	private static bool GetUseLazy(INamedTypeSymbol namedTypeSymbol)
-		=> GeneratorHelpers.GetConstructorArgumentValue(namedTypeSymbol, AttributeNames.FullName, 0, true);
+		=> GeneratorHelpers.GetConstructorArgumentValue(namedTypeSymbol, AttributeNames.TypeName, 0, true);
 	
 	private static string? GetFirstInterfaceName(INamedTypeSymbol classSymbol)
 		=> classSymbol.Interfaces.FirstOrDefault()?.Name;

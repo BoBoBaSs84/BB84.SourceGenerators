@@ -13,12 +13,12 @@ namespace TestNamespace
 {
   internal partial class ViewModel
   {
-    private global::BB84.SourceGenerators.Commands.IAsyncActionCommand? _loadWithTokenCommand;
+    private BB84.SourceGenerators.Commands.IAsyncActionCommand? _loadWithTokenCommand;
 
     /// <summary>
     /// Gets the command that invokes <c>LoadWithTokenAsync</c>.
     /// </summary>
-    public global::BB84.SourceGenerators.Commands.IAsyncActionCommand LoadWithTokenCommand
-      => _loadWithTokenCommand ??= new global::BB84.SourceGenerators.Commands.AsyncActionCommand(cancellationToken => LoadWithTokenAsync(cancellationToken));
+    public BB84.SourceGenerators.Commands.IAsyncActionCommand LoadWithTokenCommand
+      => _loadWithTokenCommand ??= new BB84.SourceGenerators.Commands.AsyncActionCommand(cancellationToken => LoadWithTokenAsync(cancellationToken));
   }
 }

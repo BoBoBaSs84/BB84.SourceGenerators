@@ -13,12 +13,12 @@ namespace TestNamespace
 {
   public partial class Commands
   {
-    private static global::BB84.SourceGenerators.Commands.IActionCommand? _pingCommand;
+    private static BB84.SourceGenerators.Commands.IActionCommand? _pingCommand;
 
     /// <summary>
     /// Gets the command that invokes <c>Ping</c>.
     /// </summary>
-    public static global::BB84.SourceGenerators.Commands.IActionCommand PingCommand
-      => _pingCommand ??= new global::BB84.SourceGenerators.Commands.ActionCommand(() => Ping(), canExecute: () => CanPing);
+    public static BB84.SourceGenerators.Commands.IActionCommand PingCommand
+      => _pingCommand ??= new BB84.SourceGenerators.Commands.ActionCommand(() => Ping(), canExecute: () => CanPing);
   }
 }

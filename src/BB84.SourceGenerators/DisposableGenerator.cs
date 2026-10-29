@@ -23,9 +23,9 @@ namespace BB84.SourceGenerators;
 [Generator(LanguageNames.CSharp)]
 public sealed class DisposableGenerator : IIncrementalGenerator
 {
-	private static readonly (string MetadataName, string FullName, string ShortName) AttributeNames =
+	private static readonly (string MetadataName, string TypeName, string ShortName) AttributeNames =
 		GeneratorHelpers.GetAttributeNames<GenerateDisposableAttribute>();
-	private static readonly (string MetadataName, string FullName, string ShortName) DisposeResourceAttributeNames =
+	private static readonly (string MetadataName, string TypeName, string ShortName) DisposeResourceAttributeNames =
 		GeneratorHelpers.GetAttributeNames<DisposeResourceAttribute>();
 
 	/// <inheritdoc/>
@@ -44,7 +44,7 @@ public sealed class DisposableGenerator : IIncrementalGenerator
 		if (generateAsync)
 		{
 			INamedTypeSymbol? asyncDisposableSymbol = ctx.SemanticModel.Compilation
-				.GetTypeByMetadataName("System.IAsyncDisposable");
+				.GetTypeByMetadataName(TypeNames.IAsyncDisposable);
 
 			if (asyncDisposableSymbol is null)
 			{
@@ -97,10 +97,10 @@ public sealed class DisposableGenerator : IIncrementalGenerator
 	}
 
 	private static bool GetGenerateFinalizer(INamedTypeSymbol namedTypeSymbol)
-		=> GeneratorHelpers.GetConstructorArgumentValue(namedTypeSymbol, AttributeNames.FullName, 0, false);
+		=> GeneratorHelpers.GetConstructorArgumentValue(namedTypeSymbol, AttributeNames.TypeName, 0, false);
 
 	private static bool GetGenerateAsync(INamedTypeSymbol namedTypeSymbol)
-		=> GeneratorHelpers.GetConstructorArgumentValue(namedTypeSymbol, AttributeNames.FullName, 1, false);
+		=> GeneratorHelpers.GetConstructorArgumentValue(namedTypeSymbol, AttributeNames.TypeName, 1, false);
 
 	private static ImmutableArray<(string FieldName, int Order, int SourceIndex)> GetDisposableFields(ClassDeclarationSyntax classDeclaration)
 	{
@@ -149,7 +149,7 @@ public sealed class DisposableGenerator : IIncrementalGenerator
 			{
 				string name = attribute.Name.ToString();
 
-				if (name != DisposeResourceAttributeNames.ShortName && name != DisposeResourceAttributeNames.FullName)
+				if (name != DisposeResourceAttributeNames.ShortName && name != DisposeResourceAttributeNames.TypeName)
 					continue;
 
 				if (attribute.ArgumentList is null || attribute.ArgumentList.Arguments.Count == 0)

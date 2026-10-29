@@ -29,9 +29,6 @@ namespace BB84.SourceGenerators.Requests;
 /// <param name="TypeMismatchProperties"> Gets or sets the type mismatch information for properties that were found but have incompatible types.
 /// Each tuple contains (targetPropertyName, sourcePropertyName). </param>
 /// <param name="TargetTypeName"> Gets or sets the display name of the target type (for diagnostic messages). </param>
-/// <param name="FilePath"> Gets or sets the file path of the method declaration (for diagnostic location). </param>
-/// <param name="MethodSpanStart"> Gets or sets the span start of the method identifier (for diagnostic location). </param>
-/// <param name="MethodSpanEnd"> Gets or sets the span end of the method identifier (for diagnostic location). </param>
 internal sealed record AutoMapperRequest(
 	string Namespace,
 	string ContainingTypeAccessibility,
@@ -49,8 +46,5 @@ internal sealed record AutoMapperRequest(
 	ImmutableArray<AutoMapperPropertyMapping> PropertyMappings,
 	ImmutableArray<string> UnmappedProperties,
 	ImmutableArray<(string TargetProperty, string SourceProperty)> TypeMismatchProperties,
-	string TargetTypeName,
-	string FilePath,
-	int MethodSpanStart,
-	int MethodSpanEnd
+	string TargetTypeName
 	);
