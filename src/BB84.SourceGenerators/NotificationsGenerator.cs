@@ -54,6 +54,26 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 			return;
 		}
 
+		if (BuildOptions(context, ctx) is not NotificationOptions options)
+			return;
+
+		if (!options.RaiseChanged && !options.RaiseChanging)
+			return;
+
+		NotificationMembers members = CollectMembers(context, ctx);
+
+		EmitSource(context, ctx, options, members);
+	}
+
+	/// <summary>
+	/// Builds the notification options of the type from its attribute and its base type chain,
+	/// reporting a diagnostic when a base type lacks an accessible raise method.
+	/// </summary>
+	/// <param name="context">The source production context used to report diagnostics.</param>
+	/// <param name="ctx">The type generator context.</param>
+	/// <returns>The notification options, or <see langword="null"/> when a diagnostic was reported.</returns>
+	private static NotificationOptions? BuildOptions(SourceProductionContext context, TypeGeneratorContext ctx)
+	{
 		bool generatePropertyChanged = GetPropertyChanged(ctx.ClassSymbol);
 		bool generatePropertyChanging = GetPropertyChanging(ctx.ClassSymbol);
 		bool generateHasChanged = GetHasChanged(ctx.ClassSymbol);
@@ -69,12 +89,12 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 				continue;
 
 			GeneratorHelpers.ReportAtClass(context, ctx.ClassDeclaration, DiagnosticDescriptors.NotificationsBaseRaiseMethodMissingDiagnostic, ctx.ClassName, feature.MissingRaiseMethodIn.Name, feature.InterfaceName, feature.MethodName);
-			return;
+			return null;
 		}
 
 		bool inheritedHasChanged = GetInheritedHasChanged(ctx.ClassSymbol, compilation);
 
-		NotificationOptions options = new(
+		return new NotificationOptions(
 			DeclareChanged: generatePropertyChanged && !inheritedChanged.IsProvided,
 			DeclareChanging: generatePropertyChanging && !inheritedChanging.IsProvided,
 			DeclareHasChanged: generateHasChanged && !inheritedHasChanged,
@@ -84,11 +104,18 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 			ChangedSupportsParams: !inheritedChanged.IsProvided || inheritedChanged.SupportsParams,
 			ChangingSupportsParams: !inheritedChanging.IsProvided || inheritedChanging.SupportsParams,
 			PartialMethods: generatePartialMethods);
+	}
 
-		if (!options.RaiseChanged && !options.RaiseChanging)
-			return;
-
-		List<FieldDeclarationSyntax> members = [.. ctx.ClassDeclaration.Members
+	/// <summary>
+	/// Collects the notifying fields and partial properties of the type together with the commands
+	/// each of them notifies, reporting diagnostics for invalid partial properties and unknown commands.
+	/// </summary>
+	/// <param name="context">The source production context used to report diagnostics.</param>
+	/// <param name="ctx">The type generator context.</param>
+	/// <returns>The collected members.</returns>
+	private static NotificationMembers CollectMembers(SourceProductionContext context, TypeGeneratorContext ctx)
+	{
+		List<FieldDeclarationSyntax> fields = [.. ctx.ClassDeclaration.Members
 			.OfType<FieldDeclarationSyntax>()
 			.Where(field => !HasAttribute(field, nameof(ExcludeFromNotificationAttribute)))];
 
@@ -96,9 +123,14 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 
 		HashSet<string> knownCommands = GetKnownCommandNames(ctx.ClassSymbol);
 		Dictionary<MemberDeclarationSyntax, List<string>> notifyCommands = [];
-		foreach (MemberDeclarationSyntax member in members.Cast<MemberDeclarationSyntax>().Concat(partialProperties.Select(static p => p.Syntax)))
+		foreach (MemberDeclarationSyntax member in fields.Cast<MemberDeclarationSyntax>().Concat(partialProperties.Select(static p => p.Syntax)))
 			notifyCommands[member] = GetNotifyCanExecuteChangedCommands(context, member, knownCommands);
 
+		return new NotificationMembers(fields, partialProperties, notifyCommands);
+	}
+
+	private static void EmitSource(SourceProductionContext context, TypeGeneratorContext ctx, NotificationOptions options, NotificationMembers members)
+	{
 		bool isSealed = ctx.ClassDeclaration.Modifiers.Any(SyntaxKind.SealedKeyword);
 
 		SourceBuilder sb = new();
@@ -106,8 +138,8 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 		sb.BeginTypeFile(GeneratorNames.NotificationsGeneratorFullName, ctx.NamespaceName, ctx.OuterClasses, FileUsings);
 
 		AppendClassStart(sb, ctx.ClassName, ctx.Accessibility, options, ctx.IsRecord);
-		AppendProperties(sb, members, notifyCommands, options);
-		AppendPartialProperties(sb, partialProperties, notifyCommands, members.Count > 0, options);
+		AppendProperties(sb, members.Fields, members.NotifyCommands, options);
+		AppendPartialProperties(sb, members.PartialProperties, members.NotifyCommands, members.Fields.Count > 0, options);
 		AppendRaiseMethods(sb, options.DeclareChanged, options.DeclareChanging, isSealed);
 
 		sb.CloseClassOrRecord(ctx.IsRecord);
@@ -155,24 +187,7 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 			if (interfaceSymbol is null || !baseType.Interfaces.Contains(interfaceSymbol, SymbolEqualityComparer.Default))
 				continue;
 
-			bool hasSingle = false;
-			bool hasParams = false;
-
-			for (INamedTypeSymbol? current = baseType; current is not null; current = current.BaseType)
-			{
-				foreach (IMethodSymbol method in current.GetMembers(methodName).OfType<IMethodSymbol>())
-				{
-					if (method.IsStatic || !method.ReturnsVoid || method.Parameters.Length != 1
-						|| !compilation.IsSymbolAccessibleWithin(method, typeSymbol, typeSymbol))
-						continue;
-
-					ITypeSymbol parameterType = method.Parameters[0].Type;
-					if (parameterType.SpecialType == SpecialType.System_String)
-						hasSingle = true;
-					else if (parameterType is IArrayTypeSymbol { ElementType.SpecialType: SpecialType.System_String })
-						hasParams = true;
-				}
-			}
+			(bool hasSingle, bool hasParams) = ScanRaiseOverloads(baseType, typeSymbol, compilation, methodName);
 
 			return hasSingle || hasParams
 				? new InheritedFeature(interfaceName, methodName, IsProvided: true, SupportsParams: hasParams, MissingRaiseMethodIn: null)
@@ -180,6 +195,39 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 		}
 
 		return new InheritedFeature(interfaceName, methodName, IsProvided: false, SupportsParams: false, MissingRaiseMethodIn: null);
+	}
+
+	/// <summary>
+	/// Scans the given base type and its own base types for raise method overloads that are
+	/// accessible from the derived type.
+	/// </summary>
+	/// <param name="baseType">The base type to start the scan from.</param>
+	/// <param name="typeSymbol">The derived type that calls the raise method.</param>
+	/// <param name="compilation">The compilation used to check accessibility.</param>
+	/// <param name="methodName">The name of the raise method.</param>
+	/// <returns>Whether a <c>string</c> overload and a <c>string[]</c> overload were found.</returns>
+	private static (bool HasSingle, bool HasParams) ScanRaiseOverloads(INamedTypeSymbol baseType, INamedTypeSymbol typeSymbol, Compilation compilation, string methodName)
+	{
+		bool hasSingle = false;
+		bool hasParams = false;
+
+		for (INamedTypeSymbol? current = baseType; current is not null; current = current.BaseType)
+		{
+			foreach (IMethodSymbol method in current.GetMembers(methodName).OfType<IMethodSymbol>())
+			{
+				if (method.IsStatic || !method.ReturnsVoid || method.Parameters.Length != 1
+					|| !compilation.IsSymbolAccessibleWithin(method, typeSymbol, typeSymbol))
+					continue;
+
+				ITypeSymbol parameterType = method.Parameters[0].Type;
+				if (parameterType.SpecialType == SpecialType.System_String)
+					hasSingle = true;
+				else if (parameterType is IArrayTypeSymbol { ElementType.SpecialType: SpecialType.System_String })
+					hasParams = true;
+			}
+		}
+
+		return (hasSingle, hasParams);
 	}
 
 	/// <summary>
@@ -488,62 +536,51 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 		string methodModifier = isSealed ? "private" : "protected virtual";
 
 		if (propertyChanging)
-		{
-			sb.AppendLine();
-			sb.AppendLine("/// <summary>");
-			sb.AppendLine("/// Raises the <see cref=\"PropertyChanging\"/> event to notify subscribers that a property");
-			sb.AppendLine("/// is about to change.");
-			sb.AppendLine("/// </summary>");
-			sb.AppendLine("/// <param name=\"propertyName\">The name of the property that is changing.</param>");
-			sb.AppendLine($"{methodModifier} void RaisePropertyChanging(string propertyName)");
-			sb.Indent();
-			sb.AppendLine("=> PropertyChanging?.Invoke(this, new PropertyChangingEventArgs(propertyName));");
-			sb.Outdent();
-			sb.AppendLine();
-			sb.AppendLine("/// <summary>");
-			sb.AppendLine("/// Raises the <see cref=\"PropertyChanging\"/> event to notify subscribers that a property");
-			sb.AppendLine("/// is about to change.");
-			sb.AppendLine("/// </summary>");
-			sb.AppendLine("/// <param name=\"propertyNames\">The names of the properties that are changing.</param>");
-			sb.AppendLine($"{methodModifier} void RaisePropertyChanging(params string[] propertyNames)");
-			sb.AppendLine("{");
-			sb.Indent();
-			sb.AppendLine("foreach(string propertyName in propertyNames)");
-			sb.Indent();
-			sb.AppendLine("RaisePropertyChanging(propertyName);");
-			sb.Outdent();
-			sb.Outdent();
-			sb.AppendLine("}");
-		}
+			AppendRaiseMethodPair(sb, methodModifier, RaisePropertyChangingMethodName, "PropertyChanging", "is about to change.", "is changing", "are changing");
 
 		if (propertyChanged)
-		{
-			sb.AppendLine();
-			sb.AppendLine("/// <summary>");
-			sb.AppendLine("/// Raises the <see cref=\"PropertyChanged\"/> event to notify subscribers that a property");
-			sb.AppendLine("/// has changed.");
-			sb.AppendLine("/// </summary>");
-			sb.AppendLine("/// <param name=\"propertyName\">The name of the property that has changed.</param>");
-			sb.AppendLine($"{methodModifier} void RaisePropertyChanged(string propertyName)");
-			sb.Indent();
-			sb.AppendLine("=> PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));");
-			sb.Outdent();
-			sb.AppendLine();
-			sb.AppendLine("/// <summary>");
-			sb.AppendLine("/// Raises the <see cref=\"PropertyChanged\"/> event to notify subscribers that a property");
-			sb.AppendLine("/// has changed.");
-			sb.AppendLine("/// </summary>");
-			sb.AppendLine("/// <param name=\"propertyNames\">The names of the properties that have changed.</param>");
-			sb.AppendLine($"{methodModifier} void RaisePropertyChanged(params string[] propertyNames)");
-			sb.AppendLine("{");
-			sb.Indent();
-			sb.AppendLine("foreach(string propertyName in propertyNames)");
-			sb.Indent();
-			sb.AppendLine("RaisePropertyChanged(propertyName);");
-			sb.Outdent();
-			sb.Outdent();
-			sb.AppendLine("}");
-		}
+			AppendRaiseMethodPair(sb, methodModifier, RaisePropertyChangedMethodName, "PropertyChanged", "has changed.", "has changed", "have changed");
+	}
+
+	/// <summary>
+	/// Appends the single-name and the <c>params</c> overloads of a raise method for the given event.
+	/// </summary>
+	/// <param name="sb">The source builder.</param>
+	/// <param name="methodModifier">The access and inheritance modifiers of the raise methods.</param>
+	/// <param name="methodName">The name of the raise method.</param>
+	/// <param name="eventName">The name of the raised event; its event args type is <c>[eventName]EventArgs</c>.</param>
+	/// <param name="summaryTail">The wording that ends the summary, describing the change.</param>
+	/// <param name="singleVerb">The verb phrase used in the single-name parameter documentation.</param>
+	/// <param name="pluralVerb">The verb phrase used in the <c>params</c> parameter documentation.</param>
+	private static void AppendRaiseMethodPair(SourceBuilder sb, string methodModifier, string methodName, string eventName, string summaryTail, string singleVerb, string pluralVerb)
+	{
+		sb.AppendLine();
+		AppendRaiseMethodSummary(sb, eventName, summaryTail);
+		sb.AppendLine($"/// <param name=\"propertyName\">The name of the property that {singleVerb}.</param>");
+		sb.AppendLine($"{methodModifier} void {methodName}(string propertyName)");
+		sb.Indent();
+		sb.AppendLine($"=> {eventName}?.Invoke(this, new {eventName}EventArgs(propertyName));");
+		sb.Outdent();
+		sb.AppendLine();
+		AppendRaiseMethodSummary(sb, eventName, summaryTail);
+		sb.AppendLine($"/// <param name=\"propertyNames\">The names of the properties that {pluralVerb}.</param>");
+		sb.AppendLine($"{methodModifier} void {methodName}(params string[] propertyNames)");
+		sb.AppendLine("{");
+		sb.Indent();
+		sb.AppendLine("foreach(string propertyName in propertyNames)");
+		sb.Indent();
+		sb.AppendLine($"{methodName}(propertyName);");
+		sb.Outdent();
+		sb.Outdent();
+		sb.AppendLine("}");
+	}
+
+	private static void AppendRaiseMethodSummary(SourceBuilder sb, string eventName, string summaryTail)
+	{
+		sb.AppendLine("/// <summary>");
+		sb.AppendLine($"/// Raises the <see cref=\"{eventName}\"/> event to notify subscribers that a property");
+		sb.AppendLine($"/// {summaryTail}");
+		sb.AppendLine("/// </summary>");
 	}
 
 	private static bool HasAttribute(MemberDeclarationSyntax member, string attributeName)
@@ -654,6 +691,17 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 		string TypeName,
 		string FieldName,
 		bool IsExcluded);
+
+	/// <summary>
+	/// Describes the members of a type that are implemented with change notification.
+	/// </summary>
+	/// <param name="Fields">The field declarations that are turned into notifying properties.</param>
+	/// <param name="PartialProperties">The partial properties that are implemented.</param>
+	/// <param name="NotifyCommands">The commands notified by each field or partial property declaration.</param>
+	private sealed record NotificationMembers(
+		List<FieldDeclarationSyntax> Fields,
+		List<PartialPropertyInfo> PartialProperties,
+		Dictionary<MemberDeclarationSyntax, List<string>> NotifyCommands);
 
 	/// <summary>
 	/// Describes whether a change notification is already provided by the base type chain.
