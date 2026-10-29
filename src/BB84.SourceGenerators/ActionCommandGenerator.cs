@@ -4,6 +4,7 @@
 // This source code is licensed under the MIT license found in the
 // LICENSE file in the root directory of this source tree.
 using System.Collections.Immutable;
+using System.Diagnostics.CodeAnalysis;
 
 using BB84.SourceGenerators.Analyzers;
 using BB84.SourceGenerators.Attributes;
@@ -112,9 +113,7 @@ public sealed class ActionCommandGenerator : IIncrementalGenerator
 		Location location = methodSyntax.Identifier.GetLocation();
 		ImmutableArray<Diagnostic>.Builder diagnostics = ImmutableArray.CreateBuilder<Diagnostic>();
 
-		if (methodSyntax.Parent is not TypeDeclarationSyntax typeSyntax
-			|| !IsClassOrRecordClass(typeSyntax)
-			|| !typeSyntax.Modifiers.Any(SyntaxKind.PartialKeyword))
+		if (!ValidateContainingType(methodSyntax, out TypeDeclarationSyntax? typeSyntax))
 		{
 			diagnostics.Add(Diagnostic.Create(DiagnosticDescriptors.ActionCommandContainingTypeNotPartialDiagnostic, location, method.Name, method.ContainingType.Name));
 			return new ActionCommandResult(null, diagnostics.ToImmutable());
@@ -130,24 +129,8 @@ public sealed class ActionCommandGenerator : IIncrementalGenerator
 		string commandName = GetCommandName(method, attribute);
 		string fieldName = GeneratorHelpers.PropertyNameToFieldName(commandName);
 
-		string? canExecuteName = GeneratorHelpers.GetNamedArgument<string?>(attribute, nameof(ActionCommandAttribute.CanExecute), null);
-		string? exceptionHandlerName = GeneratorHelpers.GetNamedArgument<string?>(attribute, nameof(ActionCommandAttribute.ExceptionHandler), null);
-		bool allowConcurrentExecutions = GeneratorHelpers.GetNamedArgument(attribute, nameof(ActionCommandAttribute.AllowConcurrentExecutions), false);
-		bool includeCancelCommand = GeneratorHelpers.GetNamedArgument(attribute, nameof(ActionCommandAttribute.IncludeCancelCommand), false);
-
-		if (!isAsync)
-		{
-			ReportAsyncOnlyOption(diagnostics, location, method.Name, nameof(ActionCommandAttribute.ExceptionHandler), exceptionHandlerName is not null);
-			ReportAsyncOnlyOption(diagnostics, location, method.Name, nameof(ActionCommandAttribute.AllowConcurrentExecutions), allowConcurrentExecutions);
-			ReportAsyncOnlyOption(diagnostics, location, method.Name, nameof(ActionCommandAttribute.IncludeCancelCommand), includeCancelCommand);
-			exceptionHandlerName = null;
-			allowConcurrentExecutions = false;
-			includeCancelCommand = false;
-		}
-
-		string? cancelCommandName = includeCancelCommand
-			? $"{(commandName.EndsWith(CommandSuffix, StringComparison.Ordinal) ? commandName[..^CommandSuffix.Length] : commandName)}Cancel{CommandSuffix}"
-			: null;
+		CommandOptions options = ReadOptions(attribute, isAsync, diagnostics, location, method.Name);
+		string? cancelCommandName = options.IncludeCancelCommand ? BuildCancelCommandName(commandName) : null;
 
 		bool hasError = false;
 
@@ -157,54 +140,123 @@ public sealed class ActionCommandGenerator : IIncrementalGenerator
 			hasError = true;
 		}
 
-		string? canExecuteExpression = null;
-		if (canExecuteName is not null)
-		{
-			canExecuteExpression = GetCanExecuteExpression(containingType, canExecuteName, method.IsStatic, parameterType);
-			if (canExecuteExpression is null)
-			{
-				diagnostics.Add(Diagnostic.Create(DiagnosticDescriptors.ActionCommandInvalidCanExecuteDiagnostic, location, method.Name, canExecuteName));
-				hasError = true;
-			}
-		}
-
-		string? exceptionHandlerExpression = null;
-		if (exceptionHandlerName is not null)
-		{
-			exceptionHandlerExpression = GetExceptionHandlerExpression(containingType, exceptionHandlerName, method.IsStatic);
-			if (exceptionHandlerExpression is null)
-			{
-				diagnostics.Add(Diagnostic.Create(DiagnosticDescriptors.ActionCommandInvalidExceptionHandlerDiagnostic, location, method.Name, exceptionHandlerName));
-				hasError = true;
-			}
-		}
+		if (!ResolveExpressions(containingType, method, parameterType, options, diagnostics, location, out string? canExecuteExpression, out string? exceptionHandlerExpression))
+			hasError = true;
 
 		if (hasError)
 			return new ActionCommandResult(null, diagnostics.ToImmutable());
 
 		ActionCommandRequest request = new(
-			typeSyntax.GetNamespace(),
-			GeneratorHelpers.GetAccessibility(typeSyntax),
-			containingType.Name,
-			typeSyntax is RecordDeclarationSyntax,
-			GeneratorHelpers.GetOuterClasses(typeSyntax),
-			method.Name,
-			method.IsStatic,
-			isAsync,
-			parameterType?.ToDisplayString(PropertyTypeFormat),
-			hasCancellationToken,
+			new ActionCommandContainingType(
+				typeSyntax.GetNamespace(),
+				GeneratorHelpers.GetAccessibility(typeSyntax),
+				containingType.Name,
+				typeSyntax is RecordDeclarationSyntax,
+				GeneratorHelpers.GetOuterClasses(typeSyntax)),
+			new ActionCommandSignature(
+				method.Name,
+				method.IsStatic,
+				isAsync,
+				parameterType?.ToPropertyTypeDisplayString(),
+				hasCancellationToken),
 			commandName,
 			fieldName,
 			canExecuteExpression,
 			exceptionHandlerExpression,
-			allowConcurrentExecutions,
+			options.AllowConcurrentExecutions,
 			cancelCommandName);
 
 		return new ActionCommandResult(request, diagnostics.ToImmutable());
 	}
 
-	private static readonly SymbolDisplayFormat PropertyTypeFormat =
-		SymbolDisplayFormat.FullyQualifiedFormat.AddMiscellaneousOptions(SymbolDisplayMiscellaneousOptions.IncludeNullableReferenceTypeModifier);
+	/// <summary>
+	/// Determines whether the command method is declared directly in a partial class or record class.
+	/// </summary>
+	/// <param name="methodSyntax">The command method declaration.</param>
+	/// <param name="typeSyntax">The containing type declaration, when valid.</param>
+	/// <returns><see langword="true"/> if the containing type is valid; otherwise, <see langword="false"/>.</returns>
+	private static bool ValidateContainingType(MethodDeclarationSyntax methodSyntax, [NotNullWhen(true)] out TypeDeclarationSyntax? typeSyntax)
+	{
+		typeSyntax = methodSyntax.Parent as TypeDeclarationSyntax;
+
+		return typeSyntax is not null
+			&& IsClassOrRecordClass(typeSyntax)
+			&& typeSyntax.Modifiers.Any(SyntaxKind.PartialKeyword);
+	}
+
+	/// <summary>
+	/// Reads the named options of the attribute, reporting and clearing the async-only options of a synchronous command.
+	/// </summary>
+	/// <param name="attribute">The <see cref="ActionCommandAttribute"/> data.</param>
+	/// <param name="isAsync">Whether the command method returns a <c>Task</c>.</param>
+	/// <param name="diagnostics">The diagnostics builder.</param>
+	/// <param name="location">The location used for reported diagnostics.</param>
+	/// <param name="methodName">The name of the command method.</param>
+	/// <returns>The effective command options.</returns>
+	private static CommandOptions ReadOptions(AttributeData attribute, bool isAsync, ImmutableArray<Diagnostic>.Builder diagnostics, Location location, string methodName)
+	{
+		string? canExecuteName = GeneratorHelpers.GetNamedArgument<string?>(attribute, nameof(ActionCommandAttribute.CanExecute), null);
+		string? exceptionHandlerName = GeneratorHelpers.GetNamedArgument<string?>(attribute, nameof(ActionCommandAttribute.ExceptionHandler), null);
+		bool allowConcurrentExecutions = GeneratorHelpers.GetNamedArgument(attribute, nameof(ActionCommandAttribute.AllowConcurrentExecutions), false);
+		bool includeCancelCommand = GeneratorHelpers.GetNamedArgument(attribute, nameof(ActionCommandAttribute.IncludeCancelCommand), false);
+
+		if (isAsync)
+			return new CommandOptions(canExecuteName, exceptionHandlerName, allowConcurrentExecutions, includeCancelCommand);
+
+		ReportAsyncOnlyOption(diagnostics, location, methodName, nameof(ActionCommandAttribute.ExceptionHandler), exceptionHandlerName is not null);
+		ReportAsyncOnlyOption(diagnostics, location, methodName, nameof(ActionCommandAttribute.AllowConcurrentExecutions), allowConcurrentExecutions);
+		ReportAsyncOnlyOption(diagnostics, location, methodName, nameof(ActionCommandAttribute.IncludeCancelCommand), includeCancelCommand);
+
+		return new CommandOptions(canExecuteName, null, false, false);
+	}
+
+	private static string BuildCancelCommandName(string commandName)
+	{
+		string baseName = commandName.EndsWith(CommandSuffix, StringComparison.Ordinal) ? commandName[..^CommandSuffix.Length] : commandName;
+		return $"{baseName}Cancel{CommandSuffix}";
+	}
+
+	/// <summary>
+	/// Resolves the guard and exception handler delegate expressions, reporting a diagnostic for each
+	/// configured member that has no compatible declaration.
+	/// </summary>
+	/// <param name="containingType">The type containing the command method.</param>
+	/// <param name="method">The command method.</param>
+	/// <param name="parameterType">The command parameter type, or <see langword="null"/> if none.</param>
+	/// <param name="options">The effective command options.</param>
+	/// <param name="diagnostics">The diagnostics builder.</param>
+	/// <param name="location">The location used for reported diagnostics.</param>
+	/// <param name="canExecuteExpression">The guard expression, or <see langword="null"/> if none.</param>
+	/// <param name="exceptionHandlerExpression">The exception handler expression, or <see langword="null"/> if none.</param>
+	/// <returns><see langword="true"/> if all configured members were resolved; otherwise, <see langword="false"/>.</returns>
+	private static bool ResolveExpressions(INamedTypeSymbol containingType, IMethodSymbol method, ITypeSymbol? parameterType, CommandOptions options, ImmutableArray<Diagnostic>.Builder diagnostics, Location location, out string? canExecuteExpression, out string? exceptionHandlerExpression)
+	{
+		bool isValid = true;
+
+		canExecuteExpression = null;
+		if (options.CanExecuteName is not null)
+		{
+			canExecuteExpression = GetCanExecuteExpression(containingType, options.CanExecuteName, method.IsStatic, parameterType);
+			if (canExecuteExpression is null)
+			{
+				diagnostics.Add(Diagnostic.Create(DiagnosticDescriptors.ActionCommandInvalidCanExecuteDiagnostic, location, method.Name, options.CanExecuteName));
+				isValid = false;
+			}
+		}
+
+		exceptionHandlerExpression = null;
+		if (options.ExceptionHandlerName is not null)
+		{
+			exceptionHandlerExpression = GetExceptionHandlerExpression(containingType, options.ExceptionHandlerName, method.IsStatic);
+			if (exceptionHandlerExpression is null)
+			{
+				diagnostics.Add(Diagnostic.Create(DiagnosticDescriptors.ActionCommandInvalidExceptionHandlerDiagnostic, location, method.Name, options.ExceptionHandlerName));
+				isValid = false;
+			}
+		}
+
+		return isValid;
+	}
 
 	private static bool IsClassOrRecordClass(TypeDeclarationSyntax typeSyntax)
 		=> typeSyntax is ClassDeclarationSyntax
@@ -372,39 +424,44 @@ public sealed class ActionCommandGenerator : IIncrementalGenerator
 		if (result.Request is not ActionCommandRequest request)
 			return;
 
+		ActionCommandContainingType type = request.ContainingType;
+		string staticModifier = request.Signature.IsStatic ? "static " : string.Empty;
+
 		SourceBuilder sb = new();
 
-		sb.BeginTypeFile(GeneratorNames.ActionCommandGeneratorFullName, request.NamespaceName, request.OuterClasses, []);
-		sb.OpenClassOrRecord(request.IsRecord, request.TypeAccessibility, request.TypeName);
+		sb.BeginTypeFile(GeneratorNames.ActionCommandGeneratorFullName, type.NamespaceName, type.OuterClasses, []);
+		sb.OpenClassOrRecord(type.IsRecord, type.TypeAccessibility, type.TypeName);
 
-		AppendCommandProperty(sb, request);
+		AppendCommandProperty(sb, request, staticModifier);
 
 		if (request.CancelCommandName is not null)
-		{
-			string staticModifier = request.IsStatic ? "static " : string.Empty;
-			sb.AppendLine();
-			sb.AppendSummary($"Gets the command that cancels the running execution of <see cref=\"{request.CommandName}\"/>.");
-			sb.AppendLine($"public {staticModifier}{CommandsNamespace}.IActionCommand {request.CancelCommandName}");
-			sb.Indent();
-			sb.AppendLine($"=> {request.CommandName}.CancelCommand;");
-			sb.Outdent();
-		}
+			AppendCancelCommandProperty(sb, request.CommandName, request.CancelCommandName, staticModifier);
 
-		sb.CloseClassOrRecord(request.IsRecord);
-		sb.EndTypeFile(request.OuterClasses);
+		sb.CloseClassOrRecord(type.IsRecord);
+		sb.EndTypeFile(type.OuterClasses);
 
-		GeneratorHelpers.AddTypeSource(context, request.OuterClasses, request.TypeName, request.CommandName, sb);
+		GeneratorHelpers.AddTypeSource(context, type.OuterClasses, type.TypeName, request.CommandName, sb);
 	}
 
-	private static void AppendCommandProperty(SourceBuilder sb, ActionCommandRequest request)
+	private static void AppendCancelCommandProperty(SourceBuilder sb, string commandName, string cancelCommandName, string staticModifier)
 	{
-		string staticModifier = request.IsStatic ? "static " : string.Empty;
-		string interfaceName = request.IsAsync ? IAsyncActionCommandName : IActionCommandName;
-		string className = request.IsAsync ? AsyncActionCommandName : ActionCommandName;
-		string genericArgument = request.ParameterType is null ? string.Empty : $"<{request.ParameterType}>";
+		sb.AppendLine();
+		sb.AppendSummary($"Gets the command that cancels the running execution of <see cref=\"{commandName}\"/>.");
+		sb.AppendLine($"public {staticModifier}{CommandsNamespace}.{IActionCommandName} {cancelCommandName}");
+		sb.Indent();
+		sb.AppendLine($"=> {commandName}.CancelCommand;");
+		sb.Outdent();
+	}
+
+	private static void AppendCommandProperty(SourceBuilder sb, ActionCommandRequest request, string staticModifier)
+	{
+		ActionCommandSignature signature = request.Signature;
+		string interfaceName = signature.IsAsync ? IAsyncActionCommandName : IActionCommandName;
+		string className = signature.IsAsync ? AsyncActionCommandName : ActionCommandName;
+		string genericArgument = signature.ParameterType is null ? string.Empty : $"<{signature.ParameterType}>";
 		string propertyType = $"{CommandsNamespace}.{interfaceName}{genericArgument}";
 
-		List<string> arguments = [GetExecuteExpression(request)];
+		List<string> arguments = [GetExecuteExpression(signature)];
 
 		if (request.CanExecuteExpression is not null)
 			arguments.Add($"canExecute: {request.CanExecuteExpression}");
@@ -415,22 +472,22 @@ public sealed class ActionCommandGenerator : IIncrementalGenerator
 
 		sb.AppendLine($"private {staticModifier}{propertyType}? {request.FieldName};");
 		sb.AppendLine();
-		sb.AppendSummary($"Gets the command that invokes <c>{request.MethodName}</c>.");
+		sb.AppendSummary($"Gets the command that invokes <c>{signature.MethodName}</c>.");
 		sb.AppendLine($"public {staticModifier}{propertyType} {request.CommandName}");
 		sb.Indent();
 		sb.AppendLine($"=> {request.FieldName} ??= new {CommandsNamespace}.{className}{genericArgument}({string.Join(", ", arguments)});");
 		sb.Outdent();
 	}
 
-	private static string GetExecuteExpression(ActionCommandRequest request)
+	private static string GetExecuteExpression(ActionCommandSignature signature)
 	{
-		string methodName = request.MethodName;
-		bool hasParameter = request.ParameterType is not null;
+		string methodName = signature.MethodName;
+		bool hasParameter = signature.ParameterType is not null;
 
-		if (!request.IsAsync)
+		if (!signature.IsAsync)
 			return hasParameter ? $"parameter => {methodName}(parameter)" : $"() => {methodName}()";
 
-		return (hasParameter, request.HasCancellationToken) switch
+		return (hasParameter, signature.HasCancellationToken) switch
 		{
 			(false, false) => $"cancellationToken => {methodName}()",
 			(false, true) => $"cancellationToken => {methodName}(cancellationToken)",
@@ -447,4 +504,14 @@ public sealed class ActionCommandGenerator : IIncrementalGenerator
 	/// <param name="Request">The generation request, or <see langword="null"/> if nothing should be generated.</param>
 	/// <param name="Diagnostics">The diagnostics to report.</param>
 	private sealed record ActionCommandResult(ActionCommandRequest? Request, ImmutableArray<Diagnostic> Diagnostics);
+
+	/// <summary>
+	/// The effective named options of an <see cref="ActionCommandAttribute"/>; async-only options
+	/// are cleared for synchronous commands.
+	/// </summary>
+	/// <param name="CanExecuteName">The name of the guard member, or <see langword="null"/> if none.</param>
+	/// <param name="ExceptionHandlerName">The name of the exception handler method, or <see langword="null"/> if none.</param>
+	/// <param name="AllowConcurrentExecutions">Indicates whether concurrent executions are allowed.</param>
+	/// <param name="IncludeCancelCommand">Indicates whether a cancel command is generated.</param>
+	private sealed record CommandOptions(string? CanExecuteName, string? ExceptionHandlerName, bool AllowConcurrentExecutions, bool IncludeCancelCommand);
 }

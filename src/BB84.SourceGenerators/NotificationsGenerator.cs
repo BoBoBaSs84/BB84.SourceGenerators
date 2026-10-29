@@ -5,6 +5,7 @@
 // LICENSE file in the root directory of this source tree.
 using BB84.SourceGenerators.Analyzers;
 using BB84.SourceGenerators.Attributes;
+using BB84.SourceGenerators.Extensions;
 using BB84.SourceGenerators.Helpers;
 using BB84.SourceGenerators.Models;
 
@@ -29,9 +30,6 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 		NamespaceNames.System,
 		NamespaceNames.SystemComponentModel,
 	];
-
-	private static readonly SymbolDisplayFormat PropertyTypeFormat =
-		SymbolDisplayFormat.FullyQualifiedFormat.AddMiscellaneousOptions(SymbolDisplayMiscellaneousOptions.IncludeNullableReferenceTypeModifier);
 
 	private const string PropertyChangedInterfaceName = TypeNames.INotifyPropertyChanged;
 	private const string PropertyChangingInterfaceName = TypeNames.INotifyPropertyChanging;
@@ -511,7 +509,7 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 				continue;
 			}
 
-			string typeName = symbol.Type.ToDisplayString(PropertyTypeFormat);
+			string typeName = symbol.Type.ToPropertyTypeDisplayString();
 			bool isExcluded = HasAttribute(property, nameof(ExcludeFromNotificationAttribute));
 
 			properties.Add(new PartialPropertyInfo(property, symbol, getter, setter, typeName, fieldName, isExcluded));
