@@ -1,0 +1,1 @@
+BB84SG0006|Warning|6:23-6:44|The [GenerateDisposable] attribute on class 'UnsupportedAsyncModel' requested async disposal, but 'IAsyncDisposable' is not available in the target framework. Async disposal code will not be generated.

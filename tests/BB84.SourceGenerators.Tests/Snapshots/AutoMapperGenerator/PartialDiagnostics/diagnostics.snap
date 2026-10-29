@@ -1,0 +1,2 @@
+BB84SG0009|Error|none|The [GenerateAutoMapper] attribute on method 'Map' requires the containing class 'NonPartialClassMapper' to be declared as partial
+BB84SG0010|Error|none|The [GenerateAutoMapper] attribute can only be applied to a partial method, but method 'Map' is not declared as partial

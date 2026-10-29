@@ -1,0 +1,1 @@
+BB84SG0025|Error|58:23-58:37|The base type 'NoRaiseBase' of 'NoRaiseDerived' implements 'System.ComponentModel.INotifyPropertyChanged' but has no accessible 'RaisePropertyChanged(string)' method

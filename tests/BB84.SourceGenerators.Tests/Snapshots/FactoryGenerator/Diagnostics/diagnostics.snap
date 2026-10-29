@@ -1,0 +1,2 @@
+BB84SG0004|Error|8:30-8:40|The [GenerateFactory] attribute on class 'BadFactory' requires an interface type, but 'NotAnInterface' is not an interface
+BB84SG0005|Error|19:30-19:44|Duplicate factory key 'same' detected among implementations of 'IService'

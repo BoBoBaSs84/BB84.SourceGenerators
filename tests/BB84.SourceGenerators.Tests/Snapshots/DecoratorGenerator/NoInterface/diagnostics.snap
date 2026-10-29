@@ -1,0 +1,1 @@
+BB84SG0003|Error|6:23-6:35|The [GenerateDecorator] attribute cannot be applied to class 'BadDecorator' because it does not implement any interface
