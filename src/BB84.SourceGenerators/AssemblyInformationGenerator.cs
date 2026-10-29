@@ -6,6 +6,7 @@
 using BB84.SourceGenerators.Attributes;
 using BB84.SourceGenerators.Helpers;
 using BB84.SourceGenerators.Models;
+using BB84.SourceGenerators.Requests;
 
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -46,40 +47,51 @@ public sealed class AssemblyInformationGenerator : IIncrementalGenerator
 
 	/// <inheritdoc/>
 	public void Initialize(IncrementalGeneratorInitializationContext context)
-		=> GeneratorHelpers.RegisterClassGenerator(context, AttributeNames.MetadataName, Execute);
+		=> GeneratorHelpers.RegisterRequestGenerator<AssemblyInformationRequest>(context, AttributeNames.MetadataName, GeneratorHelpers.IsClassNode, Transform, TrackingNames.AssemblyInformation, Execute);
 
-	private void Execute(SourceProductionContext context, (ClassDeclarationSyntax ClassSyntax, SemanticModel SemanticModel)? input)
+	private static GeneratorResult<AssemblyInformationRequest>? Transform(GeneratorAttributeSyntaxContext context, CancellationToken cancellationToken)
 	{
-		if (!GeneratorHelpers.TryCreateContext(input, out GeneratorContext ctx))
-			return;
+		if (context.TargetNode is not ClassDeclarationSyntax classDeclaration || context.TargetSymbol is not INamedTypeSymbol classSymbol)
+			return null;
 
-		(Dictionary<string, string> assemblyValues, Dictionary<string, List<string>> allAssemblyValues) = GetAssemblyAttributeValues(ctx.SemanticModel.Compilation);
+		(Dictionary<string, string> assemblyValues, Dictionary<string, List<string>> allAssemblyValues) = GetAssemblyAttributeValues(context.SemanticModel.Compilation);
 
-		SourceBuilder sb = new();
+		EquatableArray<string> constantValues = AssemblyAttributes
+			.Select(attribute => assemblyValues.TryGetValue(attribute.AttributeName, out string? value) ? value : string.Empty)
+			.ToEquatableArray();
 
-		sb.BeginTypeFile(GeneratorNames.AssemblyInformationGeneratorFullName, ctx.NamespaceName, ctx.OuterClasses, FileUsings);
+		EquatableArray<(string AttributeName, EquatableArray<string> Values)> otherAttributes = allAssemblyValues
+			.Select(static entry => (entry.Key, entry.Value.ToEquatableArray()))
+			.ToEquatableArray();
 
-		AppendPartialClass(sb, ctx.ClassName, ctx.Accessibility, assemblyValues, allAssemblyValues);
-
-		sb.EndTypeFile(ctx.OuterClasses);
-
-		GeneratorHelpers.AddTypeSource(context, ctx.OuterClasses, ctx.ClassName, "AssemblyInformation", sb);
+		return GeneratorResult<AssemblyInformationRequest>.FromRequest(new AssemblyInformationRequest(TypeTargetInfo.Create(classDeclaration, classSymbol), constantValues, otherAttributes));
 	}
 
-	private static void AppendPartialClass(SourceBuilder sb, string className, string accessibility, Dictionary<string, string> assemblyValues, Dictionary<string, List<string>> allAssemblyValues)
+	private static void Execute(SourceProductionContext context, AssemblyInformationRequest request)
+	{
+		TypeTargetInfo type = request.Type;
+		SourceBuilder sb = new();
+
+		sb.BeginTypeFile(GeneratorNames.AssemblyInformationGeneratorFullName, type.NamespaceName, type.OuterClasses, FileUsings);
+
+		AppendPartialClass(sb, type.Name, type.Accessibility, request.ConstantValues, request.OtherAttributes);
+
+		sb.EndTypeFile(type.OuterClasses);
+
+		GeneratorHelpers.AddTypeSource(context, type.OuterClasses, type.Name, "AssemblyInformation", sb);
+	}
+
+	private static void AppendPartialClass(SourceBuilder sb, string className, string accessibility, EquatableArray<string> constantValues, EquatableArray<(string AttributeName, EquatableArray<string> Values)> otherAttributes)
 	{
 		sb.OpenClass(accessibility, className);
 
-		bool first = true;
-		foreach ((string attributeName, string propertyName) in AssemblyAttributes)
+		for (int i = 0; i < AssemblyAttributes.Length; i++)
 		{
-			if (!first)
+			if (i > 0)
 				sb.AppendLine();
 
-			first = false;
-
-			string value = assemblyValues.TryGetValue(attributeName, out string? v) ? v : string.Empty;
-			string escaped = GeneratorHelpers.EscapeString(value);
+			string propertyName = AssemblyAttributes[i].PropertyName;
+			string escaped = GeneratorHelpers.EscapeString(constantValues[i]);
 
 			sb.AppendSummary($"Gets the assembly {propertyName.ToLowerInvariant()} information.");
 			sb.AppendLine($"public const string {propertyName} = \"{escaped}\";");
@@ -91,10 +103,10 @@ public sealed class AssemblyInformationGenerator : IIncrementalGenerator
 		sb.AppendLine("{");
 		sb.Indent();
 
-		foreach (KeyValuePair<string, List<string>> item in allAssemblyValues)
+		foreach ((string attributeName, EquatableArray<string> attributeValues) in otherAttributes)
 		{
-			string escapedKey = GeneratorHelpers.EscapeString(item.Key);
-			string values = string.Join(", ", item.Value.Select(v => $"\"{GeneratorHelpers.EscapeString(v)}\""));
+			string escapedKey = GeneratorHelpers.EscapeString(attributeName);
+			string values = string.Join(", ", attributeValues.Select(v => $"\"{GeneratorHelpers.EscapeString(v)}\""));
 			sb.AppendLine($"[\"{escapedKey}\"] = new List<string> {{ {values} }},");
 		}
 

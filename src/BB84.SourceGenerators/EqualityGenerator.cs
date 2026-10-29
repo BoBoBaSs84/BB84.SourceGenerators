@@ -9,6 +9,7 @@ using System.Text;
 using BB84.SourceGenerators.Attributes;
 using BB84.SourceGenerators.Helpers;
 using BB84.SourceGenerators.Models;
+using BB84.SourceGenerators.Requests;
 
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -55,26 +56,32 @@ public sealed class EqualityGenerator : IIncrementalGenerator
 
 	/// <inheritdoc/>
 	public void Initialize(IncrementalGeneratorInitializationContext context)
-		=> GeneratorHelpers.RegisterClassGenerator(context, AttributeNames.MetadataName, Execute);
+		=> GeneratorHelpers.RegisterRequestGenerator<EqualityRequest>(context, AttributeNames.MetadataName, GeneratorHelpers.IsClassNode, Transform, TrackingNames.Equality, Execute);
 
-	private void Execute(SourceProductionContext context, (ClassDeclarationSyntax ClassSyntax, SemanticModel SemanticModel)? input)
+	private static GeneratorResult<EqualityRequest>? Transform(GeneratorAttributeSyntaxContext context, CancellationToken cancellationToken)
 	{
-		if (!GeneratorHelpers.TryCreateContext(input, out GeneratorContext ctx))
-			return;
+		if (context.TargetNode is not ClassDeclarationSyntax classDeclaration || context.TargetSymbol is not INamedTypeSymbol classSymbol)
+			return null;
 
-		bool includeInherited = GetIncludeInherited(ctx.ClassDeclaration, ctx.SemanticModel);
-		HashSet<string> excludedProperties = GeneratorHelpers.GetExcludedProperties(ctx.ClassDeclaration, ctx.SemanticModel, nameof(GenerateEqualityAttribute));
-		ImmutableArray<PropertyDescriptor> properties = GeneratorHelpers.GetPropertyDescriptors(ctx.ClassSymbol, excludedProperties, detectCollections: true, includeInherited: includeInherited);
+		bool includeInherited = GetIncludeInherited(classDeclaration, context.SemanticModel);
+		HashSet<string> excludedProperties = GeneratorHelpers.GetExcludedProperties(classDeclaration, context.SemanticModel, nameof(GenerateEqualityAttribute));
+		ImmutableArray<PropertyDescriptor> properties = GeneratorHelpers.GetPropertyDescriptors(classSymbol, excludedProperties, detectCollections: true, includeInherited: includeInherited);
 
+		return GeneratorResult<EqualityRequest>.FromRequest(new EqualityRequest(TypeTargetInfo.Create(classDeclaration, classSymbol), properties.ToEquatableArray()));
+	}
+
+	private static void Execute(SourceProductionContext context, EqualityRequest request)
+	{
+		TypeTargetInfo type = request.Type;
 		SourceBuilder sb = new();
 
-		sb.BeginTypeFile(GeneratorNames.EqualityGeneratorFullName, ctx.NamespaceName, ctx.OuterClasses, FileUsings);
+		sb.BeginTypeFile(GeneratorNames.EqualityGeneratorFullName, type.NamespaceName, type.OuterClasses, FileUsings);
 
-		AppendPartialClass(sb, ctx.ClassName, ctx.Accessibility, properties);
+		AppendPartialClass(sb, type.Name, type.Accessibility, request.Properties.AsImmutableArray());
 
-		sb.EndTypeFile(ctx.OuterClasses);
+		sb.EndTypeFile(type.OuterClasses);
 
-		GeneratorHelpers.AddTypeSource(context, ctx.OuterClasses, ctx.ClassName, "Equality", sb);
+		GeneratorHelpers.AddTypeSource(context, type.OuterClasses, type.Name, "Equality", sb);
 	}
 
 	private static void AppendPartialClass(SourceBuilder sb, string className, string accessibility, ImmutableArray<PropertyDescriptor> properties)

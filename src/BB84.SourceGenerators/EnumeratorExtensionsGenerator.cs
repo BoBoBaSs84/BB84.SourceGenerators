@@ -1,4 +1,4 @@
-﻿// Copyright: 2026 Robert Peter Meyer
+// Copyright: 2026 Robert Peter Meyer
 // License: MIT
 //
 // This source code is licensed under the MIT license found in the
@@ -8,6 +8,8 @@ using System.Collections.Immutable;
 using BB84.SourceGenerators.Attributes;
 using BB84.SourceGenerators.Extensions;
 using BB84.SourceGenerators.Helpers;
+using BB84.SourceGenerators.Models;
+using BB84.SourceGenerators.Requests;
 
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -26,29 +28,12 @@ public sealed class EnumeratorExtensionsGenerator : IIncrementalGenerator
 
 	/// <inheritdoc/>
 	public void Initialize(IncrementalGeneratorInitializationContext context)
+		=> GeneratorHelpers.RegisterRequestGenerator<EnumeratorExtensionsRequest>(context, AttributeNames.MetadataName, Predicate, Transform, TrackingNames.EnumeratorExtensions, Execute);
+
+	private static void Execute(SourceProductionContext context, EnumeratorExtensionsRequest request)
 	{
-		IncrementalValuesProvider<(EnumDeclarationSyntax EnumDeclaration, SemanticModel SemanticModel)> provider = context.SyntaxProvider
-			 .ForAttributeWithMetadataName(
-				 fullyQualifiedMetadataName: AttributeNames.MetadataName,
-				 predicate: (node, _) => Predicate(node),
-				transform: (context, _) => Transform(context));
-
-		context.RegisterSourceOutput(provider, Execute);
-	}
-
-	/// <inheritdoc/>
-	private void Execute(SourceProductionContext context, (EnumDeclarationSyntax EnumDeclaration, SemanticModel SemanticModel) data)
-	{
-		EnumDeclarationSyntax enumDeclaration = data.EnumDeclaration;
-
-		ImmutableArray<EnumMemberDeclarationSyntax> members = [.. enumDeclaration.Members
-				.OfType<EnumMemberDeclarationSyntax>()];
-
-		if (!members.Any())
-			return;
-
-		string enumName = enumDeclaration.Identifier.Text;
-		string enumNamespace = enumDeclaration.GetNamespace();
+		string enumName = request.EnumName;
+		EquatableArray<(string Name, string? Description)> members = request.Members;
 
 		SourceBuilder sb = new();
 
@@ -56,13 +41,13 @@ public sealed class EnumeratorExtensionsGenerator : IIncrementalGenerator
 		sb.AppendUsing(NamespaceNames.System);
 		sb.AppendUsing(NamespaceNames.SystemComponentModel);
 		sb.AppendLine();
-		sb.OpenNamespace(enumNamespace);
+		sb.OpenNamespace(request.NamespaceName);
 
 		AppendClassStart(sb, enumName);
 
 		AppendToStringFast(sb, enumName, members);
 		AppendIsDefinedFast(sb, enumName, members);
-		AppendGetDescriptionFast(sb, enumName, members, data.SemanticModel);
+		AppendGetDescriptionFast(sb, enumName, members);
 		AppendGetNamesFast(sb, enumName, members);
 		AppendGetValuesFast(sb, enumName, members);
 
@@ -72,12 +57,28 @@ public sealed class EnumeratorExtensionsGenerator : IIncrementalGenerator
 		context.AddSource(GeneratorHelpers.BuildHintName(enumName), sb.ToString());
 	}
 
-	/// <inheritdoc/>
-	private static (EnumDeclarationSyntax EnumDeclaration, SemanticModel SemanticModel) Transform(GeneratorAttributeSyntaxContext context)
-		=> ((EnumDeclarationSyntax)context.TargetNode, context.SemanticModel);
+	private static GeneratorResult<EnumeratorExtensionsRequest>? Transform(GeneratorAttributeSyntaxContext context, CancellationToken cancellationToken)
+	{
+		if (context.TargetNode is not EnumDeclarationSyntax enumDeclaration)
+			return null;
 
-	/// <inheritdoc/>
-	private static bool Predicate(SyntaxNode node)
+		ImmutableArray<EnumMemberDeclarationSyntax> members = [.. enumDeclaration.Members
+				.OfType<EnumMemberDeclarationSyntax>()];
+
+		if (!members.Any())
+			return null;
+
+		SemanticModel semanticModel = context.SemanticModel;
+		INamedTypeSymbol? descriptionAttributeSymbol = semanticModel.Compilation.GetTypeByMetadataName(TypeNames.DescriptionAttribute);
+
+		EquatableArray<(string Name, string? Description)> memberInfos = members
+			.Select(member => (member.Identifier.Text, GetDescriptionFromAttributes(member, semanticModel, descriptionAttributeSymbol)))
+			.ToEquatableArray();
+
+		return GeneratorResult<EnumeratorExtensionsRequest>.FromRequest(new EnumeratorExtensionsRequest(enumDeclaration.Identifier.Text, enumDeclaration.GetNamespace(), memberInfos));
+	}
+
+	private static bool Predicate(SyntaxNode node, CancellationToken cancellationToken)
 		=> node is EnumDeclarationSyntax;
 
 	private static void AppendClassStart(SourceBuilder sb, string enumName)
@@ -87,7 +88,7 @@ public sealed class EnumeratorExtensionsGenerator : IIncrementalGenerator
 		sb.OpenBrace();
 	}
 
-	private static void AppendToStringFast(SourceBuilder sb, string enumName, ImmutableArray<EnumMemberDeclarationSyntax> members)
+	private static void AppendToStringFast(SourceBuilder sb, string enumName, EquatableArray<(string Name, string? Description)> members)
 	{
 		sb.AppendSummary("Returns the name of the enumeration <paramref name=\"value\"/> as a string.");
 		sb.AppendLine("/// <param name=\"value\">The enumeration value to convert to a string.</param>");
@@ -96,9 +97,8 @@ public sealed class EnumeratorExtensionsGenerator : IIncrementalGenerator
 		sb.OpenBrace();
 		sb.AppendLine("return value switch");
 		sb.OpenBrace();
-		foreach (EnumMemberDeclarationSyntax member in members)
+		foreach ((string memberName, _) in members)
 		{
-			string memberName = member.Identifier.Text;
 			sb.AppendLine($"{enumName}.{memberName} => nameof({enumName}.{memberName}),");
 		}
 		sb.AppendLine("_ => value.ToString()");
@@ -108,7 +108,7 @@ public sealed class EnumeratorExtensionsGenerator : IIncrementalGenerator
 		sb.AppendLine();
 	}
 
-	private static void AppendIsDefinedFast(SourceBuilder sb, string enumName, ImmutableArray<EnumMemberDeclarationSyntax> members)
+	private static void AppendIsDefinedFast(SourceBuilder sb, string enumName, EquatableArray<(string Name, string? Description)> members)
 	{
 		sb.AppendLine("/// <summary>");
 		sb.AppendLine("/// Returns whether the specified enumeration <paramref name=\"value\"/> is defined");
@@ -120,9 +120,8 @@ public sealed class EnumeratorExtensionsGenerator : IIncrementalGenerator
 		sb.OpenBrace();
 		sb.AppendLine("return value switch");
 		sb.OpenBrace();
-		foreach (EnumMemberDeclarationSyntax member in members)
+		foreach ((string memberName, _) in members)
 		{
-			string memberName = member.Identifier.Text;
 			sb.AppendLine($"{enumName}.{memberName} => true,");
 		}
 		sb.AppendLine("_ => false");
@@ -140,9 +139,8 @@ public sealed class EnumeratorExtensionsGenerator : IIncrementalGenerator
 		sb.OpenBrace();
 		sb.AppendLine("return name switch");
 		sb.OpenBrace();
-		foreach (EnumMemberDeclarationSyntax member in members)
+		foreach ((string memberName, _) in members)
 		{
-			string memberName = member.Identifier.Text;
 			sb.AppendLine($"nameof({enumName}.{memberName}) => true,");
 		}
 		sb.AppendLine("_ => false");
@@ -152,7 +150,7 @@ public sealed class EnumeratorExtensionsGenerator : IIncrementalGenerator
 		sb.AppendLine();
 	}
 
-	private static void AppendGetNamesFast(SourceBuilder sb, string enumName, ImmutableArray<EnumMemberDeclarationSyntax> members)
+	private static void AppendGetNamesFast(SourceBuilder sb, string enumName, EquatableArray<(string Name, string? Description)> members)
 	{
 		sb.AppendSummary($"Returns the names of the <see cref=\"{enumName}\"/> enumeration as an collection of strings.");
 		sb.AppendLine("/// <returns>An array of strings containing the names of the enumeration values.</returns>");
@@ -160,9 +158,8 @@ public sealed class EnumeratorExtensionsGenerator : IIncrementalGenerator
 		sb.OpenBrace();
 		sb.AppendLine("return new[]");
 		sb.OpenBrace();
-		foreach (EnumMemberDeclarationSyntax member in members)
+		foreach ((string memberName, _) in members)
 		{
-			string memberName = member.Identifier.Text;
 			sb.AppendLine($"nameof({enumName}.{memberName}),");
 		}
 		sb.Outdent();
@@ -171,7 +168,7 @@ public sealed class EnumeratorExtensionsGenerator : IIncrementalGenerator
 		sb.AppendLine();
 	}
 
-	private static void AppendGetValuesFast(SourceBuilder sb, string enumName, ImmutableArray<EnumMemberDeclarationSyntax> members)
+	private static void AppendGetValuesFast(SourceBuilder sb, string enumName, EquatableArray<(string Name, string? Description)> members)
 	{
 		sb.AppendSummary($"Returns the values of the <see cref=\"{enumName}\"/> enumeration.");
 		sb.AppendLine("/// <returns>An collection of the enumeration values.</returns>");
@@ -179,9 +176,8 @@ public sealed class EnumeratorExtensionsGenerator : IIncrementalGenerator
 		sb.OpenBrace();
 		sb.AppendLine("return new[]");
 		sb.OpenBrace();
-		foreach (EnumMemberDeclarationSyntax member in members)
+		foreach ((string memberName, _) in members)
 		{
-			string memberName = member.Identifier.Text;
 			sb.AppendLine($"{enumName}.{memberName},");
 		}
 		sb.Outdent();
@@ -190,10 +186,8 @@ public sealed class EnumeratorExtensionsGenerator : IIncrementalGenerator
 		sb.AppendLine();
 	}
 
-	private static void AppendGetDescriptionFast(SourceBuilder sb, string enumName, ImmutableArray<EnumMemberDeclarationSyntax> members, SemanticModel semanticModel)
+	private static void AppendGetDescriptionFast(SourceBuilder sb, string enumName, EquatableArray<(string Name, string? Description)> members)
 	{
-		INamedTypeSymbol? descriptionAttributeSymbol = semanticModel.Compilation.GetTypeByMetadataName(TypeNames.DescriptionAttribute);
-
 		sb.AppendLine("/// <summary>");
 		sb.AppendLine($"/// Returns the description of the <see cref=\"{enumName}\"/> enumeration if the");
 		sb.AppendLine("/// <see cref=\"System.ComponentModel.DescriptionAttribute\"/> is applied to the");
@@ -205,11 +199,8 @@ public sealed class EnumeratorExtensionsGenerator : IIncrementalGenerator
 		sb.OpenBrace();
 		sb.AppendLine("return value switch");
 		sb.OpenBrace();
-		foreach (EnumMemberDeclarationSyntax member in members)
+		foreach ((string memberName, string? description) in members)
 		{
-			string memberName = member.Identifier.Text;
-			string? description = GetDescriptionFromAttributes(member, semanticModel, descriptionAttributeSymbol);
-
 			if (description is not null)
 				sb.AppendLine($"{enumName}.{memberName} => \"{description}\",");
 			else

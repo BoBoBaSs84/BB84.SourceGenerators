@@ -68,42 +68,55 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 
 	/// <inheritdoc/>
 	public void Initialize(IncrementalGeneratorInitializationContext context)
-		=> GeneratorHelpers.RegisterClassGenerator(context, AttributeNames.MetadataName, Execute);
+		=> GeneratorHelpers.RegisterRequestGenerator<IniFileRequest>(context, AttributeNames.MetadataName, GeneratorHelpers.IsClassNode, Transform, TrackingNames.IniFile, Execute);
 
-	private void Execute(SourceProductionContext context, (ClassDeclarationSyntax ClassSyntax, SemanticModel SemanticModel)? input)
+	private static GeneratorResult<IniFileRequest>? Transform(GeneratorAttributeSyntaxContext context, CancellationToken cancellationToken)
 	{
-		if (!GeneratorHelpers.TryCreateContext(input, out GeneratorContext ctx))
-			return;
+		if (context.TargetNode is not ClassDeclarationSyntax classDeclaration || context.TargetSymbol is not INamedTypeSymbol classSymbol)
+			return null;
 
-		string stringComparison = GetStringComparison(ctx.ClassSymbol).ToString();
-		string sectionDelimiter = GetSectionDelimiter(ctx.ClassSymbol);
-		bool serializeComments = GetSerializeComments(ctx.ClassDeclaration, ctx.SemanticModel);
+		string stringComparison = GetStringComparison(classSymbol).ToString();
+		string sectionDelimiter = GetSectionDelimiter(classSymbol);
+		bool serializeComments = GetSerializeComments(classDeclaration, context.SemanticModel);
 
 		List<SectionInfo> sections = [];
-		CollectSections(new SectionWalkContext(sections, sectionDelimiter, serializeComments), ctx.ClassSymbol, null, null, 0);
+		CollectSections(new SectionWalkContext(sections, sectionDelimiter, serializeComments), classSymbol, null, null, 0);
 
-		if (!ValidateSectionProperties(context, ctx.ClassSymbol, ctx.ClassDeclaration))
-			return;
+		List<DiagnosticInfo> diagnostics = [];
+		ValidateSectionPropertiesOnType(diagnostics, classSymbol, classDeclaration);
+
+		if (diagnostics.Count > 0)
+			return GeneratorResult<IniFileRequest>.FromDiagnostics([.. diagnostics]);
+
+		IniFileRequest request = new(TypeTargetInfo.Create(classDeclaration, classSymbol), stringComparison, serializeComments, sections.ToEquatableArray());
+
+		return GeneratorResult<IniFileRequest>.FromRequest(request);
+	}
+
+	private static void Execute(SourceProductionContext context, IniFileRequest request)
+	{
+		TypeTargetInfo type = request.Type;
+		EquatableArray<SectionInfo> sections = request.Sections;
 
 		SourceBuilder sb = new();
 
-		sb.BeginTypeFile(GeneratorNames.IniFileGeneratorFullName, ctx.NamespaceName, ctx.OuterClasses, FileUsings);
-		sb.OpenClass(ctx.Accessibility, ctx.ClassName);
+		sb.BeginTypeFile(GeneratorNames.IniFileGeneratorFullName, type.NamespaceName, type.OuterClasses, FileUsings);
+		sb.OpenClass(type.Accessibility, type.Name);
 
-		AppendReadMethod(sb, ctx.ClassName, sections, stringComparison);
-		AppendTryReadMethod(sb, ctx.ClassName);
-		AppendWriteMethod(sb, ctx.ClassName, sections, serializeComments);
-		AppendReadAsyncMethod(sb, ctx.ClassName);
-		AppendWriteAsyncMethod(sb, ctx.ClassName);
-		AppendLoadMethod(sb, ctx.ClassName, sections);
+		AppendReadMethod(sb, type.Name, sections, request.StringComparison);
+		AppendTryReadMethod(sb, type.Name);
+		AppendWriteMethod(sb, type.Name, sections, request.SerializeComments);
+		AppendReadAsyncMethod(sb, type.Name);
+		AppendWriteAsyncMethod(sb, type.Name);
+		AppendLoadMethod(sb, type.Name, sections);
 
 		sb.CloseClass();
-		sb.EndTypeFile(ctx.OuterClasses);
+		sb.EndTypeFile(type.OuterClasses);
 
-		GeneratorHelpers.AddTypeSource(context, ctx.OuterClasses, ctx.ClassName, null, sb);
+		GeneratorHelpers.AddTypeSource(context, type.OuterClasses, type.Name, null, sb);
 	}
 
-	private static void AppendReadMethod(SourceBuilder sb, string className, List<SectionInfo> sections, string stringComparison)
+	private static void AppendReadMethod(SourceBuilder sb, string className, EquatableArray<SectionInfo> sections, string stringComparison)
 	{
 		AppendReadLoopPreamble(sb, className);
 		AppendSectionDispatch(sb, sections, stringComparison);
@@ -156,7 +169,7 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 		sb.AppendLine();
 	}
 
-	private static void AppendSectionDispatch(SourceBuilder sb, List<SectionInfo> sections, string stringComparison)
+	private static void AppendSectionDispatch(SourceBuilder sb, EquatableArray<SectionInfo> sections, string stringComparison)
 	{
 		for (int s = 0; s < sections.Count; s++)
 		{
@@ -206,7 +219,7 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 		sb.AppendLine();
 	}
 
-	private static void AppendWriteMethod(SourceBuilder sb, string className, List<SectionInfo> sections, bool serializeComments)
+	private static void AppendWriteMethod(SourceBuilder sb, string className, EquatableArray<SectionInfo> sections, bool serializeComments)
 	{
 		sb.AppendSummary($"Writes the specified <see cref=\"{className}\"/> instance to an INI file string.");
 		sb.AppendLine($"/// <param name=\"instance\">The <see cref=\"{className}\"/> instance to serialize.</param>");
@@ -361,7 +374,7 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 		sb.AppendLine(returnsDoc);
 	}
 
-	private static void AppendLoadMethod(SourceBuilder sb, string className, List<SectionInfo> sections)
+	private static void AppendLoadMethod(SourceBuilder sb, string className, EquatableArray<SectionInfo> sections)
 	{
 		sb.AppendLine();
 		sb.AppendSummary($"Loads values from the specified <paramref name=\"other\"/> instance into this instance.");
@@ -406,7 +419,7 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 			walk.Sections.Add(new SectionInfo(
 				PropertyPath: propertyPath,
 				SectionName: fullSectionName,
-				Values: values,
+				Values: values.ToEquatableArray(),
 				Comment: comment
 			));
 
@@ -605,14 +618,7 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 		return null;
 	}
 
-	private static bool ValidateSectionProperties(SourceProductionContext context, INamedTypeSymbol classSymbol, ClassDeclarationSyntax classDeclaration)
-	{
-		bool isValid = true;
-		ValidateSectionPropertiesOnType(context, classSymbol, classDeclaration, ref isValid);
-		return isValid;
-	}
-
-	private static void ValidateSectionPropertiesOnType(SourceProductionContext context, INamedTypeSymbol typeSymbol, ClassDeclarationSyntax? classDeclaration, ref bool isValid)
+	private static void ValidateSectionPropertiesOnType(List<DiagnosticInfo> diagnostics, INamedTypeSymbol typeSymbol, ClassDeclarationSyntax? classDeclaration)
 	{
 		foreach (ISymbol member in typeSymbol.GetMembers())
 		{
@@ -625,17 +631,12 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 				continue;
 
 			string className = typeSymbol.Name;
-			Location location = propertySymbol.Locations.FirstOrDefault() ?? Location.None;
+			LocationInfo? location = LocationInfo.From(propertySymbol.Locations.FirstOrDefault() ?? Location.None);
 
 			// Check nullable
 			if (propertySymbol.Type.NullableAnnotation == NullableAnnotation.Annotated)
 			{
-				context.ReportDiagnostic(Diagnostic.Create(
-					DiagnosticDescriptors.IniFileSectionNullablePropertyDiagnostic,
-					location,
-					propertySymbol.Name,
-					className));
-				isValid = false;
+				diagnostics.Add(DiagnosticInfo.Create(DiagnosticDescriptors.IniFileSectionNullablePropertyDiagnostic, location, propertySymbol.Name, className));
 			}
 
 			// Check initialized
@@ -645,28 +646,18 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 
 			if (!hasInit)
 			{
-				context.ReportDiagnostic(Diagnostic.Create(
-					DiagnosticDescriptors.IniFileSectionUninitializedPropertyDiagnostic,
-					location,
-					propertySymbol.Name,
-					className));
-				isValid = false;
+				diagnostics.Add(DiagnosticInfo.Create(DiagnosticDescriptors.IniFileSectionUninitializedPropertyDiagnostic, location, propertySymbol.Name, className));
 			}
 
 			// Check public getter
 			if (propertySymbol.GetMethod is null || propertySymbol.GetMethod.DeclaredAccessibility != Accessibility.Public)
 			{
-				context.ReportDiagnostic(Diagnostic.Create(
-					DiagnosticDescriptors.IniFileSectionNoPublicGetterDiagnostic,
-					location,
-					propertySymbol.Name,
-					className));
-				isValid = false;
+				diagnostics.Add(DiagnosticInfo.Create(DiagnosticDescriptors.IniFileSectionNoPublicGetterDiagnostic, location, propertySymbol.Name, className));
 			}
 
 			// Recursively validate nested section types
 			if (propertySymbol.Type is INamedTypeSymbol nestedType)
-				ValidateSectionPropertiesOnType(context, nestedType, null, ref isValid);
+				ValidateSectionPropertiesOnType(diagnostics, nestedType, null);
 		}
 	}
 
@@ -703,6 +694,13 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 		Func<string, string> ElementToString
 	);
 
+	private sealed record IniFileRequest(
+		TypeTargetInfo Type,
+		string StringComparison,
+		bool SerializeComments,
+		EquatableArray<SectionInfo> Sections
+	);
+
 	private sealed record SectionWalkContext(
 		List<SectionInfo> Sections,
 		string SectionDelimiter,
@@ -712,7 +710,7 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 	private sealed record SectionInfo(
 		string PropertyPath,
 		string SectionName,
-		List<ValueInfo> Values,
+		EquatableArray<ValueInfo> Values,
 		string? Comment = null
 	);
 

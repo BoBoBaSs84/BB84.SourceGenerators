@@ -10,6 +10,7 @@ using BB84.SourceGenerators.Analyzers;
 using BB84.SourceGenerators.Attributes;
 using BB84.SourceGenerators.Extensions;
 using BB84.SourceGenerators.Helpers;
+using BB84.SourceGenerators.Models;
 using BB84.SourceGenerators.Requests;
 
 using Microsoft.CodeAnalysis;
@@ -52,16 +53,7 @@ public sealed class ActionCommandGenerator : IIncrementalGenerator
 				ctx.AddSource($"{NamespaceNames.BB84SourceGeneratorsCommands}.{TemplateNames[i]}.g.cs", BuildTemplateSource(TemplateSources[i]));
 		});
 
-		IncrementalValuesProvider<ActionCommandResult> provider =
-			context.SyntaxProvider
-				.ForAttributeWithMetadataName(
-					fullyQualifiedMetadataName: AttributeNames.MetadataName,
-					predicate: static (node, _) => node is MethodDeclarationSyntax,
-					transform: static (ctx, _) => TransformMethod(ctx))
-				.Where(static result => result is not null)
-				.Select(static (result, _) => result!);
-
-		context.RegisterSourceOutput(provider, Execute);
+		GeneratorHelpers.RegisterRequestGenerator<ActionCommandRequest>(context, AttributeNames.MetadataName, static (node, _) => node is MethodDeclarationSyntax, TransformMethod, TrackingNames.ActionCommand, Execute);
 	}
 
 	/// <summary>
@@ -101,7 +93,7 @@ public sealed class ActionCommandGenerator : IIncrementalGenerator
 		return sb.ToString();
 	}
 
-	private static ActionCommandResult? TransformMethod(GeneratorAttributeSyntaxContext context)
+	private static GeneratorResult<ActionCommandRequest>? TransformMethod(GeneratorAttributeSyntaxContext context, CancellationToken cancellationToken)
 	{
 		if (context.TargetNode is not MethodDeclarationSyntax methodSyntax)
 			return null;
@@ -110,19 +102,19 @@ public sealed class ActionCommandGenerator : IIncrementalGenerator
 			return null;
 
 		AttributeData attribute = context.Attributes[0];
-		Location location = methodSyntax.Identifier.GetLocation();
-		ImmutableArray<Diagnostic>.Builder diagnostics = ImmutableArray.CreateBuilder<Diagnostic>();
+		LocationInfo? location = LocationInfo.From(methodSyntax.Identifier);
+		ImmutableArray<DiagnosticInfo>.Builder diagnostics = ImmutableArray.CreateBuilder<DiagnosticInfo>();
 
 		if (!ValidateContainingType(methodSyntax, out TypeDeclarationSyntax? typeSyntax))
 		{
-			diagnostics.Add(Diagnostic.Create(DiagnosticDescriptors.ActionCommandContainingTypeNotPartialDiagnostic, location, method.Name, method.ContainingType.Name));
-			return new ActionCommandResult(null, diagnostics.ToImmutable());
+			diagnostics.Add(DiagnosticInfo.Create(DiagnosticDescriptors.ActionCommandContainingTypeNotPartialDiagnostic, location, method.Name, method.ContainingType.Name));
+			return new GeneratorResult<ActionCommandRequest>(null, diagnostics.ToImmutable().ToEquatableArray());
 		}
 
 		if (!TryGetSignature(method, out bool isAsync, out ITypeSymbol? parameterType, out bool hasCancellationToken))
 		{
-			diagnostics.Add(Diagnostic.Create(DiagnosticDescriptors.ActionCommandUnsupportedSignatureDiagnostic, location, method.Name));
-			return new ActionCommandResult(null, diagnostics.ToImmutable());
+			diagnostics.Add(DiagnosticInfo.Create(DiagnosticDescriptors.ActionCommandUnsupportedSignatureDiagnostic, location, method.Name));
+			return new GeneratorResult<ActionCommandRequest>(null, diagnostics.ToImmutable().ToEquatableArray());
 		}
 
 		INamedTypeSymbol containingType = method.ContainingType;
@@ -136,7 +128,7 @@ public sealed class ActionCommandGenerator : IIncrementalGenerator
 
 		if (HasNameConflict(containingType, method, commandName, fieldName, cancelCommandName))
 		{
-			diagnostics.Add(Diagnostic.Create(DiagnosticDescriptors.ActionCommandNameConflictDiagnostic, location, method.Name, commandName));
+			diagnostics.Add(DiagnosticInfo.Create(DiagnosticDescriptors.ActionCommandNameConflictDiagnostic, location, method.Name, commandName));
 			hasError = true;
 		}
 
@@ -144,7 +136,7 @@ public sealed class ActionCommandGenerator : IIncrementalGenerator
 			hasError = true;
 
 		if (hasError)
-			return new ActionCommandResult(null, diagnostics.ToImmutable());
+			return new GeneratorResult<ActionCommandRequest>(null, diagnostics.ToImmutable().ToEquatableArray());
 
 		ActionCommandRequest request = new(
 			new ActionCommandContainingType(
@@ -152,7 +144,7 @@ public sealed class ActionCommandGenerator : IIncrementalGenerator
 				GeneratorHelpers.GetAccessibility(typeSyntax),
 				containingType.Name,
 				typeSyntax is RecordDeclarationSyntax,
-				GeneratorHelpers.GetOuterClasses(typeSyntax)),
+				GeneratorHelpers.GetOuterClasses(typeSyntax).ToEquatableArray()),
 			new ActionCommandSignature(
 				method.Name,
 				method.IsStatic,
@@ -166,7 +158,7 @@ public sealed class ActionCommandGenerator : IIncrementalGenerator
 			options.AllowConcurrentExecutions,
 			cancelCommandName);
 
-		return new ActionCommandResult(request, diagnostics.ToImmutable());
+		return new GeneratorResult<ActionCommandRequest>(request, diagnostics.ToImmutable().ToEquatableArray());
 	}
 
 	/// <summary>
@@ -193,7 +185,7 @@ public sealed class ActionCommandGenerator : IIncrementalGenerator
 	/// <param name="location">The location used for reported diagnostics.</param>
 	/// <param name="methodName">The name of the command method.</param>
 	/// <returns>The effective command options.</returns>
-	private static CommandOptions ReadOptions(AttributeData attribute, bool isAsync, ImmutableArray<Diagnostic>.Builder diagnostics, Location location, string methodName)
+	private static CommandOptions ReadOptions(AttributeData attribute, bool isAsync, ImmutableArray<DiagnosticInfo>.Builder diagnostics, LocationInfo? location, string methodName)
 	{
 		string? canExecuteName = GeneratorHelpers.GetNamedArgument<string?>(attribute, nameof(ActionCommandAttribute.CanExecute), null);
 		string? exceptionHandlerName = GeneratorHelpers.GetNamedArgument<string?>(attribute, nameof(ActionCommandAttribute.ExceptionHandler), null);
@@ -229,7 +221,7 @@ public sealed class ActionCommandGenerator : IIncrementalGenerator
 	/// <param name="canExecuteExpression">The guard expression, or <see langword="null"/> if none.</param>
 	/// <param name="exceptionHandlerExpression">The exception handler expression, or <see langword="null"/> if none.</param>
 	/// <returns><see langword="true"/> if all configured members were resolved; otherwise, <see langword="false"/>.</returns>
-	private static bool ResolveExpressions(INamedTypeSymbol containingType, IMethodSymbol method, ITypeSymbol? parameterType, CommandOptions options, ImmutableArray<Diagnostic>.Builder diagnostics, Location location, out string? canExecuteExpression, out string? exceptionHandlerExpression)
+	private static bool ResolveExpressions(INamedTypeSymbol containingType, IMethodSymbol method, ITypeSymbol? parameterType, CommandOptions options, ImmutableArray<DiagnosticInfo>.Builder diagnostics, LocationInfo? location, out string? canExecuteExpression, out string? exceptionHandlerExpression)
 	{
 		bool isValid = true;
 
@@ -239,7 +231,7 @@ public sealed class ActionCommandGenerator : IIncrementalGenerator
 			canExecuteExpression = GetCanExecuteExpression(containingType, options.CanExecuteName, method.IsStatic, parameterType);
 			if (canExecuteExpression is null)
 			{
-				diagnostics.Add(Diagnostic.Create(DiagnosticDescriptors.ActionCommandInvalidCanExecuteDiagnostic, location, method.Name, options.CanExecuteName));
+				diagnostics.Add(DiagnosticInfo.Create(DiagnosticDescriptors.ActionCommandInvalidCanExecuteDiagnostic, location, method.Name, options.CanExecuteName));
 				isValid = false;
 			}
 		}
@@ -250,7 +242,7 @@ public sealed class ActionCommandGenerator : IIncrementalGenerator
 			exceptionHandlerExpression = GetExceptionHandlerExpression(containingType, options.ExceptionHandlerName, method.IsStatic);
 			if (exceptionHandlerExpression is null)
 			{
-				diagnostics.Add(Diagnostic.Create(DiagnosticDescriptors.ActionCommandInvalidExceptionHandlerDiagnostic, location, method.Name, options.ExceptionHandlerName));
+				diagnostics.Add(DiagnosticInfo.Create(DiagnosticDescriptors.ActionCommandInvalidExceptionHandlerDiagnostic, location, method.Name, options.ExceptionHandlerName));
 				isValid = false;
 			}
 		}
@@ -410,20 +402,14 @@ public sealed class ActionCommandGenerator : IIncrementalGenerator
 		}
 	}
 
-	private static void ReportAsyncOnlyOption(ImmutableArray<Diagnostic>.Builder diagnostics, Location location, string methodName, string optionName, bool isSet)
+	private static void ReportAsyncOnlyOption(ImmutableArray<DiagnosticInfo>.Builder diagnostics, LocationInfo? location, string methodName, string optionName, bool isSet)
 	{
 		if (isSet)
-			diagnostics.Add(Diagnostic.Create(DiagnosticDescriptors.ActionCommandAsyncOptionOnSyncCommandDiagnostic, location, methodName, optionName));
+			diagnostics.Add(DiagnosticInfo.Create(DiagnosticDescriptors.ActionCommandAsyncOptionOnSyncCommandDiagnostic, location, methodName, optionName));
 	}
 
-	private static void Execute(SourceProductionContext context, ActionCommandResult result)
+	private static void Execute(SourceProductionContext context, ActionCommandRequest request)
 	{
-		foreach (Diagnostic diagnostic in result.Diagnostics)
-			context.ReportDiagnostic(diagnostic);
-
-		if (result.Request is not ActionCommandRequest request)
-			return;
-
 		ActionCommandContainingType type = request.ContainingType;
 		string staticModifier = request.Signature.IsStatic ? "static " : string.Empty;
 
@@ -495,15 +481,6 @@ public sealed class ActionCommandGenerator : IIncrementalGenerator
 			(true, true) => $"(parameter, cancellationToken) => {methodName}(parameter, cancellationToken)"
 		};
 	}
-
-	/// <summary>
-	/// Carries either a valid <see cref="ActionCommandRequest"/> and/or the diagnostics to report through
-	/// the incremental pipeline. Diagnostics cannot be raised from the transform stage, so they are
-	/// deferred to <see cref="Execute"/> which has access to the <see cref="SourceProductionContext"/>.
-	/// </summary>
-	/// <param name="Request">The generation request, or <see langword="null"/> if nothing should be generated.</param>
-	/// <param name="Diagnostics">The diagnostics to report.</param>
-	private sealed record ActionCommandResult(ActionCommandRequest? Request, ImmutableArray<Diagnostic> Diagnostics);
 
 	/// <summary>
 	/// The effective named options of an <see cref="ActionCommandAttribute"/>; async-only options

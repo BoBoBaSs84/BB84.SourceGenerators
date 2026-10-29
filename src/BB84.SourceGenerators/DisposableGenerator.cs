@@ -9,6 +9,7 @@ using BB84.SourceGenerators.Analyzers;
 using BB84.SourceGenerators.Attributes;
 using BB84.SourceGenerators.Helpers;
 using BB84.SourceGenerators.Models;
+using BB84.SourceGenerators.Requests;
 
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -30,57 +31,61 @@ public sealed class DisposableGenerator : IIncrementalGenerator
 
 	/// <inheritdoc/>
 	public void Initialize(IncrementalGeneratorInitializationContext context)
-		=> GeneratorHelpers.RegisterClassGenerator(context, AttributeNames.MetadataName, Execute);
+		=> GeneratorHelpers.RegisterRequestGenerator<DisposableRequest>(context, AttributeNames.MetadataName, GeneratorHelpers.IsClassNode, Transform, TrackingNames.Disposable, Execute);
 
-	private void Execute(SourceProductionContext context, (ClassDeclarationSyntax ClassSyntax, SemanticModel SemanticModel)? input)
+	private static GeneratorResult<DisposableRequest>? Transform(GeneratorAttributeSyntaxContext context, CancellationToken cancellationToken)
 	{
-		if (!GeneratorHelpers.TryCreateContext(input, out GeneratorContext ctx))
-			return;
+		if (context.TargetNode is not ClassDeclarationSyntax classDeclaration || context.TargetSymbol is not INamedTypeSymbol classSymbol)
+			return null;
 
-		bool generateFinalizer = GetGenerateFinalizer(ctx.ClassSymbol);
-		bool generateAsync = GetGenerateAsync(ctx.ClassSymbol) && IsAsyncDisposableSupported(context, ctx);
-		bool isSealed = ctx.ClassDeclaration.Modifiers.Any(SyntaxKind.SealedKeyword);
+		TypeTargetInfo type = TypeTargetInfo.Create(classDeclaration, classSymbol);
+		EquatableArray<DiagnosticInfo> diagnostics = EquatableArray<DiagnosticInfo>.Empty;
 
-		ImmutableArray<(string FieldName, int Order, int SourceIndex)> disposableFields = GetDisposableFields(ctx.ClassDeclaration);
+		bool generateFinalizer = GetGenerateFinalizer(classSymbol);
+		bool generateAsync = GetGenerateAsync(classSymbol);
+
+		// Check if IAsyncDisposable is available in the target framework
+		if (generateAsync && context.SemanticModel.Compilation.GetTypeByMetadataName(TypeNames.IAsyncDisposable) is null)
+		{
+			diagnostics = new[] { type.CreateDiagnostic(DiagnosticDescriptors.AsyncDisposableNotSupportedDiagnostic, type.Name) }.ToEquatableArray();
+			generateAsync = false;
+		}
+
+		bool isSealed = classDeclaration.Modifiers.Any(SyntaxKind.SealedKeyword);
+
+		DisposableRequest request = new(type, generateFinalizer, generateAsync, isSealed, GetDisposableFields(classDeclaration).ToEquatableArray());
+
+		return new GeneratorResult<DisposableRequest>(request, diagnostics);
+	}
+
+	private static void Execute(SourceProductionContext context, DisposableRequest request)
+	{
+		TypeTargetInfo type = request.Type;
+		ImmutableArray<(string FieldName, int Order, int SourceIndex)> disposableFields = request.Fields.AsImmutableArray();
 
 		SourceBuilder sb = new();
 
-		sb.BeginTypeFile(GeneratorNames.DisposableGeneratorFullName, ctx.NamespaceName, ctx.OuterClasses, GetUsings(generateAsync));
+		sb.BeginTypeFile(GeneratorNames.DisposableGeneratorFullName, type.NamespaceName, type.OuterClasses, GetUsings(request.GenerateAsync));
 
-		AppendClassStart(sb, ctx.ClassName, ctx.Accessibility, generateAsync);
+		AppendClassStart(sb, type.Name, type.Accessibility, request.GenerateAsync);
 		AppendDisposedField(sb);
-		AppendThrowIfDisposed(sb, ctx.ClassName, isSealed);
-		AppendDisposeBool(sb, disposableFields, isSealed);
+		AppendThrowIfDisposed(sb, type.Name, request.IsSealed);
+		AppendDisposeBool(sb, disposableFields, request.IsSealed);
 		AppendDisposePublic(sb);
 
-		if (generateFinalizer)
-			AppendFinalizer(sb, ctx.ClassName);
+		if (request.GenerateFinalizer)
+			AppendFinalizer(sb, type.Name);
 
-		if (generateAsync)
+		if (request.GenerateAsync)
 		{
-			AppendDisposeAsyncCore(sb, disposableFields, isSealed);
+			AppendDisposeAsyncCore(sb, disposableFields, request.IsSealed);
 			AppendDisposeAsync(sb);
 		}
 
 		sb.CloseClass();
-		sb.EndTypeFile(ctx.OuterClasses);
+		sb.EndTypeFile(type.OuterClasses);
 
-		GeneratorHelpers.AddTypeSource(context, ctx.OuterClasses, ctx.ClassName, "Disposable", sb);
-	}
-
-	/// <summary>
-	/// Checks whether <c>IAsyncDisposable</c> is available in the target framework, reporting a diagnostic if not.
-	/// </summary>
-	/// <param name="context">The source production context used to report diagnostics.</param>
-	/// <param name="ctx">The generator context.</param>
-	/// <returns><see langword="true"/> if <c>IAsyncDisposable</c> is available; otherwise, <see langword="false"/>.</returns>
-	private static bool IsAsyncDisposableSupported(SourceProductionContext context, GeneratorContext ctx)
-	{
-		if (ctx.SemanticModel.Compilation.GetTypeByMetadataName(TypeNames.IAsyncDisposable) is not null)
-			return true;
-
-		GeneratorHelpers.ReportAtClass(context, ctx.ClassDeclaration, DiagnosticDescriptors.AsyncDisposableNotSupportedDiagnostic, ctx.ClassName);
-		return false;
+		GeneratorHelpers.AddTypeSource(context, type.OuterClasses, type.Name, "Disposable", sb);
 	}
 
 	private static List<string> GetUsings(bool generateAsync)

@@ -3,7 +3,7 @@
 //
 // This source code is licensed under the MIT license found in the
 // LICENSE file in the root directory of this source tree.
-using System.Collections.Immutable;
+using BB84.SourceGenerators.Models;
 
 namespace BB84.SourceGenerators.Requests;
 
@@ -25,16 +25,12 @@ namespace BB84.SourceGenerators.Requests;
 /// <param name="TargetTypeDisplayName"> Gets or sets the display name of the target type for the object initializer. </param>
 /// <param name="SourceIsNullable"> Gets or sets whether the source parameter is nullable. </param>
 /// <param name="PropertyMappings"> Gets or sets the property mappings (target property name -> source property name). </param>
-/// <param name="UnmappedProperties"> Gets or sets the names of target properties that could not be mapped to a source property. </param>
-/// <param name="TypeMismatchProperties"> Gets or sets the type mismatch information for properties that were found but have incompatible types.
-/// Each tuple contains (targetPropertyName, sourcePropertyName). </param>
-/// <param name="TargetTypeName"> Gets or sets the display name of the target type (for diagnostic messages). </param>
 internal sealed record AutoMapperRequest(
 	string Namespace,
 	string ContainingTypeAccessibility,
 	string ContainingTypeName,
 	bool ContainingTypeIsStatic,
-	List<(string Accessibility, string Name, bool IsStatic)> OuterClasses,
+	EquatableArray<(string Accessibility, string Name, bool IsStatic)> OuterClasses,
 	string MethodAccessibility,
 	bool MethodIsStatic,
 	string MethodName,
@@ -43,8 +39,5 @@ internal sealed record AutoMapperRequest(
 	string TargetTypeFullName,
 	string TargetTypeDisplayName,
 	bool SourceIsNullable,
-	ImmutableArray<AutoMapperPropertyMapping> PropertyMappings,
-	ImmutableArray<string> UnmappedProperties,
-	ImmutableArray<(string TargetProperty, string SourceProperty)> TypeMismatchProperties,
-	string TargetTypeName
+	EquatableArray<AutoMapperPropertyMapping> PropertyMappings
 	);

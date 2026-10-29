@@ -8,6 +8,7 @@ using System.Collections.Immutable;
 using BB84.SourceGenerators.Attributes;
 using BB84.SourceGenerators.Helpers;
 using BB84.SourceGenerators.Models;
+using BB84.SourceGenerators.Requests;
 
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -26,29 +27,35 @@ public sealed class BuilderGenerator : IIncrementalGenerator
 
 	/// <inheritdoc/>
 	public void Initialize(IncrementalGeneratorInitializationContext context)
-		=> GeneratorHelpers.RegisterClassGenerator(context, AttributeNames.MetadataName, Execute);
+		=> GeneratorHelpers.RegisterRequestGenerator<BuilderRequest>(context, AttributeNames.MetadataName, GeneratorHelpers.IsClassNode, Transform, TrackingNames.Builder, Execute);
 
-	private void Execute(SourceProductionContext context, (ClassDeclarationSyntax ClassSyntax, SemanticModel SemanticModel)? input)
+	private static GeneratorResult<BuilderRequest>? Transform(GeneratorAttributeSyntaxContext context, CancellationToken cancellationToken)
 	{
-		if (!GeneratorHelpers.TryCreateContext(input, out GeneratorContext ctx))
-			return;
+		if (context.TargetNode is not ClassDeclarationSyntax classDeclaration || context.TargetSymbol is not INamedTypeSymbol classSymbol)
+			return null;
 
-		string builderClassName = $"{ctx.ClassName}Builder";
-
-		ImmutableArray<PropertyDescriptor> properties = GeneratorHelpers.GetPropertyDescriptors(ctx.ClassSymbol, requireSetter: true);
+		ImmutableArray<PropertyDescriptor> properties = GeneratorHelpers.GetPropertyDescriptors(classSymbol, requireSetter: true);
 
 		if (properties.Length == 0)
-			return;
+			return null;
+
+		return GeneratorResult<BuilderRequest>.FromRequest(new BuilderRequest(TypeTargetInfo.Create(classDeclaration, classSymbol), properties.ToEquatableArray()));
+	}
+
+	private static void Execute(SourceProductionContext context, BuilderRequest request)
+	{
+		TypeTargetInfo type = request.Type;
+		string builderClassName = $"{type.Name}Builder";
 
 		SourceBuilder sb = new();
 
-		sb.BeginTypeFile(GeneratorNames.BuilderGeneratorFullName, ctx.NamespaceName, ctx.OuterClasses, []);
+		sb.BeginTypeFile(GeneratorNames.BuilderGeneratorFullName, type.NamespaceName, type.OuterClasses, []);
 
-		AppendBuilderClass(sb, ctx.ClassName, builderClassName, ctx.Accessibility, properties);
+		AppendBuilderClass(sb, type.Name, builderClassName, type.Accessibility, request.Properties.AsImmutableArray());
 
-		sb.EndTypeFile(ctx.OuterClasses);
+		sb.EndTypeFile(type.OuterClasses);
 
-		GeneratorHelpers.AddTypeSource(context, ctx.OuterClasses, builderClassName, null, sb);
+		GeneratorHelpers.AddTypeSource(context, type.OuterClasses, builderClassName, null, sb);
 	}
 
 	private static void AppendBuilderClass(SourceBuilder sb, string className, string builderClassName, string accessibility, ImmutableArray<PropertyDescriptor> properties)
