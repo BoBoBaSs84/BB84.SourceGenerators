@@ -8,17 +8,18 @@
 // </auto-generated>
 //------------------------------------------------------------------------------
 #nullable enable
+using BB84.SourceGenerators.Commands;
 
 namespace TestNamespace
 {
   public partial class ViewModel
   {
-    private BB84.SourceGenerators.Commands.IActionCommand? _asyncOptionsOnSyncCommand;
+    private IActionCommand? _asyncOptionsOnSyncCommand;
 
     /// <summary>
     /// Gets the command that invokes <c>AsyncOptionsOnSync</c>.
     /// </summary>
-    public BB84.SourceGenerators.Commands.IActionCommand AsyncOptionsOnSyncCommand
-      => _asyncOptionsOnSyncCommand ??= new BB84.SourceGenerators.Commands.ActionCommand(() => AsyncOptionsOnSync());
+    public IActionCommand AsyncOptionsOnSyncCommand
+      => _asyncOptionsOnSyncCommand ??= new ActionCommand(() => AsyncOptionsOnSync());
   }
 }

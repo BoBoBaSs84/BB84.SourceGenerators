@@ -8,17 +8,18 @@
 // </auto-generated>
 //------------------------------------------------------------------------------
 #nullable enable
+using BB84.SourceGenerators.Commands;
 
 namespace TestNamespace
 {
   public partial class Commands
   {
-    private static BB84.SourceGenerators.Commands.IActionCommand? _pingCommand;
+    private static IActionCommand? _pingCommand;
 
     /// <summary>
     /// Gets the command that invokes <c>Ping</c>.
     /// </summary>
-    public static BB84.SourceGenerators.Commands.IActionCommand PingCommand
-      => _pingCommand ??= new BB84.SourceGenerators.Commands.ActionCommand(() => Ping(), canExecute: () => CanPing);
+    public static IActionCommand PingCommand
+      => _pingCommand ??= new ActionCommand(() => Ping(), canExecute: () => CanPing);
   }
 }

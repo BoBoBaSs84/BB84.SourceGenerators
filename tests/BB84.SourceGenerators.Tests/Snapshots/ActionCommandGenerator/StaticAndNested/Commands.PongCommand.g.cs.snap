@@ -8,23 +8,24 @@
 // </auto-generated>
 //------------------------------------------------------------------------------
 #nullable enable
+using BB84.SourceGenerators.Commands;
 
 namespace TestNamespace
 {
   public partial class Commands
   {
-    private static BB84.SourceGenerators.Commands.IAsyncActionCommand? _pongCommand;
+    private static IAsyncActionCommand? _pongCommand;
 
     /// <summary>
     /// Gets the command that invokes <c>PongAsync</c>.
     /// </summary>
-    public static BB84.SourceGenerators.Commands.IAsyncActionCommand PongCommand
-      => _pongCommand ??= new BB84.SourceGenerators.Commands.AsyncActionCommand(cancellationToken => PongAsync());
+    public static IAsyncActionCommand PongCommand
+      => _pongCommand ??= new AsyncActionCommand(cancellationToken => PongAsync());
 
     /// <summary>
     /// Gets the command that cancels the running execution of <see cref="PongCommand"/>.
     /// </summary>
-    public static BB84.SourceGenerators.Commands.IActionCommand PongCancelCommand
+    public static IActionCommand PongCancelCommand
       => PongCommand.CancelCommand;
   }
 }

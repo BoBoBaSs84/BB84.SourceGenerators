@@ -8,17 +8,18 @@
 // </auto-generated>
 //------------------------------------------------------------------------------
 #nullable enable
+using BB84.SourceGenerators.Commands;
 
 namespace TestNamespace
 {
   public partial class ViewModel
   {
-    private BB84.SourceGenerators.Commands.IActionCommand<string?>? _renameCommand;
+    private IActionCommand<string?>? _renameCommand;
 
     /// <summary>
     /// Gets the command that invokes <c>Rename</c>.
     /// </summary>
-    public BB84.SourceGenerators.Commands.IActionCommand<string?> RenameCommand
-      => _renameCommand ??= new BB84.SourceGenerators.Commands.ActionCommand<string?>(parameter => Rename(parameter));
+    public IActionCommand<string?> RenameCommand
+      => _renameCommand ??= new ActionCommand<string?>(parameter => Rename(parameter));
   }
 }

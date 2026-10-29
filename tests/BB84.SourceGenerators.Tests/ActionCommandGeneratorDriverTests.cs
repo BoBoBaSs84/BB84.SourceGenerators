@@ -44,7 +44,7 @@ public sealed class ActionCommandGeneratorDriverTests
 	}
 
 	[TestMethod]
-	[DataRow("void Save()", "IActionCommand SaveCommand", "new BB84.SourceGenerators.Commands.ActionCommand(() => Save())")]
+	[DataRow("void Save()", "IActionCommand SaveCommand", "new ActionCommand(() => Save())")]
 	[DataRow("void Save(int value)", "IActionCommand<int> SaveCommand", "ActionCommand<int>(parameter => Save(parameter))")]
 	[DataRow("Task SaveAsync()", "IAsyncActionCommand SaveCommand", "AsyncActionCommand(cancellationToken => SaveAsync())")]
 	[DataRow("Task SaveAsync(CancellationToken ct)", "IAsyncActionCommand SaveCommand", "AsyncActionCommand(cancellationToken => SaveAsync(cancellationToken))")]

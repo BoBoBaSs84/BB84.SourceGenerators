@@ -8,23 +8,24 @@
 // </auto-generated>
 //------------------------------------------------------------------------------
 #nullable enable
+using BB84.SourceGenerators.Commands;
 
 namespace TestNamespace
 {
   internal partial class ViewModel
   {
-    private BB84.SourceGenerators.Commands.IAsyncActionCommand? _goCommand;
+    private IAsyncActionCommand? _goCommand;
 
     /// <summary>
     /// Gets the command that invokes <c>RunAsync</c>.
     /// </summary>
-    public BB84.SourceGenerators.Commands.IAsyncActionCommand GoCommand
-      => _goCommand ??= new BB84.SourceGenerators.Commands.AsyncActionCommand(cancellationToken => RunAsync(), canExecute: () => CanRun, onException: exception => OnError(exception), allowConcurrentExecutions: true);
+    public IAsyncActionCommand GoCommand
+      => _goCommand ??= new AsyncActionCommand(cancellationToken => RunAsync(), canExecute: () => CanRun, onException: exception => OnError(exception), allowConcurrentExecutions: true);
 
     /// <summary>
     /// Gets the command that cancels the running execution of <see cref="GoCommand"/>.
     /// </summary>
-    public BB84.SourceGenerators.Commands.IActionCommand GoCancelCommand
+    public IActionCommand GoCancelCommand
       => GoCommand.CancelCommand;
   }
 }
