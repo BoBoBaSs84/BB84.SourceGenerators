@@ -71,39 +71,11 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 		sb.OpenClassOrRecord(isRecord, accessibility, className, formattable ? "IFormattable" : null);
 
 		if (formattable)
-		{
-			sb.AppendLine("/// <inheritdoc/>");
-			sb.AppendLine("public override string ToString()");
-			sb.Indent();
-			sb.AppendLine("=> ToString(null, null);");
-			sb.Outdent();
-			sb.AppendLine();
-			sb.AppendLine("/// <inheritdoc/>");
-			sb.AppendLine("public string ToString(string? format, IFormatProvider? formatProvider)");
-			sb.OpenBrace();
-			AppendToStringBody(sb, className, properties, collectionFormat, separator, nullPlaceholder, formattable: true);
-			sb.CloseBrace();
-		}
+			AppendFormattableToString(sb, className, properties, collectionFormat, separator, nullPlaceholder);
 		else if (isRecord)
-		{
-			string modifier = printMembersIsOverride ? "protected override" : "protected virtual";
-
-			sb.AppendSummary("Appends this record's generated member values to <paramref name=\"builder\"/>.");
-			sb.AppendLine("/// <param name=\"builder\">The builder to append formatted member values to.</param>");
-			sb.AppendLine("/// <returns><see langword=\"true\"/> if any members were appended; otherwise, <see langword=\"false\"/>.</returns>");
-			sb.AppendLine($"{modifier} bool PrintMembers(System.Text.StringBuilder builder)");
-			sb.OpenBrace();
-			AppendPrintMembersBody(sb, properties, collectionFormat, separator, nullPlaceholder, printMembersIsOverride);
-			sb.CloseBrace();
-		}
+			AppendPrintMembers(sb, properties, collectionFormat, separator, nullPlaceholder, printMembersIsOverride);
 		else
-		{
-			sb.AppendLine("/// <inheritdoc/>");
-			sb.AppendLine("public override string ToString()");
-			sb.OpenBrace();
-			AppendToStringBody(sb, className, properties, collectionFormat, separator, nullPlaceholder, formattable: false);
-			sb.CloseBrace();
-		}
+			AppendToString(sb, className, properties, collectionFormat, separator, nullPlaceholder);
 
 		if (hasDictionary)
 		{
@@ -114,6 +86,53 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 		sb.CloseClassOrRecord(isRecord);
 	}
 
+	private static void AppendFormattableToString(SourceBuilder sb, string className, ImmutableArray<PropertyDescriptor> properties, CollectionFormat collectionFormat, string separator, string? nullPlaceholder)
+	{
+		sb.AppendLine("/// <inheritdoc/>");
+		sb.AppendLine("public override string ToString()");
+		sb.Indent();
+		sb.AppendLine("=> ToString(null, null);");
+		sb.Outdent();
+		sb.AppendLine();
+		sb.AppendLine("/// <inheritdoc/>");
+		sb.AppendLine("public string ToString(string? format, IFormatProvider? formatProvider)");
+		sb.OpenBrace();
+		AppendToStringBody(sb, className, properties, collectionFormat, separator, nullPlaceholder, formattable: true);
+		sb.CloseBrace();
+	}
+
+	private static void AppendPrintMembers(SourceBuilder sb, ImmutableArray<PropertyDescriptor> properties, CollectionFormat collectionFormat, string separator, string? nullPlaceholder, bool printMembersIsOverride)
+	{
+		string modifier = printMembersIsOverride ? "protected override" : "protected virtual";
+
+		sb.AppendSummary("Appends this record's generated member values to <paramref name=\"builder\"/>.");
+		sb.AppendLine("/// <param name=\"builder\">The builder to append formatted member values to.</param>");
+		sb.AppendLine("/// <returns><see langword=\"true\"/> if any members were appended; otherwise, <see langword=\"false\"/>.</returns>");
+		sb.AppendLine($"{modifier} bool PrintMembers(System.Text.StringBuilder builder)");
+		sb.OpenBrace();
+		AppendPrintMembersBody(sb, properties, collectionFormat, separator, nullPlaceholder, printMembersIsOverride);
+		sb.CloseBrace();
+	}
+
+	private static void AppendToString(SourceBuilder sb, string className, ImmutableArray<PropertyDescriptor> properties, CollectionFormat collectionFormat, string separator, string? nullPlaceholder)
+	{
+		sb.AppendLine("/// <inheritdoc/>");
+		sb.AppendLine("public override string ToString()");
+		sb.OpenBrace();
+		AppendToStringBody(sb, className, properties, collectionFormat, separator, nullPlaceholder, formattable: false);
+		sb.CloseBrace();
+	}
+
+	private static void AppendCollectionLocals(SourceBuilder sb, ImmutableArray<PropertyDescriptor> properties, CollectionFormat collectionFormat)
+	{
+		foreach (PropertyDescriptor prop in properties)
+		{
+			if (prop.CollectionKind == CollectionKind.None)
+				continue;
+			sb.AppendLine($"string {prop.Name.ToLowerInvariant()} = {BuildCollectionFormatExpression(prop, collectionFormat)};");
+		}
+	}
+
 	private static void AppendToStringBody(SourceBuilder sb, string className, ImmutableArray<PropertyDescriptor> properties, CollectionFormat collectionFormat, string separator, string? nullPlaceholder, bool formattable)
 	{
 		if (properties.Length == 0)
@@ -122,12 +141,7 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 			return;
 		}
 
-		foreach (PropertyDescriptor prop in properties)
-		{
-			if (prop.CollectionKind == CollectionKind.None)
-				continue;
-			sb.AppendLine($"string {prop.Name.ToLowerInvariant()} = {BuildCollectionFormatExpression(prop, collectionFormat)};");
-		}
+		AppendCollectionLocals(sb, properties, collectionFormat);
 
 		string escapedSeparator = GeneratorHelpers.EscapeString(separator);
 		sb.AppendLine("System.Text.StringBuilder sb = new();");
@@ -149,12 +163,7 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 
 	private static void AppendPrintMembersBody(SourceBuilder sb, ImmutableArray<PropertyDescriptor> properties, CollectionFormat collectionFormat, string separator, string? nullPlaceholder, bool isOverride)
 	{
-		foreach (PropertyDescriptor prop in properties)
-		{
-			if (prop.CollectionKind == CollectionKind.None)
-				continue;
-			sb.AppendLine($"string {prop.Name.ToLowerInvariant()} = {BuildCollectionFormatExpression(prop, collectionFormat)};");
-		}
+		AppendCollectionLocals(sb, properties, collectionFormat);
 
 		string escapedSeparator = GeneratorHelpers.EscapeString(separator);
 
