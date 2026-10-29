@@ -3,6 +3,8 @@
 //
 // This source code is licensed under the MIT license found in the
 // LICENSE file in the root directory of this source tree.
+using System.Collections.Immutable;
+
 using BB84.SourceGenerators.Attributes;
 using BB84.SourceGenerators.Helpers;
 using BB84.SourceGenerators.Requests;
@@ -35,8 +37,8 @@ public sealed class AbstractionGenerator : IIncrementalGenerator
 			if (request is null)
 				return;
 
-			spc.AddSource($"{request.AbstractionType.Name}.g.cs", GenerateAbstractionSource(request));
-			spc.AddSource($"{request.ImplementationType.Name}.g.cs", GenerateImplementationSource(request));
+			spc.AddSource(GeneratorHelpers.BuildHintName(request.AbstractionType.Name), GenerateAbstractionSource(request));
+			spc.AddSource(GeneratorHelpers.BuildHintName(request.ImplementationType.Name), GenerateImplementationSource(request));
 		});
 	}
 
@@ -282,14 +284,7 @@ public sealed class AbstractionGenerator : IIncrementalGenerator
 	/// <param name="parameter">The parameter symbol.</param>
 	/// <returns>The modifier keyword followed by a space, or an empty string if none applies.</returns>
 	private static string GetCrefParameterModifier(IParameterSymbol parameter)
-	{
-		return parameter.RefKind switch
-		{
-			RefKind.Out => "out ",
-			RefKind.Ref => "ref ",
-			_ => string.Empty
-		};
-	}
+		=> GeneratorHelpers.GetRefKindModifier(parameter, includeIn: false, includeParams: false, includeRefReadOnly: false);
 
 	/// <summary>
 	/// Gets the C# keyword prefix for a parameter declaration based on its ref kind and params status.
@@ -297,17 +292,7 @@ public sealed class AbstractionGenerator : IIncrementalGenerator
 	/// <param name="parameter">The parameter symbol.</param>
 	/// <returns>The modifier keyword followed by a space, or an empty string if none applies.</returns>
 	private static string GetParameterModifier(IParameterSymbol parameter)
-	{
-		return parameter.IsParams
-			? "params "
-			: parameter.RefKind switch
-			{
-				RefKind.Out => "out ",
-				RefKind.Ref => "ref ",
-				RefKind.In => "in ",
-				_ => string.Empty
-			};
-	}
+		=> GeneratorHelpers.GetRefKindModifier(parameter, includeIn: true, includeParams: true, includeRefReadOnly: false);
 
 	/// <summary>
 	/// Gets the C# keyword prefix for a call-site argument based on its ref kind.
@@ -315,14 +300,7 @@ public sealed class AbstractionGenerator : IIncrementalGenerator
 	/// <param name="parameter">The parameter symbol.</param>
 	/// <returns>The modifier keyword followed by a space, or an empty string if none applies.</returns>
 	private static string GetCallSiteModifier(IParameterSymbol parameter)
-	{
-		return parameter.RefKind switch
-		{
-			RefKind.Out => "out ",
-			RefKind.Ref => "ref ",
-			_ => string.Empty
-		};
-	}
+		=> GeneratorHelpers.GetRefKindModifier(parameter, includeIn: false, includeParams: false, includeRefReadOnly: false);
 
 	/// <summary>
 	/// Retrieves the fully qualified namespace of the specified type symbol.
@@ -379,15 +357,8 @@ public sealed class AbstractionGenerator : IIncrementalGenerator
 				TypedConstant abstractionTypeArg = attributeData.ConstructorArguments[1];
 				TypedConstant implementationTypeArg = attributeData.ConstructorArguments[2];
 
-				string[] excludeMethods = [];
-				string[] excludeProperties = [];
-				foreach (KeyValuePair<string, TypedConstant> namedArg in attributeData.NamedArguments)
-				{
-					if (namedArg.Key == nameof(GenerateAbstractionAttribute.ExcludeMethods) && namedArg.Value.Kind is TypedConstantKind.Array)
-						excludeMethods = [.. namedArg.Value.Values.Select(v => v.Value as string ?? string.Empty)];
-					if (namedArg.Key == nameof(GenerateAbstractionAttribute.ExcludeProperties) && namedArg.Value.Kind is TypedConstantKind.Array)
-						excludeProperties = [.. namedArg.Value.Values.Select(v => v.Value as string ?? string.Empty)];
-				}
+				string[] excludeMethods = GetStringArrayArgument(attributeData, nameof(GenerateAbstractionAttribute.ExcludeMethods));
+				string[] excludeProperties = GetStringArrayArgument(attributeData, nameof(GenerateAbstractionAttribute.ExcludeProperties));
 
 				if (targetTypeArg.Value is INamedTypeSymbol targetType
 					&& abstractionTypeArg.Value is INamedTypeSymbol abstractionType
@@ -403,6 +374,11 @@ public sealed class AbstractionGenerator : IIncrementalGenerator
 		}
 		return null;
 	}
+
+	private static string[] GetStringArrayArgument(AttributeData attributeData, string name)
+		=> GeneratorHelpers.GetNamedArrayArgument(attributeData, name) is ImmutableArray<TypedConstant> values
+			? [.. values.Select(v => v.Value as string ?? string.Empty)]
+			: [];
 
 	/// <summary>
 	/// Indicates whether the given syntax node is a candidate for a class with the GenerateAbstraction attribute.

@@ -282,12 +282,7 @@ public sealed class AutoMapperGenerator : IIncrementalGenerator
 		sb.AppendLine();
 		sb.OpenNamespace(request.Namespace);
 
-		foreach ((string outerAccessibility, string outerName, bool outerIsStatic) in request.OuterClasses)
-		{
-			string outerStaticKeyword = outerIsStatic ? "static " : string.Empty;
-			sb.AppendLine($"{outerAccessibility} {outerStaticKeyword}partial class {outerName}");
-			sb.OpenBrace();
-		}
+		sb.OpenOuterClasses(request.OuterClasses);
 
 		string staticKeyword = request.ContainingTypeIsStatic ? "static " : string.Empty;
 		sb.AppendLine($"{request.ContainingTypeAccessibility} {staticKeyword}partial class {request.ContainingTypeName}");
@@ -320,9 +315,7 @@ public sealed class AutoMapperGenerator : IIncrementalGenerator
 		sb.CloseBrace();
 		sb.CloseBrace();
 
-		for (int i = request.OuterClasses.Count - 1; i >= 0; i--)
-			sb.CloseBrace();
-
+		sb.CloseOuterClasses(request.OuterClasses);
 		sb.CloseNamespace();
 
 		string hintName = GeneratorHelpers.BuildHintName(request.OuterClasses, $"{request.ContainingTypeName}.{request.MethodName}", "AutoMapper");

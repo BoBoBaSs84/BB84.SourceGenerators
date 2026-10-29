@@ -69,7 +69,7 @@ public sealed class EnumeratorExtensionsGenerator : IIncrementalGenerator
 		sb.CloseClass();
 		sb.CloseNamespace();
 
-		context.AddSource($"{enumName}.g.cs", sb.ToString());
+		context.AddSource(GeneratorHelpers.BuildHintName(enumName), sb.ToString());
 	}
 
 	/// <inheritdoc/>
@@ -82,18 +82,14 @@ public sealed class EnumeratorExtensionsGenerator : IIncrementalGenerator
 
 	private static void AppendClassStart(SourceBuilder sb, string enumName)
 	{
-		sb.AppendLine("/// <summary>");
-		sb.AppendLine($"/// The <see cref=\"{enumName}Extensions\"/> class provides extension methods for the <see cref=\"{enumName}\"/> enumeration.");
-		sb.AppendLine("/// </summary>");
+		sb.AppendSummary($"The <see cref=\"{enumName}Extensions\"/> class provides extension methods for the <see cref=\"{enumName}\"/> enumeration.");
 		sb.AppendLine($"public static partial class {enumName}Extensions");
 		sb.OpenBrace();
 	}
 
 	private static void AppendToStringFast(SourceBuilder sb, string enumName, ImmutableArray<EnumMemberDeclarationSyntax> members)
 	{
-		sb.AppendLine("/// <summary>");
-		sb.AppendLine("/// Returns the name of the enumeration <paramref name=\"value\"/> as a string.");
-		sb.AppendLine("/// </summary>");
+		sb.AppendSummary("Returns the name of the enumeration <paramref name=\"value\"/> as a string.");
 		sb.AppendLine("/// <param name=\"value\">The enumeration value to convert to a string.</param>");
 		sb.AppendLine("/// <returns>The name of the enumeration value as a string.</returns>");
 		sb.AppendLine($"public static string ToStringFast(this {enumName} value)");
@@ -158,9 +154,7 @@ public sealed class EnumeratorExtensionsGenerator : IIncrementalGenerator
 
 	private static void AppendGetNamesFast(SourceBuilder sb, string enumName, ImmutableArray<EnumMemberDeclarationSyntax> members)
 	{
-		sb.AppendLine("/// <summary>");
-		sb.AppendLine($"/// Returns the names of the <see cref=\"{enumName}\"/> enumeration as an collection of strings.");
-		sb.AppendLine("/// </summary>");
+		sb.AppendSummary($"Returns the names of the <see cref=\"{enumName}\"/> enumeration as an collection of strings.");
 		sb.AppendLine("/// <returns>An array of strings containing the names of the enumeration values.</returns>");
 		sb.AppendLine($"public static IEnumerable<string> GetNamesFast()");
 		sb.OpenBrace();
@@ -179,9 +173,7 @@ public sealed class EnumeratorExtensionsGenerator : IIncrementalGenerator
 
 	private static void AppendGetValuesFast(SourceBuilder sb, string enumName, ImmutableArray<EnumMemberDeclarationSyntax> members)
 	{
-		sb.AppendLine("/// <summary>");
-		sb.AppendLine($"/// Returns the values of the <see cref=\"{enumName}\"/> enumeration.");
-		sb.AppendLine("/// </summary>");
+		sb.AppendSummary($"Returns the values of the <see cref=\"{enumName}\"/> enumeration.");
 		sb.AppendLine("/// <returns>An collection of the enumeration values.</returns>");
 		sb.AppendLine($"public static IEnumerable<{enumName}> GetValuesFast()");
 		sb.OpenBrace();

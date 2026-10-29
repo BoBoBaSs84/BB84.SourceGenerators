@@ -21,115 +21,50 @@ namespace BB84.SourceGenerators;
 [Generator(LanguageNames.CSharp)]
 public sealed class AttributeSourceGenerator : IIncrementalGenerator
 {
-	private static readonly string ActionCommandAttributeSource =
-		AttributeSourceRewriter.ReadAndTransform("ActionCommandAttribute.cs");
+	/// <summary>
+	/// The attribute type names, in emission order. Each name is both the embedded resource
+	/// (<c>{Name}.cs</c>) and the hint name (<c>{Name}.g.cs</c>) of the emitted source.
+	/// </summary>
+	private static readonly string[] AttributeNames =
+	[
+		"ActionCommandAttribute",
+		"AlsoNotifyAttribute",
+		"DisposeResourceAttribute",
+		"ExcludeFromNotificationAttribute",
+		"GenerateAbstractionAttribute",
+		"GenerateAssemblyInformationAttribute",
+		"GenerateAutoMapperAttribute",
+		"GenerateBuilderAttribute",
+		"GenerateCloneableAttribute",
+		"GenerateDecoratorAttribute",
+		"GenerateDisposableAttribute",
+		"GenerateEnumeratorExtensionsAttribute",
+		"GenerateEqualityAttribute",
+		"GenerateFactoryAttribute",
+		"GenerateFactoryKeyAttribute",
+		"GenerateIniFileAttribute",
+		"GenerateIniFileSectionAttribute",
+		"GenerateIniFileValueAttribute",
+		"GenerateNotificationsAttribute",
+		"GenerateSingletonAttribute",
+		"GenerateToStringAttribute",
+		"GenerateValidatorAttribute",
+		"ToStringFormatAttribute",
+		"ToStringOrderAttribute",
+		"PropertyMappingAttribute",
+		"NotifyCanExecuteChangedAttribute",
+	];
 
-	private static readonly string GenerateAbstractionAttributeSource =
-		AttributeSourceRewriter.ReadAndTransform("GenerateAbstractionAttribute.cs");
-
-	private static readonly string GenerateAssemblyInformationAttributeSource =
-		AttributeSourceRewriter.ReadAndTransform("GenerateAssemblyInformationAttribute.cs");
-
-	private static readonly string GenerateBuilderAttributeSource =
-		AttributeSourceRewriter.ReadAndTransform("GenerateBuilderAttribute.cs");
-
-	private static readonly string GenerateCloneableAttributeSource =
-		AttributeSourceRewriter.ReadAndTransform("GenerateCloneableAttribute.cs");
-
-	private static readonly string GenerateDecoratorAttributeSource =
-		AttributeSourceRewriter.ReadAndTransform("GenerateDecoratorAttribute.cs");
-
-	private static readonly string GenerateDisposableAttributeSource =
-		AttributeSourceRewriter.ReadAndTransform("GenerateDisposableAttribute.cs");
-
-	private static readonly string DisposeResourceAttributeSource =
-		AttributeSourceRewriter.ReadAndTransform("DisposeResourceAttribute.cs");
-
-	private static readonly string GenerateEqualityAttributeSource =
-		AttributeSourceRewriter.ReadAndTransform("GenerateEqualityAttribute.cs");
-
-	private static readonly string GenerateFactoryAttributeSource =
-		AttributeSourceRewriter.ReadAndTransform("GenerateFactoryAttribute.cs");
-
-	private static readonly string GenerateFactoryKeyAttributeSource =
-		AttributeSourceRewriter.ReadAndTransform("GenerateFactoryKeyAttribute.cs");
-
-	private static readonly string GenerateEnumeratorExtensionsAttributeSource =
-		AttributeSourceRewriter.ReadAndTransform("GenerateEnumeratorExtensionsAttribute.cs");
-
-	private static readonly string GenerateIniFileAttributeSource =
-		AttributeSourceRewriter.ReadAndTransform("GenerateIniFileAttribute.cs");
-
-	private static readonly string GenerateIniFileSectionAttributeSource =
-		AttributeSourceRewriter.ReadAndTransform("GenerateIniFileSectionAttribute.cs");
-
-	private static readonly string GenerateIniFileValueAttributeSource =
-		AttributeSourceRewriter.ReadAndTransform("GenerateIniFileValueAttribute.cs");
-
-	private static readonly string AlsoNotifyAttributeSource =
-		AttributeSourceRewriter.ReadAndTransform("AlsoNotifyAttribute.cs");
-
-	private static readonly string ExcludeFromNotificationAttributeSource =
-		AttributeSourceRewriter.ReadAndTransform("ExcludeFromNotificationAttribute.cs");
-
-	private static readonly string GenerateNotificationsAttributeSource =
-		AttributeSourceRewriter.ReadAndTransform("GenerateNotificationsAttribute.cs");
-
-	private static readonly string GenerateSingletonAttributeSource =
-		AttributeSourceRewriter.ReadAndTransform("GenerateSingletonAttribute.cs");
-
-	private static readonly string GenerateToStringAttributeSource =
-		AttributeSourceRewriter.ReadAndTransform("GenerateToStringAttribute.cs");
-
-	private static readonly string ToStringFormatAttributeSource =
-		AttributeSourceRewriter.ReadAndTransform("ToStringFormatAttribute.cs");
-
-	private static readonly string ToStringOrderAttributeSource =
-		AttributeSourceRewriter.ReadAndTransform("ToStringOrderAttribute.cs");
-
-	private static readonly string GenerateValidatorAttributeSource =
-		AttributeSourceRewriter.ReadAndTransform("GenerateValidatorAttribute.cs");
-
-	private static readonly string GenerateAutoMapperAttributeSource =
-		AttributeSourceRewriter.ReadAndTransform("GenerateAutoMapperAttribute.cs");
-
-	private static readonly string PropertyMappingAttributeSource =
-		AttributeSourceRewriter.ReadAndTransform("PropertyMappingAttribute.cs");
-
-	private static readonly string NotifyCanExecuteChangedAttributeSource =
-		AttributeSourceRewriter.ReadAndTransform("NotifyCanExecuteChangedAttribute.cs");
+	private static readonly (string HintName, string Source)[] AttributeSources =
+		[.. AttributeNames.Select(static name => ($"{name}.g.cs", AttributeSourceRewriter.ReadAndTransform($"{name}.cs")))];
 
 	/// <inheritdoc />
 	public void Initialize(IncrementalGeneratorInitializationContext context)
 	{
 		context.RegisterPostInitializationOutput(static ctx =>
 		{
-			ctx.AddSource("ActionCommandAttribute.g.cs", ActionCommandAttributeSource);
-			ctx.AddSource("AlsoNotifyAttribute.g.cs", AlsoNotifyAttributeSource);
-			ctx.AddSource("DisposeResourceAttribute.g.cs", DisposeResourceAttributeSource);
-			ctx.AddSource("ExcludeFromNotificationAttribute.g.cs", ExcludeFromNotificationAttributeSource);
-			ctx.AddSource("GenerateAbstractionAttribute.g.cs", GenerateAbstractionAttributeSource);
-			ctx.AddSource("GenerateAssemblyInformationAttribute.g.cs", GenerateAssemblyInformationAttributeSource);
-			ctx.AddSource("GenerateAutoMapperAttribute.g.cs", GenerateAutoMapperAttributeSource);
-			ctx.AddSource("GenerateBuilderAttribute.g.cs", GenerateBuilderAttributeSource);
-			ctx.AddSource("GenerateCloneableAttribute.g.cs", GenerateCloneableAttributeSource);
-			ctx.AddSource("GenerateDecoratorAttribute.g.cs", GenerateDecoratorAttributeSource);
-			ctx.AddSource("GenerateDisposableAttribute.g.cs", GenerateDisposableAttributeSource);
-			ctx.AddSource("GenerateEnumeratorExtensionsAttribute.g.cs", GenerateEnumeratorExtensionsAttributeSource);
-			ctx.AddSource("GenerateEqualityAttribute.g.cs", GenerateEqualityAttributeSource);
-			ctx.AddSource("GenerateFactoryAttribute.g.cs", GenerateFactoryAttributeSource);
-			ctx.AddSource("GenerateFactoryKeyAttribute.g.cs", GenerateFactoryKeyAttributeSource);
-			ctx.AddSource("GenerateIniFileAttribute.g.cs", GenerateIniFileAttributeSource);
-			ctx.AddSource("GenerateIniFileSectionAttribute.g.cs", GenerateIniFileSectionAttributeSource);
-			ctx.AddSource("GenerateIniFileValueAttribute.g.cs", GenerateIniFileValueAttributeSource);
-			ctx.AddSource("GenerateNotificationsAttribute.g.cs", GenerateNotificationsAttributeSource);
-			ctx.AddSource("GenerateSingletonAttribute.g.cs", GenerateSingletonAttributeSource);
-			ctx.AddSource("GenerateToStringAttribute.g.cs", GenerateToStringAttributeSource);
-			ctx.AddSource("GenerateValidatorAttribute.g.cs", GenerateValidatorAttributeSource);
-			ctx.AddSource("ToStringFormatAttribute.g.cs", ToStringFormatAttributeSource);
-			ctx.AddSource("ToStringOrderAttribute.g.cs", ToStringOrderAttributeSource);
-			ctx.AddSource("PropertyMappingAttribute.g.cs", PropertyMappingAttributeSource);
-			ctx.AddSource("NotifyCanExecuteChangedAttribute.g.cs", NotifyCanExecuteChangedAttributeSource);
+			foreach ((string hintName, string source) in AttributeSources)
+				ctx.AddSource(hintName, source);
 		});
 	}
 }

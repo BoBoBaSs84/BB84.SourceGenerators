@@ -316,6 +316,69 @@ namespace My.Space
 
 	#endregion
 
+	#region Shared generator helpers
+
+	[TestMethod]
+	[DataRow("_name", "Name")]
+	[DataRow("name", "Name")]
+	[DataRow("m_count", "M_count")]
+	[DataRow("_", "")]
+	public void FieldNameToPropertyNameShouldStripUnderscoreAndCapitalize(string fieldName, string expected)
+		=> Assert.AreEqual(expected, GeneratorHelpers.FieldNameToPropertyName(fieldName));
+
+	[TestMethod]
+	public void PropertyNameToFieldNameShouldPrefixUnderscoreAndLowercase()
+		=> Assert.AreEqual("_firstName", GeneratorHelpers.PropertyNameToFieldName("FirstName"));
+
+	[TestMethod]
+	public void BuildHintNameWithoutOuterClassesShouldAppendOptionalFeature()
+	{
+		Assert.AreEqual("Point.g.cs", GeneratorHelpers.BuildHintName("Point"));
+		Assert.AreEqual("Point.Cloneable.g.cs", GeneratorHelpers.BuildHintName("Point", "Cloneable"));
+	}
+
+	[TestMethod]
+	public void FindAttributesShouldMatchFullAndShortNamesInDeclarationOrder()
+	{
+		const string source = @"
+[Widget(1), Other, WidgetAttribute(2)]
+[Widget(3)]
+public class Target { }";
+		ClassDeclarationSyntax syntax = CSharpSyntaxTree.ParseText(source, cancellationToken: TestContext.CancellationToken)
+			.GetRoot(TestContext.CancellationToken)
+			.DescendantNodes()
+			.OfType<ClassDeclarationSyntax>()
+			.Single();
+
+		string[] matches = [.. GeneratorHelpers.FindAttributes(syntax.AttributeLists, "WidgetAttribute", "Widget")
+			.Select(static attribute => attribute.ArgumentList!.Arguments[0].ToString())];
+
+		string[] expected = ["1", "2", "3"];
+		Assert.AreSequenceEqual(expected, matches);
+	}
+
+	[TestMethod]
+	public void GetRefKindModifierShouldOnlyEmitRequestedModifiers()
+	{
+		const string source = @"
+public class Target
+{
+	public void M(int plain, ref int r, out int o, in int i, params int[] p) { o = 0; }
+}";
+		CSharpCompilation compilation = Compile(source);
+		IMethodSymbol method = FindClass(compilation, "Target").Symbol.GetMembers("M").OfType<IMethodSymbol>().Single();
+
+		string[] minimal = [.. method.Parameters.Select(static p => GeneratorHelpers.GetRefKindModifier(p, includeIn: false, includeParams: false, includeRefReadOnly: false))];
+		string[] full = [.. method.Parameters.Select(static p => GeneratorHelpers.GetRefKindModifier(p, includeIn: true, includeParams: true, includeRefReadOnly: true))];
+
+		string[] expectedMinimal = ["", "ref ", "out ", "", ""];
+		string[] expectedFull = ["", "ref ", "out ", "in ", "params "];
+		Assert.AreSequenceEqual(expectedMinimal, minimal);
+		Assert.AreSequenceEqual(expectedFull, full);
+	}
+
+	#endregion
+
 	#region Helpers
 
 	private const string PropertyModelSource = @"
@@ -367,9 +430,11 @@ public sealed class CollectionModel
 			.DescendantNodes()
 			.OfType<ClassDeclarationSyntax>()
 			.First(c => c.Identifier.Text == className);
-		INamedTypeSymbol symbol = (INamedTypeSymbol)model.GetDeclaredSymbol(syntax)!;
+		INamedTypeSymbol symbol = model.GetDeclaredSymbol(syntax)!;
 		return (symbol, syntax, model);
 	}
+
+	public TestContext TestContext { get; set; }
 
 	#endregion
 }
