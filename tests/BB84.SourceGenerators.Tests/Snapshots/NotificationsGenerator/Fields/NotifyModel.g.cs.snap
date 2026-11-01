@@ -91,20 +91,6 @@ namespace TestNamespace
       }
     }
 
-    public int ReadOnly
-    {
-      get => _readOnly;
-      set
-      {
-        if (_readOnly != value)
-        {
-          RaisePropertyChanging(nameof(ReadOnly));
-          _readOnly = value;
-          RaisePropertyChanged(nameof(ReadOnly));
-        }
-      }
-    }
-
     /// <summary>
     /// Raises the <see cref="PropertyChanging"/> event to notify subscribers that a property
     /// is about to change.

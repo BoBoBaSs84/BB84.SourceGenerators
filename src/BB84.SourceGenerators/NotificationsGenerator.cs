@@ -124,7 +124,7 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 	{
 		List<FieldDeclarationSyntax> fieldDeclarations = [.. typeDeclaration.Members
 			.OfType<FieldDeclarationSyntax>()
-			.Where(field => !HasAttribute(field, nameof(ExcludeFromNotificationAttribute)))];
+			.Where(field => IsAssignable(field) && !HasAttribute(field, nameof(ExcludeFromNotificationAttribute)))];
 
 		List<PartialPropertyInfo> partialProperties = GetPartialProperties(diagnostics, typeDeclaration, typeSymbol, semanticModel);
 
@@ -606,9 +606,29 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 		sb.AppendLine("/// </summary>");
 	}
 
+	/// <summary>
+	/// Determines whether the given field can be assigned by a generated setter, i.e. it is neither
+	/// <c>readonly</c> nor <c>const</c>.
+	/// </summary>
+	/// <param name="field">The field declaration syntax.</param>
+	/// <returns><see langword="true"/> if the field can be assigned; otherwise, <see langword="false"/>.</returns>
+	private static bool IsAssignable(FieldDeclarationSyntax field)
+		=> !field.Modifiers.Any(SyntaxKind.ReadOnlyKeyword) && !field.Modifiers.Any(SyntaxKind.ConstKeyword);
+
+	/// <summary>
+	/// Determines whether the given member has the specified attribute.
+	/// </summary>
+	/// <param name="member">The member declaration syntax.</param>
+	/// <param name="attributeName">The name of the attribute.</param>
+	/// <returns><see langword="true"/> if the member has the attribute; otherwise, <see langword="false"/>.</returns>
 	private static bool HasAttribute(MemberDeclarationSyntax member, string attributeName)
 		=> GeneratorHelpers.FindAttributes(member.AttributeLists, attributeName, GeneratorHelpers.StripAttributeSuffix(attributeName)).Any();
 
+	/// <summary>
+	/// Gets the names of the properties that should raise notifications when the given member changes.
+	/// </summary>
+	/// <param name="member">The member declaration syntax.</param>
+	/// <returns>The list of property names.</returns>
 	private static List<string> GetAlsoNotifyForProperties(MemberDeclarationSyntax member)
 		=> [.. GetNameArguments(member, nameof(AlsoNotifyAttribute)).Select(static argument => argument.Name)];
 
