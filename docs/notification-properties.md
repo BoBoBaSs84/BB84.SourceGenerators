@@ -80,7 +80,7 @@ public partial class Person
 
 The generator creates:
 
-- Public properties for each private field with change notification (unless excluded with `[ExcludeFromNotification]`)
+- Public properties for each private field with change notification (unless excluded with `[ExcludeFromNotification]`); `readonly` and `const` fields are skipped because a setter cannot assign them
 - Implementation of `INotifyPropertyChanged` and/or `INotifyPropertyChanging` interfaces (configurable)
 - `PropertyChanged` and/or `PropertyChanging` events
 - `RaisePropertyChanged()` and/or `RaisePropertyChanging()` methods (`protected virtual` for non-sealed classes, `private` for sealed classes)

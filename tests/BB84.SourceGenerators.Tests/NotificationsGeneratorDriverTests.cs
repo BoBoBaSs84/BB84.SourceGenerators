@@ -652,6 +652,35 @@ namespace TestNamespace
 		Assert.DoesNotContain("event PropertyChangedEventHandler", generated);
 	}
 
+	[TestMethod]
+	[DataRow("private readonly int _skipped;")]
+	[DataRow("private readonly int _skipped = 1, _alsoSkipped = 2;")]
+	[DataRow("private static readonly int _skipped = 1;")]
+	[DataRow("private const int _skipped = 1;")]
+	public void ShouldNotGeneratePropertyForNonAssignableField(string field)
+	{
+		string source = $@"
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{{
+	[GenerateNotifications]
+	public partial class NonAssignableModel
+	{{
+		{field}
+		private int _id;
+	}}
+}}";
+
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources, ImmutableArray<Diagnostic> compilationErrors) = RunGeneratorWithCompilation(source);
+
+		Assert.IsEmpty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+		Assert.IsEmpty(compilationErrors, string.Join(Environment.NewLine, compilationErrors));
+		string generated = generatedSources.First(s => s.Contains("partial class NonAssignableModel"));
+		Assert.Contains("public int Id", generated);
+		Assert.DoesNotContain("Skipped", generated);
+	}
+
 	private static (ImmutableArray<Diagnostic> Diagnostics, string[] GeneratedSources) RunGenerator(string source)
 	{
 		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources, _) = RunGeneratorWithCompilation(source);
