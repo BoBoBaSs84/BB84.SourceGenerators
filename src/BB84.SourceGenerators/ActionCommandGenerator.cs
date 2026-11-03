@@ -22,7 +22,8 @@ namespace BB84.SourceGenerators;
 /// <summary>
 /// Responsible for generating command properties for methods marked with the
 /// <see cref="ActionCommandAttribute"/> attribute, and for emitting the command
-/// runtime types into the consuming compilation.
+/// runtime types into a consuming compilation that uses the attribute and does
+/// not already have access to them.
 /// </summary>
 [Generator(LanguageNames.CSharp)]
 public sealed class ActionCommandGenerator : IIncrementalGenerator
@@ -47,8 +48,19 @@ public sealed class ActionCommandGenerator : IIncrementalGenerator
 	/// <inheritdoc/>
 	public void Initialize(IncrementalGeneratorInitializationContext context)
 	{
-		context.RegisterPostInitializationOutput(static ctx =>
+		IncrementalValueProvider<bool> isAttributeUsed = context.SyntaxProvider
+			.ForAttributeWithMetadataName(AttributeNames.MetadataName, static (node, _) => node is MethodDeclarationSyntax, static (_, _) => true)
+			.Collect()
+			.Select(static (usages, _) => !usages.IsEmpty);
+
+		IncrementalValueProvider<bool> hasRuntimeTypes = context.CompilationProvider
+			.Select(static (compilation, _) => HasRuntimeTypes(compilation));
+
+		context.RegisterSourceOutput(isAttributeUsed.Combine(hasRuntimeTypes), static (ctx, input) =>
 		{
+			if (!input.Left || input.Right)
+				return;
+
 			for (int i = 0; i < TemplateNames.Length; i++)
 				ctx.AddSource($"{NamespaceNames.BB84SourceGeneratorsCommands}.{TemplateNames[i]}.g.cs", BuildTemplateSource(TemplateSources[i]));
 		});
@@ -82,6 +94,18 @@ public sealed class ActionCommandGenerator : IIncrementalGenerator
 			: method.Name;
 
 		return $"{baseName}{CommandSuffix}";
+	}
+
+	/// <summary>
+	/// Determines whether the command runtime types are already accessible, typically from a referenced
+	/// assembly that uses the generator as well. Emitting them again would raise <c>CS0436</c>.
+	/// </summary>
+	/// <param name="compilation">The consuming compilation.</param>
+	/// <returns><see langword="true"/> if the runtime types are accessible; otherwise, <see langword="false"/>.</returns>
+	private static bool HasRuntimeTypes(Compilation compilation)
+	{
+		INamedTypeSymbol? type = compilation.GetTypeByMetadataName($"{CommandsNamespace}.{IActionCommandName}");
+		return type is not null && compilation.IsSymbolAccessibleWithin(type, compilation.Assembly);
 	}
 
 	private static string BuildTemplateSource(string template)
