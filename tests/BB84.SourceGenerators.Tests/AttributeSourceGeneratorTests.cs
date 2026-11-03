@@ -20,11 +20,14 @@ public sealed class AttributeSourceGeneratorAttributeCoverageTests
 	[
 		MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
 		MetadataReference.CreateFromFile(typeof(Attribute).Assembly.Location),
+		MetadataReference.CreateFromFile(typeof(System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverageAttribute).Assembly.Location),
 		MetadataReference.CreateFromFile(Assembly.Load("System.Runtime").Location),
 		MetadataReference.CreateFromFile(Assembly.Load("netstandard").Location),
 	];
 
-	private static readonly string[] GeneratedAttributeSources = RunAttributeGenerator();
+	private static readonly (string[] Sources, ImmutableArray<Diagnostic> CompilationErrors) GeneratorRun = RunAttributeGenerator();
+
+	private static readonly string[] GeneratedAttributeSources = GeneratorRun.Sources;
 
 	[TestMethod]
 	public void AttributeSourceGeneratorShouldGenerateAllEmbeddedAttributes()
@@ -80,7 +83,15 @@ public sealed class AttributeSourceGeneratorAttributeCoverageTests
 		}
 	}
 
-	private static string[] RunAttributeGenerator()
+	[TestMethod]
+	public void AttributeSourceGeneratorShouldEmitCompilableSourcesWithoutUsings()
+	{
+		ImmutableArray<Diagnostic> errors = GeneratorRun.CompilationErrors;
+
+		Assert.IsEmpty(errors, string.Join("\n", errors.Take(15)));
+	}
+
+	private static (string[] Sources, ImmutableArray<Diagnostic> CompilationErrors) RunAttributeGenerator()
 	{
 		const string source = "namespace TestNamespace { public sealed class Marker { } }";
 
@@ -93,11 +104,14 @@ public sealed class AttributeSourceGeneratorAttributeCoverageTests
 			options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
 		GeneratorDriver driver = CSharpGeneratorDriver.Create(new AttributeSourceGenerator());
-		driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out Compilation _, out ImmutableArray<Diagnostic> diagnostics);
+		driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out Compilation outputCompilation, out ImmutableArray<Diagnostic> diagnostics);
 
 		Assert.IsEmpty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
 
 		GeneratorDriverRunResult runResult = driver.GetRunResult();
-		return [.. runResult.GeneratedTrees.Select(t => t.GetText().ToString())];
+		// The test source has no usings, so the emitted sources must not depend on any imported namespace.
+		ImmutableArray<Diagnostic> compilationErrors = [.. outputCompilation.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error)];
+
+		return ([.. runResult.GeneratedTrees.Select(t => t.GetText().ToString())], compilationErrors);
 	}
 }

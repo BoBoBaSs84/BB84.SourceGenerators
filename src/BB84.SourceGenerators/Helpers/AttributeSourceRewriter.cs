@@ -40,6 +40,7 @@ internal static class AttributeSourceRewriter
 		["AttributeUsage"] = "System.AttributeUsage",
 		["AttributeUsageAttribute"] = "System.AttributeUsageAttribute",
 		["AttributeTargets"] = "System.AttributeTargets",
+		["StringComparison"] = "System.StringComparison",
 		["INotifyPropertyChanging"] = "System.ComponentModel.INotifyPropertyChanging",
 		["INotifyPropertyChanged"] = "System.ComponentModel.INotifyPropertyChanged",
 	};

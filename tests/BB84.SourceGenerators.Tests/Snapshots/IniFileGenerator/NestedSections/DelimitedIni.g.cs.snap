@@ -58,22 +58,22 @@ namespace TestNamespace
           if (string.Equals(key, "Domain", StringComparison.OrdinalIgnoreCase))
             result.Section.Domain = value;
         }
-        else if (string.Equals(currentSection, "Section.SubSection", StringComparison.OrdinalIgnoreCase))
+        else if (string.Equals(currentSection, "Section/SubSection", StringComparison.OrdinalIgnoreCase))
         {
           if (string.Equals(key, "Foo", StringComparison.OrdinalIgnoreCase))
             result.Section.SubSection.Foo = value;
         }
-        else if (string.Equals(currentSection, "Section.SubSection.Leaf", StringComparison.OrdinalIgnoreCase))
+        else if (string.Equals(currentSection, "Section/SubSection/Leaf", StringComparison.OrdinalIgnoreCase))
         {
           if (string.Equals(key, "Depth", StringComparison.OrdinalIgnoreCase))
             result.Section.SubSection.Leaf.Depth = int.Parse(value, CultureInfo.InvariantCulture);
         }
-        else if (string.Equals(currentSection, "Section.Other", StringComparison.OrdinalIgnoreCase))
+        else if (string.Equals(currentSection, "Section/Other", StringComparison.OrdinalIgnoreCase))
         {
           if (string.Equals(key, "Foo", StringComparison.OrdinalIgnoreCase))
             result.Section.OtherSubSection.Foo = value;
         }
-        else if (string.Equals(currentSection, "Section.Other.Leaf", StringComparison.OrdinalIgnoreCase))
+        else if (string.Equals(currentSection, "Section/Other/Leaf", StringComparison.OrdinalIgnoreCase))
         {
           if (string.Equals(key, "Depth", StringComparison.OrdinalIgnoreCase))
             result.Section.OtherSubSection.Leaf.Depth = int.Parse(value, CultureInfo.InvariantCulture);
@@ -117,16 +117,16 @@ namespace TestNamespace
       sb.AppendLine("[Section]");
       sb.AppendLine("Domain=" + instance.Section.Domain);
       sb.AppendLine();
-      sb.AppendLine("[Section.SubSection]");
+      sb.AppendLine("[Section/SubSection]");
       sb.AppendLine("Foo=" + instance.Section.SubSection.Foo);
       sb.AppendLine();
-      sb.AppendLine("[Section.SubSection.Leaf]");
+      sb.AppendLine("[Section/SubSection/Leaf]");
       sb.AppendLine("Depth=" + instance.Section.SubSection.Leaf.Depth.ToString(CultureInfo.InvariantCulture));
       sb.AppendLine();
-      sb.AppendLine("[Section.Other]");
+      sb.AppendLine("[Section/Other]");
       sb.AppendLine("Foo=" + instance.Section.OtherSubSection.Foo);
       sb.AppendLine();
-      sb.AppendLine("[Section.Other.Leaf]");
+      sb.AppendLine("[Section/Other/Leaf]");
       sb.AppendLine("Depth=" + instance.Section.OtherSubSection.Leaf.Depth.ToString(CultureInfo.InvariantCulture));
 
       return sb.ToString();

@@ -55,13 +55,13 @@ namespace TestNamespace
           string key = line.Substring(0, equalsIndex).Trim();
           string value = line.Substring(equalsIndex + 1).Trim();
 
-          if (string.Equals(currentSection, "CustomSection", StringComparison.OrdinalIgnoreCase))
+          if (string.Equals(currentSection, "CustomSection", StringComparison.Ordinal))
           {
-            if (string.Equals(key, "app_name", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(key, "app_name", StringComparison.Ordinal))
               result.General.AppName = value;
-            else if (string.Equals(key, "Version", StringComparison.OrdinalIgnoreCase))
+            else if (string.Equals(key, "Version", StringComparison.Ordinal))
               result.General.Version = int.Parse(value, CultureInfo.InvariantCulture);
-            else if (string.Equals(key, "Timeout", StringComparison.OrdinalIgnoreCase))
+            else if (string.Equals(key, "Timeout", StringComparison.Ordinal))
               result.General.Timeout = TimeSpan.Parse(value, CultureInfo.InvariantCulture);
           }
 
