@@ -13,6 +13,7 @@ internal static class TypeNames
 	internal const string CancellationToken = "System.Threading.CancellationToken";
 	internal const string DescriptionAttribute = "System.ComponentModel.DescriptionAttribute";
 	internal const string Exception = "System.Exception";
+	internal const string ExcludeFromCodeCoverageName = "System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage";
 	internal const string FlagsAttributeShortName = "FlagsAttribute";
 	internal const string IAsyncDisposable = "System.IAsyncDisposable";
 	internal const string IFormattable = "System.IFormattable";
