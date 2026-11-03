@@ -31,16 +31,57 @@ public sealed class ActionCommandGeneratorDriverTests
 		MetadataReference.CreateFromFile(Assembly.Load("netstandard").Location),
 	];
 
+	private const string CommandSource = @"
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+	public partial class ViewModel
+	{
+		[ActionCommand]
+		private void Save() { }
+	}
+}";
+
 	[TestMethod]
 	public void ShouldEmitRuntimeTypes()
 	{
-		(_, string[] generatedSources, ImmutableArray<Diagnostic> compilationErrors) = RunGeneratorWithCompilation("namespace TestNamespace { }");
+		(_, string[] generatedSources, ImmutableArray<Diagnostic> compilationErrors) = RunGeneratorWithCompilation(CommandSource);
 
 		Assert.IsEmpty(compilationErrors, string.Join("\n", compilationErrors.Take(15)));
 		Assert.Contains(s => s.Contains("public interface IActionCommand :"), generatedSources);
 		Assert.Contains(s => s.Contains("public interface IAsyncActionCommand<T>"), generatedSources);
 		Assert.Contains(s => s.Contains("public sealed class ActionCommand<T>"), generatedSources);
 		Assert.Contains(s => s.Contains("public sealed class AsyncActionCommand<T>"), generatedSources);
+	}
+
+	[TestMethod]
+	public void ShouldNotEmitRuntimeTypesWhenAttributeIsNotUsed()
+	{
+		(_, string[] generatedSources, ImmutableArray<Diagnostic> compilationErrors) = RunGeneratorWithCompilation("namespace TestNamespace { }");
+
+		Assert.IsEmpty(compilationErrors, string.Join("\n", compilationErrors.Take(15)));
+		Assert.DoesNotContain(s => s.Contains("namespace BB84.SourceGenerators.Commands"), generatedSources);
+	}
+
+	[TestMethod]
+	public void ShouldReuseRuntimeTypesOfReferencedAssembly()
+	{
+		(_, string[] generatedSources, ImmutableArray<Diagnostic> compilationDiagnostics) = RunGeneratorWithCompilation(CommandSource, [EmitReferencedAssembly(CommandSource)]);
+
+		Assert.IsEmpty(compilationDiagnostics.Where(d => d.Id == "CS0436"));
+		Assert.IsEmpty(compilationDiagnostics.Where(d => d.Severity == DiagnosticSeverity.Error), string.Join("\n", compilationDiagnostics.Take(15)));
+		Assert.DoesNotContain(s => s.Contains("namespace BB84.SourceGenerators.Commands"), generatedSources);
+		Assert.Contains(s => s.Contains("IActionCommand SaveCommand"), generatedSources);
+	}
+
+	[TestMethod]
+	public void ShouldNotConflictWithRuntimeTypesOfReferencedAssemblyWhenAttributeIsNotUsed()
+	{
+		(_, string[] generatedSources, ImmutableArray<Diagnostic> compilationDiagnostics) = RunGeneratorWithCompilation("namespace TestNamespace { }", [EmitReferencedAssembly(CommandSource)]);
+
+		Assert.IsEmpty(compilationDiagnostics.Where(d => d.Id == "CS0436"));
+		Assert.DoesNotContain(s => s.Contains("namespace BB84.SourceGenerators.Commands"), generatedSources);
 	}
 
 	[TestMethod]
@@ -397,12 +438,42 @@ namespace TestNamespace
 
 	private static (ImmutableArray<Diagnostic> Diagnostics, string[] GeneratedSources, ImmutableArray<Diagnostic> CompilationErrors) RunGeneratorWithCompilation(string source)
 	{
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources, ImmutableArray<Diagnostic> compilationDiagnostics) = RunGeneratorWithCompilation(source, []);
+		return (diagnostics, generatedSources, [.. compilationDiagnostics.Where(d => d.Severity == DiagnosticSeverity.Error)]);
+	}
+
+	private static (ImmutableArray<Diagnostic> Diagnostics, string[] GeneratedSources, ImmutableArray<Diagnostic> CompilationDiagnostics) RunGeneratorWithCompilation(string source, MetadataReference[] additionalReferences)
+	{
+		(Compilation outputCompilation, GeneratorDriverRunResult runResult, ImmutableArray<Diagnostic> diagnostics) = RunDriver("ActionCommandDriverTestAssembly", source, additionalReferences);
+
+		string[] generatedSources = [.. runResult.GeneratedTrees.Select(t => t.GetText().ToString())];
+		// Errors in the emitted attribute sources are unrelated to the command generator and are ignored here.
+		ImmutableArray<Diagnostic> compilationDiagnostics = [.. outputCompilation.GetDiagnostics()
+			.Where(d => d.Location.SourceTree?.FilePath.Contains(nameof(AttributeSourceGenerator)) != true)];
+
+		return (diagnostics, generatedSources, compilationDiagnostics);
+	}
+
+	private static MetadataReference EmitReferencedAssembly(string source)
+	{
+		// The emitted attribute sources need System to be imported to compile, see issue #212.
+		(Compilation outputCompilation, _, _) = RunDriver("ActionCommandDriverReferencedAssembly", $"global using System;\n{source}", []);
+
+		using MemoryStream stream = new();
+		Microsoft.CodeAnalysis.Emit.EmitResult result = outputCompilation.Emit(stream);
+		Assert.IsTrue(result.Success, string.Join("\n", result.Diagnostics.Take(15)));
+
+		return MetadataReference.CreateFromImage(stream.ToArray());
+	}
+
+	private static (Compilation OutputCompilation, GeneratorDriverRunResult RunResult, ImmutableArray<Diagnostic> Diagnostics) RunDriver(string assemblyName, string source, MetadataReference[] additionalReferences)
+	{
 		SyntaxTree syntaxTree = CSharpSyntaxTree.ParseText(source, new CSharpParseOptions(LanguageVersion.Latest));
 
 		CSharpCompilation compilation = CSharpCompilation.Create(
-			assemblyName: "ActionCommandDriverTestAssembly",
+			assemblyName: assemblyName,
 			syntaxTrees: [syntaxTree],
-			references: References,
+			references: [.. References, .. additionalReferences],
 			options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
 
 		IIncrementalGenerator[] generators = [new AttributeSourceGenerator(), new NotificationsGenerator(), new ActionCommandGenerator()];
@@ -410,13 +481,6 @@ namespace TestNamespace
 		GeneratorDriver driver = CSharpGeneratorDriver.Create(generators);
 		driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out Compilation outputCompilation, out ImmutableArray<Diagnostic> diagnostics);
 
-		GeneratorDriverRunResult runResult = driver.GetRunResult();
-		string[] generatedSources = [.. runResult.GeneratedTrees.Select(t => t.GetText().ToString())];
-		// Errors in the emitted attribute sources are unrelated to the command generator and are ignored here.
-		ImmutableArray<Diagnostic> compilationErrors = [.. outputCompilation.GetDiagnostics()
-			.Where(d => d.Severity == DiagnosticSeverity.Error)
-			.Where(d => d.Location.SourceTree?.FilePath.Contains(nameof(AttributeSourceGenerator)) != true)];
-
-		return (diagnostics, generatedSources, compilationErrors);
+		return (outputCompilation, driver.GetRunResult(), diagnostics);
 	}
 }

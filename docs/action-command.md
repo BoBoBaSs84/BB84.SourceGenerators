@@ -1,6 +1,6 @@
 # ActionCommand Generator
 
-Generates `ICommand` properties for methods marked with `[ActionCommand]`. The command kind is inferred from the method signature, and the command runtime types (`IActionCommand`, `IAsyncActionCommand`, ...) are emitted into your project, so no runtime package is required. Together with the [Notification Properties Generator](notification-properties.md) this completes the MVVM tool set.
+Generates `ICommand` properties for methods marked with `[ActionCommand]`. The command kind is inferred from the method signature, and the command runtime types (`IActionCommand`, `IAsyncActionCommand`, ...) are emitted into projects that use the attribute, so no runtime package is required. Together with the [Notification Properties Generator](notification-properties.md) this completes the MVVM tool set.
 
 [← Back to overview](../README.md) · [All generators](README.md)
 
@@ -119,7 +119,7 @@ Static methods generate static command properties; their `CanExecute` and `Excep
 
 ### Emitted Runtime Types
 
-The following public types are emitted into the `BB84.SourceGenerators.Commands` namespace of every project that references the package:
+The following public types are emitted into the `BB84.SourceGenerators.Commands` namespace of a project that uses `[ActionCommand]`, unless the project already has access to them through a referenced assembly:
 
 - `IActionCommand` / `IActionCommand<T>` - `CanExecute()`, `Execute()`, `RaiseCanExecuteChanged()`
 - `IAsyncActionCommand` / `IAsyncActionCommand<T>` - `ExecuteAsync()`, `ExecuteAsync(CancellationToken)`, `CanExecute()`, `Cancel()`, `RaiseCanExecuteChanged()`, `IsExecuting`, `IsCancellationRequested`, `CancelCommand`
@@ -129,7 +129,8 @@ Behavior notes:
 
 - Every async execution gets a token that is linked to `Cancel()` / `CancelCommand` and to the optional external token passed to `ExecuteAsync`. An `OperationCanceledException` caused by that token completes the command without an error.
 - `ICommand.CanExecute(object)` / `ICommand.Execute(object)` of generic commands never throw for an incompatible parameter: `null` is accepted only when `T` accepts `null`, other mismatches are rejected.
-- Because the runtime types are public, two referenced assemblies that both use the generator will each contain their own copy (`CS0436` warning).
+- A project that references an assembly containing the runtime types uses those types and does not emit its own copy.
+- Because the runtime types are public, two assemblies that use the attribute without one referencing the other each contain their own copy. A project that references both gets `CS0436` warnings if it uses the attribute too, or `CS0433` errors if it does not use the attribute but names one of the types.
 
 ## Diagnostics
 
