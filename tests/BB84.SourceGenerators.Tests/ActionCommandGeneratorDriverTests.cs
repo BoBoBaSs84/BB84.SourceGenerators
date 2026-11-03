@@ -456,8 +456,7 @@ namespace TestNamespace
 
 	private static MetadataReference EmitReferencedAssembly(string source)
 	{
-		// The emitted attribute sources need System to be imported to compile, see issue #212.
-		(Compilation outputCompilation, _, _) = RunDriver("ActionCommandDriverReferencedAssembly", $"global using System;\n{source}", []);
+		(Compilation outputCompilation, _, _) = RunDriver("ActionCommandDriverReferencedAssembly", source, []);
 
 		using MemoryStream stream = new();
 		Microsoft.CodeAnalysis.Emit.EmitResult result = outputCompilation.Emit(stream);
