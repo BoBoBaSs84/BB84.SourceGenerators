@@ -191,7 +191,7 @@ internal static class AttributeSourceRewriter
 
 			AttributeListSyntax attributeList = SyntaxFactory.AttributeList(
 				SyntaxFactory.SingletonSeparatedList(
-					SyntaxFactory.Attribute(SyntaxFactory.ParseName(TypeNames.ExcludeFromCodeCoverageName))));
+					SyntaxFactory.Attribute(SyntaxFactory.ParseName(TypeNames.ExcludeFromCodeCoverage))));
 
 			return node.AddAttributeLists(attributeList);
 		}
