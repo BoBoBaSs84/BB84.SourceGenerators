@@ -20,10 +20,6 @@ namespace BB84.SourceGenerators.Helpers;
 internal static class GeneratorHelpers
 {
 	private const string AttributeKeyword = "Attribute";
-	private const string PublicKeyword = "public";
-	private const string InternalKeyword = "internal";
-	private const string ProtectedKeyword = "protected";
-	private const string PrivateKeyword = "private";
 
 	/// <summary>
 	/// Gets the accessibility keyword for a type declaration.
@@ -35,16 +31,16 @@ internal static class GeneratorHelpers
 		foreach (SyntaxToken modifier in typeDeclaration.Modifiers)
 		{
 			if (modifier.IsKind(SyntaxKind.PublicKeyword))
-				return PublicKeyword;
+				return Keywords.Public;
 			if (modifier.IsKind(SyntaxKind.InternalKeyword))
-				return InternalKeyword;
+				return Keywords.Internal;
 			if (modifier.IsKind(SyntaxKind.ProtectedKeyword))
-				return ProtectedKeyword;
+				return Keywords.Protected;
 			if (modifier.IsKind(SyntaxKind.PrivateKeyword))
-				return PrivateKeyword;
+				return Keywords.Private;
 		}
 
-		return InternalKeyword;
+		return Keywords.Internal;
 	}
 
 	/// <summary>
@@ -54,13 +50,13 @@ internal static class GeneratorHelpers
 	/// <returns>The accessibility keyword string.</returns>
 	internal static string GetAccessibilityKeyword(Accessibility accessibility) => accessibility switch
 	{
-		Accessibility.Public => PublicKeyword,
-		Accessibility.Internal => InternalKeyword,
-		Accessibility.Protected => ProtectedKeyword,
-		Accessibility.ProtectedOrInternal => $"{ProtectedKeyword} {InternalKeyword}",
-		Accessibility.ProtectedAndInternal => $"{PrivateKeyword} {ProtectedKeyword}",
-		Accessibility.Private => PrivateKeyword,
-		_ => PublicKeyword
+		Accessibility.Public => Keywords.Public,
+		Accessibility.Internal => Keywords.Internal,
+		Accessibility.Protected => Keywords.Protected,
+		Accessibility.ProtectedOrInternal => $"{Keywords.Protected} {Keywords.Internal}",
+		Accessibility.ProtectedAndInternal => $"{Keywords.Private} {Keywords.Protected}",
+		Accessibility.Private => Keywords.Private,
+		_ => Keywords.Public
 	};
 
 	/// <summary>
@@ -637,7 +633,7 @@ internal static class GeneratorHelpers
 			string originalDef = namedType.OriginalDefinition.ToDisplayString();
 
 			// Dictionary<TKey, TValue>
-			if (originalDef == "System.Collections.Generic.Dictionary<TKey, TValue>")
+			if (originalDef == TypeNames.DictionaryDefinition)
 			{
 				string keyType = namedType.TypeArguments[0].ToFullyQualifiedDisplayString();
 				string valueType = namedType.TypeArguments[1].ToFullyQualifiedDisplayString();
@@ -646,7 +642,7 @@ internal static class GeneratorHelpers
 			}
 
 			// List<T>
-			if (originalDef == "System.Collections.Generic.List<T>")
+			if (originalDef == TypeNames.ListDefinition)
 			{
 				string elementType = namedType.TypeArguments[0].ToFullyQualifiedDisplayString();
 				bool elementCloneable = cloneableAttributeName is not null && HasAttribute(namedType.TypeArguments[0], cloneableAttributeName);
@@ -654,7 +650,7 @@ internal static class GeneratorHelpers
 			}
 
 			// ImmutableArray<T>
-			if (originalDef == "System.Collections.Immutable.ImmutableArray<T>")
+			if (originalDef == TypeNames.ImmutableArrayDefinition)
 			{
 				string elementType = namedType.TypeArguments[0].ToFullyQualifiedDisplayString();
 				bool elementCloneable = cloneableAttributeName is not null && HasAttribute(namedType.TypeArguments[0], cloneableAttributeName);
@@ -662,9 +658,9 @@ internal static class GeneratorHelpers
 			}
 
 			// ReadOnlyCollection<T>, IReadOnlyList<T>, IReadOnlyCollection<T>
-			if (originalDef is "System.Collections.ObjectModel.ReadOnlyCollection<T>"
-				or "System.Collections.Generic.IReadOnlyList<T>"
-				or "System.Collections.Generic.IReadOnlyCollection<T>")
+			if (originalDef is TypeNames.ReadOnlyCollectionDefinition
+				or TypeNames.IReadOnlyListDefinition
+				or TypeNames.IReadOnlyCollectionDefinition)
 			{
 				string elementType = namedType.TypeArguments[0].ToFullyQualifiedDisplayString();
 				bool elementCloneable = cloneableAttributeName is not null && HasAttribute(namedType.TypeArguments[0], cloneableAttributeName);

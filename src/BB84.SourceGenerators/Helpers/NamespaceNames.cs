@@ -5,14 +5,19 @@
 // LICENSE file in the root directory of this source tree.
 namespace BB84.SourceGenerators.Helpers;
 
+/// <summary>
+/// Contains names of framework namespaces that the generators import or compose type names from.
+/// </summary>
 internal static class NamespaceNames
 {
 	internal const string BB84SourceGeneratorsCommands = "BB84.SourceGenerators.Commands";
 	internal const string System = "System";
 	internal const string SystemCollectionsGeneric = "System.Collections.Generic";
 	internal const string SystemCollectionsImmutable = "System.Collections.Immutable";
+	internal const string SystemCollectionsObjectModel = "System.Collections.ObjectModel";
 	internal const string SystemComponentModel = "System.ComponentModel";
 	internal const string SystemComponentModelDataAnnotations = "System.ComponentModel.DataAnnotations";
+	internal const string SystemDiagnosticsCodeAnalysis = "System.Diagnostics.CodeAnalysis";
 	internal const string SystemGlobalization = "System.Globalization";
 	internal const string SystemIO = "System.IO";
 	internal const string SystemLinq = "System.Linq";

@@ -27,6 +27,8 @@ namespace BB84.SourceGenerators;
 [Generator(LanguageNames.CSharp)]
 public sealed class CloneableGenerator : IIncrementalGenerator
 {
+	private const string FeatureName = "Cloneable";
+
 	private static readonly (string MetadataName, string TypeName, string ShortName) AttributeNames =
 		GeneratorHelpers.GetAttributeNames<GenerateCloneableAttribute>();
 
@@ -64,7 +66,7 @@ public sealed class CloneableGenerator : IIncrementalGenerator
 
 		sb.EndTypeFile(type.OuterClasses);
 
-		GeneratorHelpers.AddTypeSource(context, type.OuterClasses, type.Name, "Cloneable", sb);
+		GeneratorHelpers.AddTypeSource(context, type.OuterClasses, type.Name, FeatureName, sb);
 	}
 
 	private static void ExecuteStruct(SourceProductionContext context, CloneableRequest request)
@@ -88,7 +90,7 @@ public sealed class CloneableGenerator : IIncrementalGenerator
 
 		sb.CloseNamespace();
 
-		context.AddSource(GeneratorHelpers.BuildHintName(type.Name, "Cloneable"), sb.ToString());
+		context.AddSource(GeneratorHelpers.BuildHintName(type.Name, FeatureName), sb.ToString());
 	}
 
 	private static List<string> GetUsings(ImmutableArray<PropertyDescriptor> properties)
@@ -121,7 +123,7 @@ public sealed class CloneableGenerator : IIncrementalGenerator
 
 	private static void AppendPartialClass(SourceBuilder sb, string className, string accessibility, ImmutableArray<PropertyDescriptor> properties)
 	{
-		sb.OpenClass(accessibility, className, "ICloneable");
+		sb.OpenClass(accessibility, className, TypeNames.ICloneableShortName);
 
 		AppendCloneMethod(sb, className, properties, isStruct: false);
 		sb.AppendLine();
@@ -134,7 +136,7 @@ public sealed class CloneableGenerator : IIncrementalGenerator
 
 	private static void AppendPartialStruct(SourceBuilder sb, string structName, string accessibility, ImmutableArray<PropertyDescriptor> properties)
 	{
-		sb.OpenStruct(accessibility, structName, "ICloneable");
+		sb.OpenStruct(accessibility, structName, TypeNames.ICloneableShortName);
 
 		AppendCloneMethod(sb, structName, properties, isStruct: true);
 		sb.AppendLine();
@@ -243,7 +245,7 @@ public sealed class CloneableGenerator : IIncrementalGenerator
 	private static void AppendICloneableClone(SourceBuilder sb)
 	{
 		sb.AppendLine("/// <inheritdoc/>");
-		sb.AppendLine("object ICloneable.Clone()");
+		sb.AppendLine($"object {TypeNames.ICloneableShortName}.Clone()");
 		sb.Indent();
 		sb.AppendLine("=> DeepClone();");
 		sb.Outdent();

@@ -557,7 +557,7 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 
 	private static void AppendRaiseMethods(SourceBuilder sb, bool propertyChanged, bool propertyChanging, bool isSealed)
 	{
-		string methodModifier = isSealed ? "private" : "protected virtual";
+		string methodModifier = isSealed ? Keywords.Private : Keywords.ProtectedVirtual;
 
 		if (propertyChanging)
 			AppendRaiseMethodPair(sb, methodModifier, RaisePropertyChangingMethodName, "PropertyChanging", "is about to change.", "is changing", "are changing");

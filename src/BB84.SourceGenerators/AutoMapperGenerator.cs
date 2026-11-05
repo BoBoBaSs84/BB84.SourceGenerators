@@ -238,11 +238,11 @@ public sealed class AutoMapperGenerator : IIncrementalGenerator
 
 		sb.OpenOuterClasses(request.OuterClasses);
 
-		string staticKeyword = request.ContainingTypeIsStatic ? "static " : string.Empty;
+		string staticKeyword = request.ContainingTypeIsStatic ? $"{Keywords.Static} " : string.Empty;
 		sb.AppendLine($"{request.ContainingTypeAccessibility} {staticKeyword}partial class {request.ContainingTypeName}");
 		sb.OpenBrace();
 
-		string methodStaticKeyword = request.MethodIsStatic ? "static " : string.Empty;
+		string methodStaticKeyword = request.MethodIsStatic ? $"{Keywords.Static} " : string.Empty;
 		sb.AppendLine($"{request.MethodAccessibility} {methodStaticKeyword}partial {request.TargetTypeDisplayName} {request.MethodName}({request.SourceTypeFullName} {request.ParameterName})");
 		sb.OpenBrace();
 
@@ -250,7 +250,7 @@ public sealed class AutoMapperGenerator : IIncrementalGenerator
 		{
 			sb.AppendLine($"if ({request.ParameterName} is null)");
 			sb.Indent();
-			sb.AppendLine($"throw new System.ArgumentNullException(nameof({request.ParameterName}));");
+			sb.AppendLine($"throw new {TypeNames.ArgumentNullException}(nameof({request.ParameterName}));");
 			sb.Outdent();
 			sb.AppendLine();
 		}
