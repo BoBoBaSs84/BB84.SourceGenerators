@@ -435,7 +435,7 @@ public sealed class ActionCommandGenerator : IIncrementalGenerator
 	private static void Execute(SourceProductionContext context, ActionCommandRequest request)
 	{
 		ActionCommandContainingType type = request.ContainingType;
-		string staticModifier = request.Signature.IsStatic ? "static " : string.Empty;
+		string staticModifier = request.Signature.IsStatic ? $"{Keywords.Static} " : string.Empty;
 
 		SourceBuilder sb = new();
 

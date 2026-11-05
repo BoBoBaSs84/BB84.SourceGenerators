@@ -168,7 +168,7 @@ public sealed class DisposableGenerator : IIncrementalGenerator
 
 	private static void AppendClassStart(SourceBuilder sb, string className, string accessibility, bool generateAsync)
 	{
-		string interfaces = generateAsync ? "IDisposable, IAsyncDisposable" : "IDisposable";
+		string interfaces = generateAsync ? $"{TypeNames.IDisposableShortName}, {TypeNames.IAsyncDisposableShortName}" : TypeNames.IDisposableShortName;
 		sb.OpenClass(accessibility, className, interfaces);
 	}
 
@@ -180,7 +180,7 @@ public sealed class DisposableGenerator : IIncrementalGenerator
 
 	private static void AppendThrowIfDisposed(SourceBuilder sb, string className, bool isSealed)
 	{
-		string modifier = isSealed ? "private" : "protected";
+		string modifier = isSealed ? Keywords.Private : Keywords.Protected;
 		sb.AppendSummary("Throws <see cref=\"ObjectDisposedException\"/> if this instance has been disposed.");
 		sb.AppendLine($"{modifier} void ThrowIfDisposed()");
 		sb.OpenBrace();
@@ -194,7 +194,7 @@ public sealed class DisposableGenerator : IIncrementalGenerator
 
 	private static void AppendDisposeBool(SourceBuilder sb, ImmutableArray<(string FieldName, int Order, int SourceIndex)> fields, bool isSealed)
 	{
-		string modifier = isSealed ? "private" : "protected virtual";
+		string modifier = isSealed ? Keywords.Private : Keywords.ProtectedVirtual;
 		sb.AppendSummary("Releases managed and optionally unmanaged resources.");
 		sb.AppendLine("/// <param name=\"disposing\">");
 		sb.AppendLine("/// <see langword=\"true\"/> to release both managed and unmanaged resources;");
@@ -240,7 +240,7 @@ public sealed class DisposableGenerator : IIncrementalGenerator
 
 	private static void AppendDisposeAsyncCore(SourceBuilder sb, ImmutableArray<(string FieldName, int Order, int SourceIndex)> fields, bool isSealed)
 	{
-		string modifier = isSealed ? "private" : "protected virtual";
+		string modifier = isSealed ? Keywords.Private : Keywords.ProtectedVirtual;
 		sb.AppendLine();
 		sb.AppendLine("/// <summary>");
 		sb.AppendLine("/// Performs application-defined tasks associated with freeing, releasing,");

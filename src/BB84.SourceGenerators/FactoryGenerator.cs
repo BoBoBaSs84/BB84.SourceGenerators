@@ -137,7 +137,7 @@ public sealed class FactoryGenerator : IIncrementalGenerator
 		sb.AppendSummary($"Creates an instance of <see cref=\"{interfaceShortName}\"/> based on the specified key.");
 		sb.AppendLine("/// <param name=\"key\">The key identifying the implementation to create.</param>");
 		sb.AppendLine($"/// <returns>A new instance of <see cref=\"{interfaceShortName}\"/>.</returns>");
-		sb.AppendLine("/// <exception cref=\"System.ArgumentException\">Thrown when the key does not match any known implementation.</exception>");
+		sb.AppendLine($"/// <exception cref=\"{TypeNames.ArgumentException}\">Thrown when the key does not match any known implementation.</exception>");
 		sb.AppendLine($"public static {interfaceFullName} Create(string key)");
 		sb.OpenBrace();
 		sb.AppendLine("return key switch");
@@ -148,7 +148,7 @@ public sealed class FactoryGenerator : IIncrementalGenerator
 			sb.AppendLine($"\"{GeneratorHelpers.EscapeString(key)}\" => new {fullTypeName}(),");
 		}
 
-		sb.AppendLine("_ => throw new System.ArgumentException($\"No implementation registered for key '{{key}}'.\", nameof(key)),");
+		sb.AppendLine($"_ => throw new {TypeNames.ArgumentException}($\"No implementation registered for key '{{{{key}}}}'.\", nameof(key)),");
 		sb.Outdent();
 		sb.AppendLine("};");
 		sb.CloseBrace();
@@ -158,7 +158,7 @@ public sealed class FactoryGenerator : IIncrementalGenerator
 	{
 		sb.AppendSummary("Gets all registered factory keys.");
 		sb.AppendLine("/// <returns>An enumerable of all registered keys.</returns>");
-		sb.AppendLine("public static System.Collections.Generic.IEnumerable<string> GetKeys()");
+		sb.AppendLine($"public static {TypeNames.IEnumerable}<string> GetKeys()");
 		sb.OpenBrace();
 
 		foreach ((_, string key) in implementations)

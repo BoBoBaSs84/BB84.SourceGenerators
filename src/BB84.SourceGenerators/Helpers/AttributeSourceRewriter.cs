@@ -25,14 +25,14 @@ internal static class AttributeSourceRewriter
 	/// </summary>
 	private static readonly Dictionary<string, string> KnownTypeReplacements = new()
 	{
-		["Type"] = "System.Type",
-		["Attribute"] = "System.Attribute",
-		["AttributeUsage"] = "System.AttributeUsage",
-		["AttributeUsageAttribute"] = "System.AttributeUsageAttribute",
-		["AttributeTargets"] = "System.AttributeTargets",
-		["StringComparison"] = "System.StringComparison",
-		["INotifyPropertyChanging"] = "System.ComponentModel.INotifyPropertyChanging",
-		["INotifyPropertyChanged"] = "System.ComponentModel.INotifyPropertyChanged",
+		["Type"] = TypeNames.Type,
+		["Attribute"] = TypeNames.Attribute,
+		["AttributeUsage"] = TypeNames.AttributeUsage,
+		["AttributeUsageAttribute"] = TypeNames.AttributeUsageAttribute,
+		["AttributeTargets"] = TypeNames.AttributeTargets,
+		["StringComparison"] = TypeNames.StringComparison,
+		["INotifyPropertyChanging"] = TypeNames.INotifyPropertyChanging,
+		["INotifyPropertyChanged"] = TypeNames.INotifyPropertyChanged,
 	};
 
 	/// <summary>
@@ -184,7 +184,7 @@ internal static class AttributeSourceRewriter
 		{
 			bool alreadyPresent = node.AttributeLists
 				.SelectMany(list => list.Attributes)
-				.Any(attribute => attribute.Name.ToString().Contains("ExcludeFromCodeCoverage"));
+				.Any(attribute => attribute.Name.ToString().Contains(TypeNames.ExcludeFromCodeCoverageShortName));
 
 			if (alreadyPresent)
 				return node;

@@ -113,7 +113,7 @@ internal sealed class SourceBuilder
 	{
 		foreach ((string accessibility, string name, bool isStatic) in outerClasses)
 		{
-			string staticKeyword = isStatic ? "static " : string.Empty;
+			string staticKeyword = isStatic ? $"{Keywords.Static} " : string.Empty;
 			_ = AppendLine($"{accessibility} {staticKeyword}partial class {name}");
 			_ = OpenBrace();
 		}

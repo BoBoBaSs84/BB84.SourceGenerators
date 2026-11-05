@@ -86,7 +86,7 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 		bool hasDictionary = collectionFormat == CollectionFormat.Elements
 			&& properties.Any(static p => p.CollectionKind == CollectionKind.Dictionary);
 
-		sb.OpenClassOrRecord(isRecord, accessibility, className, formattable ? "IFormattable" : null);
+		sb.OpenClassOrRecord(isRecord, accessibility, className, formattable ? TypeNames.IFormattableShortName : null);
 
 		if (formattable)
 			AppendFormattableToString(sb, className, properties, collectionFormat, separator, nullPlaceholder);
@@ -121,12 +121,12 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 
 	private static void AppendPrintMembers(SourceBuilder sb, ImmutableArray<PropertyDescriptor> properties, CollectionFormat collectionFormat, string separator, string? nullPlaceholder, bool printMembersIsOverride)
 	{
-		string modifier = printMembersIsOverride ? "protected override" : "protected virtual";
+		string modifier = printMembersIsOverride ? Keywords.ProtectedOverride : Keywords.ProtectedVirtual;
 
 		sb.AppendSummary("Appends this record's generated member values to <paramref name=\"builder\"/>.");
 		sb.AppendLine("/// <param name=\"builder\">The builder to append formatted member values to.</param>");
 		sb.AppendLine("/// <returns><see langword=\"true\"/> if any members were appended; otherwise, <see langword=\"false\"/>.</returns>");
-		sb.AppendLine($"{modifier} bool PrintMembers(System.Text.StringBuilder builder)");
+		sb.AppendLine($"{modifier} bool PrintMembers({TypeNames.StringBuilder} builder)");
 		sb.OpenBrace();
 		AppendPrintMembersBody(sb, properties, collectionFormat, separator, nullPlaceholder, printMembersIsOverride);
 		sb.CloseBrace();
@@ -162,7 +162,7 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 		AppendCollectionLocals(sb, properties, collectionFormat);
 
 		string escapedSeparator = GeneratorHelpers.EscapeString(separator);
-		sb.AppendLine("System.Text.StringBuilder sb = new();");
+		sb.AppendLine($"{TypeNames.StringBuilder} sb = new();");
 		sb.AppendLine($"sb.Append(\"{className} {{ \");");
 
 		for (int i = 0; i < properties.Length; i++)

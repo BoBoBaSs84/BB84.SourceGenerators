@@ -27,9 +27,6 @@ public sealed class EqualityGenerator : IIncrementalGenerator
 {
 	private const int HashSeed = 17;
 	private const int HashFactor = 31;
-	private const string EnumerableTypeName = NamespaceNames.SystemCollectionsGeneric + ".IEnumerable";
-	private const string ReadOnlyDictionaryTypeName = NamespaceNames.SystemCollectionsGeneric + ".IReadOnlyDictionary";
-	private const string KeyValuePairTypeName = NamespaceNames.SystemCollectionsGeneric + ".KeyValuePair";
 
 	private static readonly (string MetadataName, string TypeName, string ShortName) AttributeNames =
 		GeneratorHelpers.GetAttributeNames<GenerateEqualityAttribute>();
@@ -71,7 +68,7 @@ public sealed class EqualityGenerator : IIncrementalGenerator
 
 	private static void AppendPartialClass(SourceBuilder sb, string className, string accessibility, ImmutableArray<PropertyDescriptor> properties)
 	{
-		sb.OpenClass(accessibility, className, $"IEquatable<{className}>");
+		sb.OpenClass(accessibility, className, $"{TypeNames.IEquatableShortName}<{className}>");
 
 		AppendEqualsObject(sb, className);
 		sb.AppendLine();
@@ -219,12 +216,12 @@ public sealed class EqualityGenerator : IIncrementalGenerator
 	};
 
 	private static string NullableImmutableArrayAsSequence(PropertyDescriptor property, string prefix)
-		=> $"({prefix}{property.Name}.HasValue ? ({EnumerableTypeName}<{property.ElementTypeName}>){prefix}{property.Name}.Value : null)";
+		=> $"({prefix}{property.Name}.HasValue ? ({TypeNames.IEnumerable}<{property.ElementTypeName}>){prefix}{property.Name}.Value : null)";
 
 	private static void AppendSequenceHelpers(SourceBuilder sb)
 	{
 		sb.AppendLine();
-		sb.AppendLine($"private static bool CollectionEquals<T>({EnumerableTypeName}<T>? left, {EnumerableTypeName}<T>? right)");
+		sb.AppendLine($"private static bool CollectionEquals<T>({TypeNames.IEnumerable}<T>? left, {TypeNames.IEnumerable}<T>? right)");
 		sb.OpenBrace();
 		sb.AppendLine("if (ReferenceEquals(left, right))");
 		sb.Indent();
@@ -234,11 +231,11 @@ public sealed class EqualityGenerator : IIncrementalGenerator
 		sb.Indent();
 		sb.AppendLine("return false;");
 		sb.Outdent();
-		sb.AppendLine($"return {NamespaceNames.SystemLinq}.Enumerable.SequenceEqual(left, right);");
+		sb.AppendLine($"return {TypeNames.Enumerable}.SequenceEqual(left, right);");
 		sb.CloseBrace();
 
 		sb.AppendLine();
-		sb.AppendLine($"private static int CollectionHashCode<T>({EnumerableTypeName}<T>? sequence)");
+		sb.AppendLine($"private static int CollectionHashCode<T>({TypeNames.IEnumerable}<T>? sequence)");
 		sb.OpenBrace();
 		sb.AppendLine("if (sequence is null)");
 		sb.Indent();
@@ -259,7 +256,7 @@ public sealed class EqualityGenerator : IIncrementalGenerator
 	private static void AppendDictionaryHelpers(SourceBuilder sb)
 	{
 		sb.AppendLine();
-		sb.AppendLine($"private static bool DictionaryEquals<TKey, TValue>({ReadOnlyDictionaryTypeName}<TKey, TValue>? left, {ReadOnlyDictionaryTypeName}<TKey, TValue>? right)");
+		sb.AppendLine($"private static bool DictionaryEquals<TKey, TValue>({TypeNames.IReadOnlyDictionary}<TKey, TValue>? left, {TypeNames.IReadOnlyDictionary}<TKey, TValue>? right)");
 		sb.OpenBrace();
 		sb.AppendLine("if (ReferenceEquals(left, right))");
 		sb.Indent();
@@ -269,7 +266,7 @@ public sealed class EqualityGenerator : IIncrementalGenerator
 		sb.Indent();
 		sb.AppendLine("return false;");
 		sb.Outdent();
-		sb.AppendLine($"foreach ({KeyValuePairTypeName}<TKey, TValue> pair in left)");
+		sb.AppendLine($"foreach ({TypeNames.KeyValuePair}<TKey, TValue> pair in left)");
 		sb.OpenBrace();
 		sb.AppendLine("if (!right.ContainsKey(pair.Key) || !Equals(pair.Value, right[pair.Key]))");
 		sb.Indent();
@@ -280,7 +277,7 @@ public sealed class EqualityGenerator : IIncrementalGenerator
 		sb.CloseBrace();
 
 		sb.AppendLine();
-		sb.AppendLine($"private static int DictionaryHashCode<TKey, TValue>({ReadOnlyDictionaryTypeName}<TKey, TValue>? dictionary)");
+		sb.AppendLine($"private static int DictionaryHashCode<TKey, TValue>({TypeNames.IReadOnlyDictionary}<TKey, TValue>? dictionary)");
 		sb.OpenBrace();
 		sb.AppendLine("if (dictionary is null)");
 		sb.Indent();
@@ -290,7 +287,7 @@ public sealed class EqualityGenerator : IIncrementalGenerator
 		sb.OpenBrace();
 		// Order-independent: entry hashes are combined with XOR, so the seed must be 0.
 		sb.AppendLine("int hash = 0;");
-		sb.AppendLine($"foreach ({KeyValuePairTypeName}<TKey, TValue> pair in dictionary)");
+		sb.AppendLine($"foreach ({TypeNames.KeyValuePair}<TKey, TValue> pair in dictionary)");
 		sb.Indent();
 		sb.AppendLine($"hash ^= (pair.Key?.GetHashCode() ?? 0) * {HashFactor} + (pair.Value?.GetHashCode() ?? 0);");
 		sb.Outdent();
