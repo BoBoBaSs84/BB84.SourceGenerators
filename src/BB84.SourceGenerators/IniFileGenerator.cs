@@ -8,6 +8,7 @@ using BB84.SourceGenerators.Attributes;
 using BB84.SourceGenerators.Extensions;
 using BB84.SourceGenerators.Helpers;
 using BB84.SourceGenerators.Models;
+using BB84.SourceGenerators.Requests;
 
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -79,7 +80,7 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 		string sectionDelimiter = GetSectionDelimiter(classSymbol);
 		bool serializeComments = GetSerializeComments(classDeclaration, context.SemanticModel);
 
-		List<SectionInfo> sections = [];
+		List<IniFileSection> sections = [];
 		CollectSections(new SectionWalkContext(sections, sectionDelimiter, serializeComments), classSymbol, null, null, 0);
 
 		List<DiagnosticInfo> diagnostics = [];
@@ -96,7 +97,7 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 	private static void Execute(SourceProductionContext context, IniFileRequest request)
 	{
 		TypeTargetInfo type = request.Type;
-		EquatableArray<SectionInfo> sections = request.Sections;
+		EquatableArray<IniFileSection> sections = request.Sections;
 
 		SourceBuilder sb = new();
 
@@ -116,7 +117,7 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 		GeneratorHelpers.AddTypeSource(context, type.OuterClasses, type.Name, null, sb);
 	}
 
-	private static void AppendReadMethod(SourceBuilder sb, string className, EquatableArray<SectionInfo> sections, string stringComparison)
+	private static void AppendReadMethod(SourceBuilder sb, string className, EquatableArray<IniFileSection> sections, string stringComparison)
 	{
 		AppendReadLoopPreamble(sb, className);
 		AppendSectionDispatch(sb, sections, stringComparison);
@@ -169,11 +170,11 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 		sb.AppendLine();
 	}
 
-	private static void AppendSectionDispatch(SourceBuilder sb, EquatableArray<SectionInfo> sections, string stringComparison)
+	private static void AppendSectionDispatch(SourceBuilder sb, EquatableArray<IniFileSection> sections, string stringComparison)
 	{
 		for (int s = 0; s < sections.Count; s++)
 		{
-			SectionInfo section = sections[s];
+			IniFileSection section = sections[s];
 			string elsePrefix = s > 0 ? "else " : "";
 
 			sb.AppendLine($"{elsePrefix}if (string.Equals(currentSection, \"{section.SectionName}\", StringComparison.{stringComparison}))");
@@ -181,7 +182,7 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 
 			for (int v = 0; v < section.Values.Count; v++)
 			{
-				ValueInfo value = section.Values[v];
+				IniFileValue value = section.Values[v];
 				string valueElsePrefix = v > 0 ? "else " : "";
 
 				sb.AppendLine($"{valueElsePrefix}if (string.Equals(key, \"{value.KeyName}\", StringComparison.{stringComparison}))");
@@ -219,7 +220,7 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 		sb.AppendLine();
 	}
 
-	private static void AppendWriteMethod(SourceBuilder sb, string className, EquatableArray<SectionInfo> sections, bool serializeComments)
+	private static void AppendWriteMethod(SourceBuilder sb, string className, EquatableArray<IniFileSection> sections, bool serializeComments)
 	{
 		sb.AppendSummary($"Writes the specified <see cref=\"{className}\"/> instance to an INI file string.");
 		sb.AppendLine($"/// <param name=\"instance\">The <see cref=\"{className}\"/> instance to serialize.</param>");
@@ -231,7 +232,7 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 
 		for (int s = 0; s < sections.Count; s++)
 		{
-			SectionInfo section = sections[s];
+			IniFileSection section = sections[s];
 
 			if (s > 0)
 				sb.AppendLine("sb.AppendLine();");
@@ -241,7 +242,7 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 
 			sb.AppendLine($"sb.AppendLine(\"[{section.SectionName}]\");");
 
-			foreach (ValueInfo value in section.Values)
+			foreach (IniFileValue value in section.Values)
 			{
 				if (serializeComments && value.Comment is not null)
 					sb.AppendLine($"sb.AppendLine(\"; {GeneratorHelpers.EscapeString(value.Comment)}\");");
@@ -374,7 +375,7 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 		sb.AppendLine(returnsDoc);
 	}
 
-	private static void AppendLoadMethod(SourceBuilder sb, string className, EquatableArray<SectionInfo> sections)
+	private static void AppendLoadMethod(SourceBuilder sb, string className, EquatableArray<IniFileSection> sections)
 	{
 		sb.AppendLine();
 		sb.AppendSummary($"Loads values from the specified <paramref name=\"other\"/> instance into this instance.");
@@ -382,9 +383,9 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 		sb.AppendLine($"public void Load({className} other)");
 		sb.OpenBrace();
 
-		foreach (SectionInfo section in sections)
+		foreach (IniFileSection section in sections)
 		{
-			foreach (ValueInfo value in section.Values)
+			foreach (IniFileValue value in section.Values)
 				sb.AppendLine($"{section.PropertyPath}.{value.PropertyName} = other.{section.PropertyPath}.{value.PropertyName};");
 		}
 
@@ -414,9 +415,9 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 			string propertyPath = parentPropertyPath is null ? propertySymbol.Name : $"{parentPropertyPath}.{propertySymbol.Name}";
 			string? comment = walk.SerializeComments ? GetXmlSummaryComment(propertySymbol) : null;
 
-			List<ValueInfo> values = GetValues(sectionType, walk.SerializeComments);
+			List<IniFileValue> values = GetValues(sectionType, walk.SerializeComments);
 
-			walk.Sections.Add(new SectionInfo(
+			walk.Sections.Add(new IniFileSection(
 				PropertyPath: propertyPath,
 				SectionName: fullSectionName,
 				Values: values.ToEquatableArray(),
@@ -427,9 +428,9 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 		}
 	}
 
-	private static List<ValueInfo> GetValues(INamedTypeSymbol sectionType, bool serializeComments)
+	private static List<IniFileValue> GetValues(INamedTypeSymbol sectionType, bool serializeComments)
 	{
-		List<ValueInfo> values = [];
+		List<IniFileValue> values = [];
 
 		foreach (ISymbol member in sectionType.GetMembers())
 		{
@@ -477,7 +478,7 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 
 			string? comment = serializeComments ? GetXmlSummaryComment(propertySymbol) : null;
 
-			values.Add(new ValueInfo(
+			values.Add(new IniFileValue(
 				PropertyName: propertySymbol.Name,
 				KeyName: keyName,
 				TypeName: typeName,
@@ -516,7 +517,7 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 		return false;
 	}
 
-	private static string GetParseExpression(ValueInfo value, string variableName)
+	private static string GetParseExpression(IniFileValue value, string variableName)
 	{
 		if (value.IsCollection && value.CollectionElementTypeName is not null)
 		{
@@ -543,7 +544,7 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 	private static IniTypeFormat GetTypeFormat(string? typeName)
 		=> typeName is not null && TypeFormats.TryGetValue(typeName, out IniTypeFormat? format) ? format : FallbackTypeFormat;
 
-	private static string GetToStringExpression(string expression, ValueInfo value)
+	private static string GetToStringExpression(string expression, IniFileValue value)
 	{
 		if (value.IsCollection)
 		{
@@ -687,6 +688,13 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 			x => $"{x}.ToString(CultureInfo.InvariantCulture)",
 			x => $"{x}.ToString(CultureInfo.InvariantCulture)");
 
+	/// <summary>
+	/// Describes how values of a special type are parsed from and formatted to INI text.
+	/// </summary>
+	/// <param name="SpecialType">The special type the format applies to.</param>
+	/// <param name="Parse">Builds the parse expression for the given value expression.</param>
+	/// <param name="ScalarToString">Builds the format expression for a scalar value expression.</param>
+	/// <param name="ElementToString">Builds the format expression for a collection element expression.</param>
 	private sealed record IniTypeFormat(
 		SpecialType SpecialType,
 		Func<string, string> Parse,
@@ -694,36 +702,16 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 		Func<string, string> ElementToString
 	);
 
-	private sealed record IniFileRequest(
-		TypeTargetInfo Type,
-		string StringComparison,
-		bool SerializeComments,
-		EquatableArray<SectionInfo> Sections
-	);
 
+	/// <summary>
+	/// Holds the state shared while walking the nested section properties.
+	/// </summary>
+	/// <param name="Sections">The collected sections.</param>
+	/// <param name="SectionDelimiter">The delimiter between parent and child section names.</param>
+	/// <param name="SerializeComments">Indicates whether XML summary comments are collected.</param>
 	private sealed record SectionWalkContext(
-		List<SectionInfo> Sections,
+		List<IniFileSection> Sections,
 		string SectionDelimiter,
 		bool SerializeComments
-	);
-
-	private sealed record SectionInfo(
-		string PropertyPath,
-		string SectionName,
-		EquatableArray<ValueInfo> Values,
-		string? Comment = null
-	);
-
-	private sealed record ValueInfo(
-		string PropertyName,
-		string KeyName,
-		string TypeName,
-		bool IsEnum = false,
-		bool IsFlagsEnum = false,
-		string? EnumFullName = null,
-		string? Comment = null,
-		bool IsCollection = false,
-		string? CollectionElementTypeName = null,
-		bool IsArray = false
 	);
 }

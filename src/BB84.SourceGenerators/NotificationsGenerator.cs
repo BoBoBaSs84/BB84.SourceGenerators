@@ -8,6 +8,7 @@ using BB84.SourceGenerators.Attributes;
 using BB84.SourceGenerators.Extensions;
 using BB84.SourceGenerators.Helpers;
 using BB84.SourceGenerators.Models;
+using BB84.SourceGenerators.Requests;
 
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -54,13 +55,13 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 
 		List<DiagnosticInfo> diagnostics = [];
 
-		if (BuildOptions(diagnostics, type, typeSymbol, context.SemanticModel.Compilation) is not NotificationOptions options)
+		if (BuildOptions(diagnostics, type, typeSymbol, context.SemanticModel.Compilation) is not NotificationsOptions options)
 			return GeneratorResult<NotificationsRequest>.FromDiagnostics([.. diagnostics]);
 
 		if (!options.RaiseChanged && !options.RaiseChanging)
 			return null;
 
-		(EquatableArray<NotifyingField> fields, EquatableArray<NotifyingPartialProperty> partialProperties) = CollectMembers(diagnostics, typeDeclaration, typeSymbol, context.SemanticModel);
+		(EquatableArray<NotificationsField> fields, EquatableArray<NotificationsPartialProperty> partialProperties) = CollectMembers(diagnostics, typeDeclaration, typeSymbol, context.SemanticModel);
 
 		bool isSealed = typeDeclaration.Modifiers.Any(SyntaxKind.SealedKeyword);
 
@@ -78,7 +79,7 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 	/// <param name="typeSymbol">The type symbol.</param>
 	/// <param name="compilation">The compilation used to resolve base type members.</param>
 	/// <returns>The notification options, or <see langword="null"/> when a diagnostic was added.</returns>
-	private static NotificationOptions? BuildOptions(List<DiagnosticInfo> diagnostics, TypeTargetInfo type, INamedTypeSymbol typeSymbol, Compilation compilation)
+	private static NotificationsOptions? BuildOptions(List<DiagnosticInfo> diagnostics, TypeTargetInfo type, INamedTypeSymbol typeSymbol, Compilation compilation)
 	{
 		bool generatePropertyChanged = GetPropertyChanged(typeSymbol);
 		bool generatePropertyChanging = GetPropertyChanging(typeSymbol);
@@ -99,7 +100,7 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 
 		bool inheritedHasChanged = GetInheritedHasChanged(typeSymbol, compilation);
 
-		return new NotificationOptions(
+		return new NotificationsOptions(
 			DeclareChanged: generatePropertyChanged && !inheritedChanged.IsProvided,
 			DeclareChanging: generatePropertyChanging && !inheritedChanging.IsProvided,
 			DeclareHasChanged: generateHasChanged && !inheritedHasChanged,
@@ -120,7 +121,7 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 	/// <param name="typeSymbol">The type symbol.</param>
 	/// <param name="semanticModel">The semantic model of the type declaration.</param>
 	/// <returns>The notifying fields, one per declared variable, and the partial properties to implement.</returns>
-	private static (EquatableArray<NotifyingField> Fields, EquatableArray<NotifyingPartialProperty> PartialProperties) CollectMembers(List<DiagnosticInfo> diagnostics, TypeDeclarationSyntax typeDeclaration, INamedTypeSymbol typeSymbol, SemanticModel semanticModel)
+	private static (EquatableArray<NotificationsField> Fields, EquatableArray<NotificationsPartialProperty> PartialProperties) CollectMembers(List<DiagnosticInfo> diagnostics, TypeDeclarationSyntax typeDeclaration, INamedTypeSymbol typeSymbol, SemanticModel semanticModel)
 	{
 		List<FieldDeclarationSyntax> fieldDeclarations = [.. typeDeclaration.Members
 			.OfType<FieldDeclarationSyntax>()
@@ -133,7 +134,7 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 		foreach (MemberDeclarationSyntax member in fieldDeclarations.Cast<MemberDeclarationSyntax>().Concat(partialProperties.Select(static p => p.Syntax)))
 			notifyCommands[member] = GetNotifyCanExecuteChangedCommands(diagnostics, member, knownCommands);
 
-		List<NotifyingField> fields = [];
+		List<NotificationsField> fields = [];
 		foreach (FieldDeclarationSyntax fieldDeclaration in fieldDeclarations)
 		{
 			EquatableArray<string> alsoNotifyFor = GetAlsoNotifyForProperties(fieldDeclaration).ToEquatableArray();
@@ -143,12 +144,12 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 			foreach (VariableDeclaratorSyntax variable in fieldDeclaration.Declaration.Variables)
 			{
 				string fieldName = variable.Identifier.Text;
-				fields.Add(new NotifyingField(fieldName, fieldType, GeneratorHelpers.FieldNameToPropertyName(fieldName), alsoNotifyFor, commands));
+				fields.Add(new NotificationsField(fieldName, fieldType, GeneratorHelpers.FieldNameToPropertyName(fieldName), alsoNotifyFor, commands));
 			}
 		}
 
-		EquatableArray<NotifyingPartialProperty> properties = partialProperties
-			.Select(property => new NotifyingPartialProperty(
+		EquatableArray<NotificationsPartialProperty> properties = partialProperties
+			.Select(property => new NotificationsPartialProperty(
 				$"{property.Syntax.Modifiers}",
 				property.Syntax.Identifier.Text,
 				property.TypeName,
@@ -167,7 +168,7 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 	private static void Execute(SourceProductionContext context, NotificationsRequest request)
 	{
 		TypeTargetInfo type = request.Type;
-		NotificationOptions options = request.Options;
+		NotificationsOptions options = request.Options;
 
 		SourceBuilder sb = new();
 
@@ -296,7 +297,7 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 	private static bool HasGenerateNotificationsAttribute(INamedTypeSymbol typeSymbol)
 		=> typeSymbol.GetAttributes().Any(static a => a.AttributeClass?.Name == AttributeNames.TypeName);
 
-	private static void AppendClassStart(SourceBuilder sb, string className, string accessibility, NotificationOptions options, bool isRecord)
+	private static void AppendClassStart(SourceBuilder sb, string className, string accessibility, NotificationsOptions options, bool isRecord)
 	{
 		List<string> interfaces = [];
 
@@ -347,7 +348,7 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 		}
 	}
 
-	private static void AppendProperties(SourceBuilder sb, EquatableArray<NotifyingField> fields, NotificationOptions options)
+	private static void AppendProperties(SourceBuilder sb, EquatableArray<NotificationsField> fields, NotificationsOptions options)
 	{
 		bool first = true;
 		foreach ((string fieldName, string fieldType, string propertyName, EquatableArray<string> alsoNotifyFor, EquatableArray<string> commands) in fields)
@@ -368,10 +369,10 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 		}
 	}
 
-	private static void AppendPartialProperties(SourceBuilder sb, EquatableArray<NotifyingPartialProperty> properties, bool hasPrecedingMembers, NotificationOptions options)
+	private static void AppendPartialProperties(SourceBuilder sb, EquatableArray<NotificationsPartialProperty> properties, bool hasPrecedingMembers, NotificationsOptions options)
 	{
 		bool first = !hasPrecedingMembers;
-		foreach (NotifyingPartialProperty property in properties)
+		foreach (NotificationsPartialProperty property in properties)
 		{
 			if (!first)
 				sb.AppendLine();
@@ -400,7 +401,7 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 		}
 	}
 
-	private static void AppendNotifyingSetterBody(SourceBuilder sb, string fieldName, string propertyName, string typeName, EquatableArray<string> alsoNotifyFor, EquatableArray<string> commands, NotificationOptions options)
+	private static void AppendNotifyingSetterBody(SourceBuilder sb, string fieldName, string propertyName, string typeName, EquatableArray<string> alsoNotifyFor, EquatableArray<string> commands, NotificationsOptions options)
 	{
 		sb.OpenBrace();
 		sb.AppendLine($"if ({fieldName} != value)");
@@ -736,63 +737,6 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 		bool IsExcluded);
 
 	/// <summary>
-	/// Describes a request to implement change notification for a class or record.
-	/// </summary>
-	/// <param name="Type">The class or record to extend.</param>
-	/// <param name="IsRecord">Indicates whether the type is a record class.</param>
-	/// <param name="IsSealed">Indicates whether the type is sealed.</param>
-	/// <param name="Options">The notification options.</param>
-	/// <param name="Fields">The notifying fields, one per declared variable.</param>
-	/// <param name="PartialProperties">The partial properties to implement.</param>
-	private sealed record NotificationsRequest(
-		TypeTargetInfo Type,
-		bool IsRecord,
-		bool IsSealed,
-		NotificationOptions Options,
-		EquatableArray<NotifyingField> Fields,
-		EquatableArray<NotifyingPartialProperty> PartialProperties);
-
-	/// <summary>
-	/// Describes a field that is turned into a notifying property.
-	/// </summary>
-	/// <param name="FieldName">The name of the field.</param>
-	/// <param name="FieldType">The type of the field, as written in source.</param>
-	/// <param name="PropertyName">The name of the generated property.</param>
-	/// <param name="AlsoNotifyFor">The names of the additionally notified properties.</param>
-	/// <param name="Commands">The commands whose <c>CanExecuteChanged</c> is raised.</param>
-	private sealed record NotifyingField(
-		string FieldName,
-		string FieldType,
-		string PropertyName,
-		EquatableArray<string> AlsoNotifyFor,
-		EquatableArray<string> Commands);
-
-	/// <summary>
-	/// Describes a partial property that is implemented with change notification.
-	/// </summary>
-	/// <param name="Modifiers">The modifiers of the defining declaration, as written in source.</param>
-	/// <param name="Name">The name of the property.</param>
-	/// <param name="TypeName">The fully qualified property type name.</param>
-	/// <param name="FieldName">The name of the generated backing field.</param>
-	/// <param name="Initializer">The backing field initializer, including the terminating semicolon.</param>
-	/// <param name="GetterPrefix">The modifiers of the <c>get</c> accessor, followed by a space, or an empty string.</param>
-	/// <param name="SetterPrefix">The modifiers of the <c>set</c> accessor, followed by a space, or an empty string.</param>
-	/// <param name="IsExcluded">Indicates whether the property is excluded from change notification.</param>
-	/// <param name="AlsoNotifyFor">The names of the additionally notified properties.</param>
-	/// <param name="Commands">The commands whose <c>CanExecuteChanged</c> is raised.</param>
-	private sealed record NotifyingPartialProperty(
-		string Modifiers,
-		string Name,
-		string TypeName,
-		string FieldName,
-		string Initializer,
-		string GetterPrefix,
-		string SetterPrefix,
-		bool IsExcluded,
-		EquatableArray<string> AlsoNotifyFor,
-		EquatableArray<string> Commands);
-
-	/// <summary>
 	/// Describes whether a change notification is already provided by the base type chain.
 	/// </summary>
 	/// <param name="InterfaceName">The metadata name of the notification interface.</param>
@@ -808,27 +752,4 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 		bool IsProvided,
 		bool SupportsParams,
 		INamedTypeSymbol? MissingRaiseMethodIn);
-
-	/// <summary>
-	/// Describes which notification members are declared by the generated type and which are raised by its setters.
-	/// </summary>
-	/// <param name="DeclareChanged">Indicates whether the <c>PropertyChanged</c> event and raise methods are declared.</param>
-	/// <param name="DeclareChanging">Indicates whether the <c>PropertyChanging</c> event and raise methods are declared.</param>
-	/// <param name="DeclareHasChanged">Indicates whether the <c>HasChanged</c> property is declared.</param>
-	/// <param name="RaiseChanged">Indicates whether setters raise the <c>PropertyChanged</c> event.</param>
-	/// <param name="RaiseChanging">Indicates whether setters raise the <c>PropertyChanging</c> event.</param>
-	/// <param name="SetHasChanged">Indicates whether setters set the <c>HasChanged</c> property.</param>
-	/// <param name="ChangedSupportsParams">Indicates whether <c>RaisePropertyChanged</c> accepts multiple property names.</param>
-	/// <param name="ChangingSupportsParams">Indicates whether <c>RaisePropertyChanging</c> accepts multiple property names.</param>
-	/// <param name="PartialMethods">Indicates whether partial method hooks are declared and called.</param>
-	private sealed record NotificationOptions(
-		bool DeclareChanged,
-		bool DeclareChanging,
-		bool DeclareHasChanged,
-		bool RaiseChanged,
-		bool RaiseChanging,
-		bool SetHasChanged,
-		bool ChangedSupportsParams,
-		bool ChangingSupportsParams,
-		bool PartialMethods);
 }

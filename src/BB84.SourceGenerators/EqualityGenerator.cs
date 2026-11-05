@@ -39,21 +39,6 @@ public sealed class EqualityGenerator : IIncrementalGenerator
 		NamespaceNames.System,
 	];
 
-	/// <summary>
-	/// Describes how a property is compared and hashed in the generated members.
-	/// </summary>
-	private enum EqualityStrategy
-	{
-		/// <summary>Compared with <c>Equals(left, right)</c>.</summary>
-		Direct,
-		/// <summary>Compared element-wise as a sequence.</summary>
-		Sequence,
-		/// <summary>A nullable <c>ImmutableArray&lt;T&gt;</c>, compared element-wise after conversion to a sequence.</summary>
-		NullableImmutableArray,
-		/// <summary>Compared key/value-wise as a dictionary.</summary>
-		Dictionary
-	}
-
 	/// <inheritdoc/>
 	public void Initialize(IncrementalGeneratorInitializationContext context)
 		=> GeneratorHelpers.RegisterRequestGenerator<EqualityRequest>(context, AttributeNames.MetadataName, GeneratorHelpers.IsClassNode, Transform, TrackingNames.Equality, Execute);
@@ -316,4 +301,19 @@ public sealed class EqualityGenerator : IIncrementalGenerator
 
 	private static bool GetIncludeInherited(ClassDeclarationSyntax classDeclaration, SemanticModel semanticModel)
 		=> GeneratorHelpers.GetNamedArgumentValue(classDeclaration, semanticModel, AttributeNames.ShortName, AttributeNames.TypeName, nameof(GenerateEqualityAttribute.IncludeInherited), false);
+
+	/// <summary>
+	/// Describes how a property is compared and hashed in the generated members.
+	/// </summary>
+	private enum EqualityStrategy
+	{
+		/// <summary>Compared with <c>Equals(left, right)</c>.</summary>
+		Direct,
+		/// <summary>Compared element-wise as a sequence.</summary>
+		Sequence,
+		/// <summary>A nullable <c>ImmutableArray&lt;T&gt;</c>, compared element-wise after conversion to a sequence.</summary>
+		NullableImmutableArray,
+		/// <summary>Compared key/value-wise as a dictionary.</summary>
+		Dictionary
+	}
 }
