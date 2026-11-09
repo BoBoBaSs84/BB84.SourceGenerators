@@ -62,6 +62,20 @@ public sealed class CloneableGeneratorDriverTests
 	}
 
 	[TestMethod]
+	public void NestedStructShouldBeEmittedInsideOuterClass()
+	{
+		string src = Generate(@"
+	public partial class Outer
+	{
+		[GenerateCloneable]
+		internal partial struct Inner { public int Id { get; set; } }
+	}", "partial struct Inner");
+
+		Assert.Contains("public partial class Outer", src);
+		Assert.Contains("internal partial struct Inner : ICloneable", src);
+	}
+
+	[TestMethod]
 	public void ListOfCloneableElementsShouldDeepCloneEach()
 	{
 		string src = Generate(ItemType + @"
