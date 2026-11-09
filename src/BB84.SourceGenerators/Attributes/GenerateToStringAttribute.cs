@@ -28,12 +28,12 @@ internal enum CollectionFormat
 }
 
 /// <summary>
-/// Indicates that the decorated <c>class</c> should have a <c>ToString()</c> override generated for it.
-/// The generated method returns a formatted string containing the class name and all (or selected)
-/// public property values in the format <c>ClassName { Prop1 = val1, Prop2 = val2 }</c>.
+/// Indicates that the decorated <c>class</c> or <c>struct</c> should have a <c>ToString()</c> override generated for it.
+/// The generated method returns a formatted string containing the type name and all (or selected)
+/// public property values in the format <c>TypeName { Prop1 = val1, Prop2 = val2 }</c>.
 /// </summary>
 /// <param name="excludeProperties">The property names to exclude from the generated <c>ToString()</c> output.</param>
-[AttributeUsage(AttributeTargets.Class, Inherited = false, AllowMultiple = false)]
+[AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct, Inherited = false, AllowMultiple = false)]
 internal sealed class GenerateToStringAttribute(params string[] excludeProperties) : Attribute
 {
 	/// <summary>

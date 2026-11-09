@@ -6,12 +6,12 @@
 namespace BB84.SourceGenerators.Attributes;
 
 /// <summary>
-/// Indicates that the decorated <c>class</c> should have equality members generated for it.
+/// Indicates that the decorated <c>class</c> or <c>struct</c> should have equality members generated for it.
 /// The generated code includes <c>Equals(object)</c>, <c>Equals(T)</c>, <c>GetHashCode()</c>,
 /// <c>operator ==</c>, and <c>operator !=</c>, implementing <see cref="IEquatable{T}"/>.
 /// </summary>
 /// <param name="excludeProperties">The property names to exclude from the generated equality comparison.</param>
-[AttributeUsage(AttributeTargets.Class, Inherited = false, AllowMultiple = false)]
+[AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct, Inherited = false, AllowMultiple = false)]
 internal sealed class GenerateEqualityAttribute(params string[] excludeProperties) : Attribute
 {
 	/// <summary>

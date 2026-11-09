@@ -6,10 +6,10 @@
 namespace BB84.SourceGenerators.Attributes;
 
 /// <summary>
-/// Indicates that the decorated <c>class</c> should have a builder class generated for it.
+/// Indicates that the decorated <c>class</c> or <c>struct</c> should have a builder class generated for it.
 /// The generated builder provides a fluent API with <c>With{PropertyName}(value)</c> methods
 /// for each public settable property and a <c>Build()</c> method that creates the instance.
 /// </summary>
-[AttributeUsage(AttributeTargets.Class, Inherited = false, AllowMultiple = false)]
+[AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct, Inherited = false, AllowMultiple = false)]
 internal sealed class GenerateBuilderAttribute : Attribute
 { }

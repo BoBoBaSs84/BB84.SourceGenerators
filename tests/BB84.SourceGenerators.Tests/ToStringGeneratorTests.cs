@@ -585,6 +585,35 @@ public sealed class ToStringGeneratorTests
 		Assert.AreEqual("ToStringFormattableRecordModel { Value = 42 }", formattable.ToString(null, null));
 		Assert.AreEqual(model.ToString(), formattable.ToString(null, null));
 	}
+
+	[TestMethod]
+	public void StructToStringShouldReturnAllProperties()
+	{
+		ToStringStructModel model = new() { Id = 7, Name = "Point" };
+		Assert.AreEqual("ToStringStructModel { Id = 7, Name = Point }", model.ToString());
+	}
+
+	[TestMethod]
+	public void FormattableStructToStringShouldImplementIFormattable()
+	{
+		ToStringFormattableStructModel model = new() { Total = 1.5m };
+		IFormattable formattable = model;
+		Assert.AreEqual("ToStringFormattableStructModel { Total = 1,5 }", formattable.ToString(null, CultureInfo.GetCultureInfo("de-DE")));
+		Assert.AreEqual(model.ToString(), formattable.ToString(null, null));
+	}
+}
+
+[GenerateToString]
+public partial struct ToStringStructModel
+{
+	public int Id { get; set; }
+	public string? Name { get; set; }
+}
+
+[GenerateToString(Formattable = true)]
+public partial struct ToStringFormattableStructModel
+{
+	public decimal Total { get; set; }
 }
 
 [GenerateToString]

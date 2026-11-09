@@ -10,7 +10,7 @@
 | [ActionCommand Generator](action-command.md)                    | Compile-time `ICommand` property generation (sync, async, parameterized, cancellable) for MVVM                              |
 | [Assembly Information Generator](assembly-information.md)       | Compile-time assembly metadata constants without reflection                                                                 |
 | [AutoMapper Generator](auto-mapper.md)                          | Compile-time property-to-property mapping method generation                                                                 |
-| [Builder Generator](builder.md)                                 | Fluent builder pattern generation for classes                                                                               |
+| [Builder Generator](builder.md)                                 | Fluent builder pattern generation for classes and structs                                                                   |
 | [Cloneable Generator](cloneable.md)                             | Compile-time `Clone()` and `DeepClone()` method generation with collection and struct support                               |
 | [Decorator Generator](decorator.md)                             | Compile-time decorator pattern generation with full interface delegation, generic methods, events, and partial method hooks |
 | [Disposable Generator](disposable.md)                           | Compile-time `IDisposable` / `IAsyncDisposable` pattern generation with ordered resource cleanup                            |

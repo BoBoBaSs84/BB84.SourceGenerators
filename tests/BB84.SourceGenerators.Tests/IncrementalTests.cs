@@ -56,6 +56,12 @@ public sealed class IncrementalTests
 		=> Verify(SnapshotCases.Builder[caseName], new BuilderGenerator(), TrackingNames.Builder);
 
 	[TestMethod]
+	[DataRow("Struct")]
+	[DataRow("NestedStruct")]
+	public void BuilderStruct(string caseName)
+		=> Verify(SnapshotCases.Builder[caseName], new BuilderGenerator(), TrackingNames.BuilderStruct);
+
+	[TestMethod]
 	[DataRow("Class")]
 	[DataRow("Collections")]
 	[DataRow("Nested")]
@@ -100,6 +106,12 @@ public sealed class IncrementalTests
 		=> Verify(SnapshotCases.Equality[caseName], new EqualityGenerator(), TrackingNames.Equality);
 
 	[TestMethod]
+	[DataRow("Struct")]
+	[DataRow("NestedStruct")]
+	public void EqualityStruct(string caseName)
+		=> Verify(SnapshotCases.Equality[caseName], new EqualityGenerator(), TrackingNames.EqualityStruct);
+
+	[TestMethod]
 	[DataRow("Plain")]
 	[DataRow("Options")]
 	[DataRow("Collections")]
@@ -108,6 +120,12 @@ public sealed class IncrementalTests
 	[DataRow("NestedAndNullable")]
 	public void ToStringOverride(string caseName)
 		=> Verify(SnapshotCases.ToStringOverride[caseName], new ToStringGenerator(), TrackingNames.ToStringOverride);
+
+	[TestMethod]
+	[DataRow("Struct")]
+	[DataRow("NestedStruct")]
+	public void ToStringStruct(string caseName)
+		=> Verify(SnapshotCases.ToStringOverride[caseName], new ToStringGenerator(), TrackingNames.ToStringStruct);
 
 	[TestMethod]
 	[DataRow("Plain")]

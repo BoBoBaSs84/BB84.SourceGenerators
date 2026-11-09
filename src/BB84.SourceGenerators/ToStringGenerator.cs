@@ -16,7 +16,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 namespace BB84.SourceGenerators;
 
 /// <summary>
-/// Responsible for generating a <c>ToString()</c> override for classes marked
+/// Responsible for generating a <c>ToString()</c> override for classes, records and structs marked
 /// with the <see cref="GenerateToStringAttribute"/> attribute.
 /// </summary>
 [Generator(LanguageNames.CSharp)]
@@ -36,7 +36,13 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 
 	/// <inheritdoc/>
 	public void Initialize(IncrementalGeneratorInitializationContext context)
-		=> GeneratorHelpers.RegisterRequestGenerator<ToStringRequest>(context, AttributeNames.MetadataName, GeneratorHelpers.IsClassOrRecordClassNode, Transform, TrackingNames.ToStringOverride, Execute);
+	{
+		// Register for classes and record classes
+		GeneratorHelpers.RegisterRequestGenerator<ToStringRequest>(context, AttributeNames.MetadataName, GeneratorHelpers.IsClassOrRecordClassNode, Transform, TrackingNames.ToStringOverride, ExecuteClass);
+
+		// Register for structs
+		GeneratorHelpers.RegisterRequestGenerator<ToStringRequest>(context, AttributeNames.MetadataName, GeneratorHelpers.IsStructNode, Transform, TrackingNames.ToStringStruct, ExecuteStruct);
+	}
 
 	private static GeneratorResult<ToStringRequest>? Transform(GeneratorAttributeSyntaxContext context, CancellationToken cancellationToken)
 	{
@@ -67,26 +73,36 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 			printMembersIsOverride));
 	}
 
-	private static void Execute(SourceProductionContext context, ToStringRequest request)
+	private static void ExecuteClass(SourceProductionContext context, ToStringRequest request)
+		=> Execute(context, request, isStruct: false);
+
+	private static void ExecuteStruct(SourceProductionContext context, ToStringRequest request)
+		=> Execute(context, request, isStruct: true);
+
+	private static void Execute(SourceProductionContext context, ToStringRequest request, bool isStruct)
 	{
 		TypeTargetInfo type = request.Type;
 		SourceBuilder sb = new();
 
 		sb.BeginTypeFile(GeneratorNames.ToStringGeneratorFullName, type.NamespaceName, type.OuterClasses, FileUsings);
 
-		AppendPartialType(sb, type.Name, type.Accessibility, request.Properties.AsImmutableArray(), request.CollectionFormat, request.Separator, request.Formattable, request.NullPlaceholder, request.IsRecord, request.PrintMembersIsOverride);
+		AppendPartialType(sb, type.Name, type.Accessibility, request.Properties.AsImmutableArray(), request.CollectionFormat, request.Separator, request.Formattable, request.NullPlaceholder, request.IsRecord, request.PrintMembersIsOverride, isStruct);
 
 		sb.EndTypeFile(type.OuterClasses);
 
 		GeneratorHelpers.AddTypeSource(context, type.OuterClasses, type.Name, "ToString", sb);
 	}
 
-	private static void AppendPartialType(SourceBuilder sb, string className, string accessibility, ImmutableArray<PropertyDescriptor> properties, CollectionFormat collectionFormat, string separator, bool formattable, string? nullPlaceholder, bool isRecord, bool printMembersIsOverride)
+	private static void AppendPartialType(SourceBuilder sb, string className, string accessibility, ImmutableArray<PropertyDescriptor> properties, CollectionFormat collectionFormat, string separator, bool formattable, string? nullPlaceholder, bool isRecord, bool printMembersIsOverride, bool isStruct)
 	{
 		bool hasDictionary = collectionFormat == CollectionFormat.Elements
 			&& properties.Any(static p => p.CollectionKind == CollectionKind.Dictionary);
+		string? baseTypes = formattable ? TypeNames.IFormattableShortName : null;
 
-		sb.OpenClassOrRecord(isRecord, accessibility, className, formattable ? TypeNames.IFormattableShortName : null);
+		if (isStruct)
+			sb.OpenStruct(accessibility, className, baseTypes);
+		else
+			sb.OpenClassOrRecord(isRecord, accessibility, className, baseTypes);
 
 		if (formattable)
 			AppendFormattableToString(sb, className, properties, collectionFormat, separator, nullPlaceholder);
@@ -101,7 +117,10 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 			AppendDictionaryFormatHelper(sb);
 		}
 
-		sb.CloseClassOrRecord(isRecord);
+		if (isStruct)
+			sb.CloseStruct();
+		else
+			sb.CloseClassOrRecord(isRecord);
 	}
 
 	private static void AppendFormattableToString(SourceBuilder sb, string className, ImmutableArray<PropertyDescriptor> properties, CollectionFormat collectionFormat, string separator, string? nullPlaceholder)

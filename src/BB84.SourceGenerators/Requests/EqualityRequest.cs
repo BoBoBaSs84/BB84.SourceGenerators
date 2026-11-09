@@ -8,10 +8,10 @@ using BB84.SourceGenerators.Models;
 namespace BB84.SourceGenerators.Requests;
 
 /// <summary>
-/// Represents a request to generate equality members for a class marked with the
+/// Represents a request to generate equality members for a class or struct marked with the
 /// <c>[GenerateEquality]</c> attribute.
 /// </summary>
-/// <param name="Type">The class to extend.</param>
+/// <param name="Type">The class or struct to extend.</param>
 /// <param name="Properties">The properties that take part in equality.</param>
 internal sealed record EqualityRequest(
 	TypeTargetInfo Type,

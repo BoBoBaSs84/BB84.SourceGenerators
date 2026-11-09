@@ -1,6 +1,6 @@
 # ToString Generator
 
-Generates a `ToString()` override for classes, returning a formatted string containing the class name and all (or selected) public readable property values in the format `ClassName { Prop1 = val1, Prop2 = val2 }`. Collection properties (lists, arrays, dictionaries) are rendered with configurable formatting instead of the default type name.
+Generates a `ToString()` override for classes, records and structs, returning a formatted string containing the type name and all (or selected) public readable property values in the format `ClassName { Prop1 = val1, Prop2 = val2 }`. Collection properties (lists, arrays, dictionaries) are rendered with configurable formatting instead of the default type name.
 
 [← Back to overview](../README.md) · [All generators](README.md)
 
@@ -293,3 +293,20 @@ public partial record Employee : Person
 ```
 
 When `Formattable = true`, the generator falls back to directly overriding `ToString()` and `ToString(string?, IFormatProvider?)` — the same code path used for classes — because `PrintMembers` has no way to carry a format string or `IFormatProvider`. This is an intentional trade-off: a formattable record no longer benefits from the compiler-synthesized `ToString()` wrapper.
+
+### Struct Support
+
+`[GenerateToString]` also targets `struct` declarations. The default `ValueType.ToString()` only returns the type name, and reflection-based alternatives are slow for value types. The generated override uses the same code path as for classes, and all options (`Formattable`, `CollectionFormat`, `NullPlaceholder`, exclusions, ordering) apply unchanged:
+
+```csharp
+[GenerateToString]
+public partial struct Point
+{
+    public int X { get; set; }
+    public int Y { get; set; }
+}
+
+// Output: "Point { X = 3, Y = 4 }"
+```
+
+`record struct` declarations are not targeted, because they already have a compiler-synthesized `ToString()`.

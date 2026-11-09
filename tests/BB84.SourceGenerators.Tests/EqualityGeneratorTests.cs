@@ -229,7 +229,83 @@ public sealed class EqualityGeneratorTests
 		Assert.AreEqual(a.GetHashCode(), b.GetHashCode());
 		Assert.IsFalse(a.Equals(c));
 	}
+
+	[TestMethod]
+	public void StructEqualsShouldCompareProperties()
+	{
+		EqualityStructModel a = new() { Id = 1, Name = "John" };
+		EqualityStructModel b = new() { Id = 1, Name = "John" };
+		EqualityStructModel c = new() { Id = 2, Name = "John" };
+
+		Assert.IsTrue(a.Equals(b));
+		Assert.IsFalse(a.Equals(c));
+		Assert.AreEqual(a.GetHashCode(), b.GetHashCode());
+	}
+
+	[TestMethod]
+	public void StructEqualsObjectShouldHandleBoxedAndForeignValues()
+	{
+		EqualityStructModel a = new() { Id = 1, Name = "John" };
+		object boxed = new EqualityStructModel() { Id = 1, Name = "John" };
+
+		Assert.IsTrue(a.Equals(boxed));
+		Assert.IsFalse(a.Equals(null));
+		Assert.IsFalse(a.Equals("not an EqualityStructModel"));
+	}
+
+	[TestMethod]
+	public void StructOperatorsShouldCompareProperties()
+	{
+		EqualityStructModel a = new() { Id = 1, Name = "John" };
+		EqualityStructModel b = new() { Id = 1, Name = "John" };
+		EqualityStructModel c = new() { Id = 1, Name = "Jane" };
+
+		Assert.IsTrue(a == b);
+		Assert.IsFalse(a != b);
+		Assert.IsFalse(a == c);
+		Assert.IsTrue(a != c);
+	}
+
+	[TestMethod]
+	public void StructEqualsShouldCompareCollectionsElementWise()
+	{
+		EqualityStructCollectionModel a = new() { Tags = ["a", "b"], Scores = new() { ["x"] = 1 } };
+		EqualityStructCollectionModel b = new() { Tags = ["a", "b"], Scores = new() { ["x"] = 1 } };
+		EqualityStructCollectionModel c = new() { Tags = ["a"], Scores = new() { ["x"] = 1 } };
+
+		Assert.IsTrue(a.Equals(b));
+		Assert.AreEqual(a.GetHashCode(), b.GetHashCode());
+		Assert.IsFalse(a.Equals(c));
+	}
+
+	[TestMethod]
+	public void EmptyStructShouldBeEqualWithStableHashCode()
+	{
+		EqualityEmptyStructModel a = new();
+		EqualityEmptyStructModel b = new();
+
+		Assert.IsTrue(a == b);
+		Assert.AreEqual(0, a.GetHashCode());
+	}
 }
+
+[GenerateEquality]
+public partial struct EqualityStructModel
+{
+	public int Id { get; set; }
+	public string? Name { get; set; }
+}
+
+[GenerateEquality]
+public partial struct EqualityStructCollectionModel
+{
+	public List<string>? Tags { get; set; }
+	public Dictionary<string, int>? Scores { get; set; }
+}
+
+[GenerateEquality]
+public partial struct EqualityEmptyStructModel
+{ }
 
 public abstract class EqualityModelBase
 {

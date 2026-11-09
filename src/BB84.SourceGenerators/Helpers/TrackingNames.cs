@@ -16,16 +16,19 @@ internal static class TrackingNames
 	internal const string AssemblyInformation = nameof(AssemblyInformation);
 	internal const string AutoMapper = nameof(AutoMapper);
 	internal const string Builder = nameof(Builder);
+	internal const string BuilderStruct = nameof(BuilderStruct);
 	internal const string CloneableClass = nameof(CloneableClass);
 	internal const string CloneableStruct = nameof(CloneableStruct);
 	internal const string Decorator = nameof(Decorator);
 	internal const string Disposable = nameof(Disposable);
 	internal const string EnumeratorExtensions = nameof(EnumeratorExtensions);
 	internal const string Equality = nameof(Equality);
+	internal const string EqualityStruct = nameof(EqualityStruct);
 	internal const string Factory = nameof(Factory);
 	internal const string IniFile = nameof(IniFile);
 	internal const string Notifications = nameof(Notifications);
 	internal const string Singleton = nameof(Singleton);
 	internal const string ToStringOverride = nameof(ToStringOverride);
+	internal const string ToStringStruct = nameof(ToStringStruct);
 	internal const string Validator = nameof(Validator);
 }

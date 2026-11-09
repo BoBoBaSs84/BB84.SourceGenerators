@@ -182,6 +182,100 @@ namespace TestNamespace
 		Assert.Contains("SequenceEqual", generated);
 	}
 
+	[TestMethod]
+	public void ShouldGenerateStructSource()
+	{
+		string source = @"
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+  [GenerateEquality]
+  public partial struct EqStruct
+  {
+    public int Id { get; set; }
+  }
+}";
+
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources) = RunGenerator(source);
+
+		Assert.IsEmpty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+		string generated = generatedSources.First(s => s.Contains("partial struct EqStruct"));
+		Assert.Contains("public partial struct EqStruct : IEquatable<EqStruct>", generated);
+		Assert.Contains("=> obj is EqStruct other && Equals(other);", generated);
+		Assert.Contains("public bool Equals(EqStruct other)", generated);
+		Assert.Contains("public static bool operator ==(EqStruct left, EqStruct right)", generated);
+		Assert.Contains("=> left.Equals(right);", generated);
+		Assert.Contains("public static bool operator !=(EqStruct left, EqStruct right)", generated);
+		Assert.Contains("=> !left.Equals(right);", generated);
+		Assert.DoesNotContain("ReferenceEquals", generated);
+		Assert.DoesNotContain("is null", generated);
+	}
+
+	[TestMethod]
+	public void EmptyStructShouldReturnConstantHashCode()
+	{
+		string source = @"
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+  [GenerateEquality]
+  public partial struct EmptyEqStruct
+  {
+  }
+}";
+
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources) = RunGenerator(source);
+
+		Assert.IsEmpty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+		string generated = generatedSources.First(s => s.Contains("partial struct EmptyEqStruct"));
+		Assert.Contains("return 0;", generated);
+		Assert.DoesNotContain("base.GetHashCode()", generated);
+	}
+
+	[TestMethod]
+	public void ShouldNestStructInsideOuterClass()
+	{
+		string source = @"
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+  public partial class Outer
+  {
+    [GenerateEquality]
+    internal partial struct Inner
+    {
+      public int Id { get; set; }
+    }
+  }
+}";
+
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources) = RunGenerator(source);
+
+		Assert.IsEmpty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+		string generated = generatedSources.First(s => s.Contains("partial struct Inner"));
+		Assert.Contains("public partial class Outer", generated);
+	}
+
+	[TestMethod]
+	public void ShouldNotGenerateForRecordStruct()
+	{
+		string source = @"
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+  [GenerateEquality]
+  public partial record struct EqRecordStruct(int Id);
+}";
+
+		(_, string[] generatedSources) = RunGenerator(source);
+
+		Assert.IsFalse(generatedSources.Any(s => s.Contains("EqRecordStruct")));
+	}
+
 	private static (ImmutableArray<Diagnostic> Diagnostics, string[] GeneratedSources) RunGenerator(string source)
 	{
 		SyntaxTree syntaxTree = CSharpSyntaxTree.ParseText(source);

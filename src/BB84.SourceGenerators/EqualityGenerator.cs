@@ -17,7 +17,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 namespace BB84.SourceGenerators;
 
 /// <summary>
-/// Responsible for generating equality members for classes marked
+/// Responsible for generating equality members for classes and structs marked
 /// with the <see cref="GenerateEqualityAttribute"/> attribute. The generated code includes
 /// <c>Equals(object)</c>, <c>Equals(T)</c>, <c>GetHashCode()</c>,
 /// <c>operator ==</c>, and <c>operator !=</c>, implementing <c>IEquatable&lt;T&gt;</c>.
@@ -38,47 +38,64 @@ public sealed class EqualityGenerator : IIncrementalGenerator
 
 	/// <inheritdoc/>
 	public void Initialize(IncrementalGeneratorInitializationContext context)
-		=> GeneratorHelpers.RegisterRequestGenerator<EqualityRequest>(context, AttributeNames.MetadataName, GeneratorHelpers.IsClassNode, Transform, TrackingNames.Equality, Execute);
+	{
+		// Register for classes
+		GeneratorHelpers.RegisterRequestGenerator<EqualityRequest>(context, AttributeNames.MetadataName, GeneratorHelpers.IsClassNode, Transform, TrackingNames.Equality, ExecuteClass);
+
+		// Register for structs
+		GeneratorHelpers.RegisterRequestGenerator<EqualityRequest>(context, AttributeNames.MetadataName, GeneratorHelpers.IsStructNode, Transform, TrackingNames.EqualityStruct, ExecuteStruct);
+	}
 
 	private static GeneratorResult<EqualityRequest>? Transform(GeneratorAttributeSyntaxContext context, CancellationToken cancellationToken)
 	{
-		if (context.TargetNode is not ClassDeclarationSyntax classDeclaration || context.TargetSymbol is not INamedTypeSymbol classSymbol)
+		if (context.TargetNode is not TypeDeclarationSyntax typeDeclaration || context.TargetSymbol is not INamedTypeSymbol typeSymbol)
 			return null;
 
-		bool includeInherited = GetIncludeInherited(classDeclaration, context.SemanticModel);
-		HashSet<string> excludedProperties = GeneratorHelpers.GetExcludedProperties(classDeclaration, context.SemanticModel, nameof(GenerateEqualityAttribute));
-		ImmutableArray<PropertyDescriptor> properties = GeneratorHelpers.GetPropertyDescriptors(classSymbol, excludedProperties, detectCollections: true, includeInherited: includeInherited);
+		bool includeInherited = GetIncludeInherited(typeDeclaration, context.SemanticModel);
+		HashSet<string> excludedProperties = GeneratorHelpers.GetExcludedProperties(typeDeclaration, context.SemanticModel, nameof(GenerateEqualityAttribute));
+		ImmutableArray<PropertyDescriptor> properties = GeneratorHelpers.GetPropertyDescriptors(typeSymbol, excludedProperties, detectCollections: true, includeInherited: includeInherited);
 
-		return GeneratorResult<EqualityRequest>.FromRequest(new EqualityRequest(TypeTargetInfo.Create(classDeclaration, classSymbol), properties.ToEquatableArray()));
+		return GeneratorResult<EqualityRequest>.FromRequest(new EqualityRequest(TypeTargetInfo.Create(typeDeclaration, typeSymbol), properties.ToEquatableArray()));
 	}
 
-	private static void Execute(SourceProductionContext context, EqualityRequest request)
+	private static void ExecuteClass(SourceProductionContext context, EqualityRequest request)
+		=> Execute(context, request, isStruct: false);
+
+	private static void ExecuteStruct(SourceProductionContext context, EqualityRequest request)
+		=> Execute(context, request, isStruct: true);
+
+	private static void Execute(SourceProductionContext context, EqualityRequest request, bool isStruct)
 	{
 		TypeTargetInfo type = request.Type;
 		SourceBuilder sb = new();
 
 		sb.BeginTypeFile(GeneratorNames.EqualityGeneratorFullName, type.NamespaceName, type.OuterClasses, FileUsings);
 
-		AppendPartialClass(sb, type.Name, type.Accessibility, request.Properties.AsImmutableArray());
+		AppendPartialType(sb, type.Name, type.Accessibility, request.Properties.AsImmutableArray(), isStruct);
 
 		sb.EndTypeFile(type.OuterClasses);
 
 		GeneratorHelpers.AddTypeSource(context, type.OuterClasses, type.Name, "Equality", sb);
 	}
 
-	private static void AppendPartialClass(SourceBuilder sb, string className, string accessibility, ImmutableArray<PropertyDescriptor> properties)
+	private static void AppendPartialType(SourceBuilder sb, string typeName, string accessibility, ImmutableArray<PropertyDescriptor> properties, bool isStruct)
 	{
-		sb.OpenClass(accessibility, className, $"{TypeNames.IEquatableShortName}<{className}>");
+		string baseTypes = $"{TypeNames.IEquatableShortName}<{typeName}>";
 
-		AppendEqualsObject(sb, className);
+		if (isStruct)
+			sb.OpenStruct(accessibility, typeName, baseTypes);
+		else
+			sb.OpenClass(accessibility, typeName, baseTypes);
+
+		AppendEqualsObject(sb, typeName, isStruct);
 		sb.AppendLine();
-		AppendEqualsT(sb, className, properties);
+		AppendEqualsT(sb, typeName, properties, isStruct);
 		sb.AppendLine();
-		AppendGetHashCode(sb, properties);
+		AppendGetHashCode(sb, properties, isStruct);
 		sb.AppendLine();
-		AppendOperatorEquals(sb, className);
+		AppendOperatorEquals(sb, typeName, isStruct);
 		sb.AppendLine();
-		AppendOperatorNotEquals(sb, className);
+		AppendOperatorNotEquals(sb, typeName, isStruct);
 
 		if (properties.Any(static p => GetStrategy(p) is EqualityStrategy.Sequence or EqualityStrategy.NullableImmutableArray))
 			AppendSequenceHelpers(sb);
@@ -86,7 +103,10 @@ public sealed class EqualityGenerator : IIncrementalGenerator
 		if (properties.Any(static p => GetStrategy(p) is EqualityStrategy.Dictionary))
 			AppendDictionaryHelpers(sb);
 
-		sb.CloseClass();
+		if (isStruct)
+			sb.CloseStruct();
+		else
+			sb.CloseClass();
 	}
 
 	/// <summary>
@@ -102,33 +122,38 @@ public sealed class EqualityGenerator : IIncrementalGenerator
 		_ => EqualityStrategy.Direct
 	};
 
-	private static void AppendEqualsObject(SourceBuilder sb, string className)
+	private static void AppendEqualsObject(SourceBuilder sb, string typeName, bool isStruct)
 	{
 		sb.AppendLine("/// <inheritdoc/>");
 		sb.AppendLine("public override bool Equals(object? obj)");
 		sb.Indent();
-		sb.AppendLine($"=> Equals(obj as {className});");
+		sb.AppendLine(isStruct ? $"=> obj is {typeName} other && Equals(other);" : $"=> Equals(obj as {typeName});");
 		sb.Outdent();
 	}
 
-	private static void AppendEqualsT(SourceBuilder sb, string className, ImmutableArray<PropertyDescriptor> properties)
+	private static void AppendEqualsT(SourceBuilder sb, string typeName, ImmutableArray<PropertyDescriptor> properties, bool isStruct)
 	{
 		sb.AppendLine("/// <inheritdoc/>");
-		sb.AppendLine($"public bool Equals({className}? other)");
+		sb.AppendLine(isStruct ? $"public bool Equals({typeName} other)" : $"public bool Equals({typeName}? other)");
 		sb.OpenBrace();
-		sb.AppendLine("if (other is null)");
-		sb.Indent();
-		sb.AppendLine("return false;");
-		sb.Outdent();
-		sb.AppendLine();
-		sb.AppendLine("if (ReferenceEquals(this, other))");
-		sb.Indent();
-		sb.AppendLine("return true;");
-		sb.Outdent();
+
+		// A struct is never null nor reference-equal, so the guards only apply to classes.
+		if (!isStruct)
+		{
+			sb.AppendLine("if (other is null)");
+			sb.Indent();
+			sb.AppendLine("return false;");
+			sb.Outdent();
+			sb.AppendLine();
+			sb.AppendLine("if (ReferenceEquals(this, other))");
+			sb.Indent();
+			sb.AppendLine("return true;");
+			sb.Outdent();
+			sb.AppendLine();
+		}
 
 		if (properties.Length > 0)
 		{
-			sb.AppendLine();
 
 			StringBuilder returnExpr = new();
 			returnExpr.Append("return ");
@@ -146,14 +171,13 @@ public sealed class EqualityGenerator : IIncrementalGenerator
 		}
 		else
 		{
-			sb.AppendLine();
 			sb.AppendLine("return true;");
 		}
 
 		sb.CloseBrace();
 	}
 
-	private static void AppendGetHashCode(SourceBuilder sb, ImmutableArray<PropertyDescriptor> properties)
+	private static void AppendGetHashCode(SourceBuilder sb, ImmutableArray<PropertyDescriptor> properties, bool isStruct)
 	{
 		sb.AppendLine("/// <inheritdoc/>");
 		sb.AppendLine("public override int GetHashCode()");
@@ -161,7 +185,8 @@ public sealed class EqualityGenerator : IIncrementalGenerator
 
 		if (properties.Length == 0)
 		{
-			sb.AppendLine("return base.GetHashCode();");
+			// All instances of a struct without properties are equal, and its base implementation is reflection-based.
+			sb.AppendLine(isStruct ? "return 0;" : "return base.GetHashCode();");
 		}
 		else
 		{
@@ -179,21 +204,23 @@ public sealed class EqualityGenerator : IIncrementalGenerator
 		sb.CloseBrace();
 	}
 
-	private static void AppendOperatorEquals(SourceBuilder sb, string className)
+	private static void AppendOperatorEquals(SourceBuilder sb, string typeName, bool isStruct)
 	{
-		sb.AppendSummary($"Determines whether two <see cref=\"{className}\"/> instances are equal.");
-		sb.AppendLine($"public static bool operator ==({className}? left, {className}? right)");
+		string nullable = isStruct ? string.Empty : "?";
+		sb.AppendSummary($"Determines whether two <see cref=\"{typeName}\"/> instances are equal.");
+		sb.AppendLine($"public static bool operator ==({typeName}{nullable} left, {typeName}{nullable} right)");
 		sb.Indent();
-		sb.AppendLine("=> Equals(left, right);");
+		sb.AppendLine(isStruct ? "=> left.Equals(right);" : "=> Equals(left, right);");
 		sb.Outdent();
 	}
 
-	private static void AppendOperatorNotEquals(SourceBuilder sb, string className)
+	private static void AppendOperatorNotEquals(SourceBuilder sb, string typeName, bool isStruct)
 	{
-		sb.AppendSummary($"Determines whether two <see cref=\"{className}\"/> instances are not equal.");
-		sb.AppendLine($"public static bool operator !=({className}? left, {className}? right)");
+		string nullable = isStruct ? string.Empty : "?";
+		sb.AppendSummary($"Determines whether two <see cref=\"{typeName}\"/> instances are not equal.");
+		sb.AppendLine($"public static bool operator !=({typeName}{nullable} left, {typeName}{nullable} right)");
 		sb.Indent();
-		sb.AppendLine("=> !Equals(left, right);");
+		sb.AppendLine(isStruct ? "=> !left.Equals(right);" : "=> !Equals(left, right);");
 		sb.Outdent();
 	}
 
@@ -296,8 +323,8 @@ public sealed class EqualityGenerator : IIncrementalGenerator
 		sb.CloseBrace();
 	}
 
-	private static bool GetIncludeInherited(ClassDeclarationSyntax classDeclaration, SemanticModel semanticModel)
-		=> GeneratorHelpers.GetNamedArgumentValue(classDeclaration, semanticModel, AttributeNames.ShortName, AttributeNames.TypeName, nameof(GenerateEqualityAttribute.IncludeInherited), false);
+	private static bool GetIncludeInherited(TypeDeclarationSyntax typeDeclaration, SemanticModel semanticModel)
+		=> GeneratorHelpers.GetNamedArgumentValue(typeDeclaration, semanticModel, AttributeNames.ShortName, AttributeNames.TypeName, nameof(GenerateEqualityAttribute.IncludeInherited), false);
 
 	/// <summary>
 	/// Describes how a property is compared and hashed in the generated members.

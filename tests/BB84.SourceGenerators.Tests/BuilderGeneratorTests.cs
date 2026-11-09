@@ -84,6 +84,36 @@ public sealed class BuilderGeneratorTests
 		Assert.AreEqual(first.Id, second.Id);
 		Assert.AreEqual(first.Name, second.Name);
 	}
+
+	[TestMethod]
+	public void StructBuildShouldCreateInstanceWithAllProperties()
+	{
+		BuilderStructModel model = new BuilderStructModelBuilder()
+			.WithX(3)
+			.WithY(4)
+			.WithLabel("Point")
+			.Build();
+
+		Assert.AreEqual(3, model.X);
+		Assert.AreEqual(4, model.Y);
+		Assert.AreEqual("Point", model.Label);
+	}
+
+	[TestMethod]
+	public void StructBuildWithoutSettingPropertiesShouldReturnDefaults()
+	{
+		BuilderStructModel model = new BuilderStructModelBuilder().Build();
+
+		Assert.AreEqual(default, model);
+	}
+}
+
+[GenerateBuilder]
+public partial struct BuilderStructModel
+{
+	public int X { get; set; }
+	public int Y { get; set; }
+	public string? Label { get; set; }
 }
 
 [GenerateBuilder]

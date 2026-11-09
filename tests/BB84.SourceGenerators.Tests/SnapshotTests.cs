@@ -74,6 +74,8 @@ public sealed class SnapshotTests
 	[DataRow("Plain")]
 	[DataRow("Empty")]
 	[DataRow("NestedAndNullable")]
+	[DataRow("Struct")]
+	[DataRow("NestedStruct")]
 	public void Builder(string caseName)
 		=> Verify(nameof(BuilderGenerator), caseName, SnapshotCases.Builder, new BuilderGenerator());
 
@@ -120,6 +122,8 @@ public sealed class SnapshotTests
 	[DataRow("Collections")]
 	[DataRow("NestedAndNullable")]
 	[DataRow("Record")]
+	[DataRow("Struct")]
+	[DataRow("NestedStruct")]
 	public void Equality(string caseName)
 		=> Verify(nameof(EqualityGenerator), caseName, SnapshotCases.Equality, new EqualityGenerator());
 
@@ -169,6 +173,8 @@ public sealed class SnapshotTests
 	[DataRow("ExcludesAndInheritance")]
 	[DataRow("Records")]
 	[DataRow("NestedAndNullable")]
+	[DataRow("Struct")]
+	[DataRow("NestedStruct")]
 	public void ToStringOverride(string caseName)
 		=> Verify(nameof(ToStringGenerator), caseName, SnapshotCases.ToStringOverride, new ToStringGenerator());
 

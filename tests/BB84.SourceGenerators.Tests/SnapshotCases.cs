@@ -591,6 +591,33 @@ internal static class SnapshotCases
 				}
 			}
 			""", NullableContextOptions.Enable),
+		["Struct"] = new("""
+			using System.Collections.Generic;
+			using BB84.SourceGenerators.Attributes;
+
+			namespace TestNamespace
+			{
+				[GenerateBuilder]
+				public partial struct Point
+				{
+					public int X { get; set; }
+					public string? Label { get; set; }
+					public List<int>? Values { get; set; }
+				}
+			}
+			""", NullableContextOptions.Enable),
+		["NestedStruct"] = new("""
+			using BB84.SourceGenerators.Attributes;
+
+			namespace TestNamespace
+			{
+				public partial class Outer
+				{
+					[GenerateBuilder]
+					internal partial struct Inner { public int Id { get; set; } }
+				}
+			}
+			"""),
 	};
 
 	internal static readonly Dictionary<string, SnapshotCase> Cloneable = new()
@@ -1058,6 +1085,33 @@ internal static class SnapshotCases
 				public partial record RecordModel
 				{
 					public int Id { get; set; }
+				}
+			}
+			"""),
+		["Struct"] = new("""
+			using System.Collections.Generic;
+			using BB84.SourceGenerators.Attributes;
+
+			namespace TestNamespace
+			{
+				[GenerateEquality]
+				public partial struct Point
+				{
+					public int X { get; set; }
+					public string? Label { get; set; }
+					public List<int>? Values { get; set; }
+				}
+			}
+			""", NullableContextOptions.Enable),
+		["NestedStruct"] = new("""
+			using BB84.SourceGenerators.Attributes;
+
+			namespace TestNamespace
+			{
+				public partial class Outer
+				{
+					[GenerateEquality]
+					internal partial struct Inner { public int Id { get; set; } }
 				}
 			}
 			"""),
@@ -1811,6 +1865,33 @@ internal static class SnapshotCases
 				}
 			}
 			""", NullableContextOptions.Enable),
+		["Struct"] = new("""
+			using System.Collections.Generic;
+			using BB84.SourceGenerators.Attributes;
+
+			namespace TestNamespace
+			{
+				[GenerateToString]
+				public partial struct Point
+				{
+					public int X { get; set; }
+					public string? Label { get; set; }
+					public List<int>? Values { get; set; }
+				}
+			}
+			""", NullableContextOptions.Enable),
+		["NestedStruct"] = new("""
+			using BB84.SourceGenerators.Attributes;
+
+			namespace TestNamespace
+			{
+				public partial class Outer
+				{
+					[GenerateToString]
+					internal partial struct Inner { public int Id { get; set; } }
+				}
+			}
+			"""),
 	};
 
 	internal static readonly Dictionary<string, SnapshotCase> Validator = new()

@@ -9,10 +9,10 @@ using BB84.SourceGenerators.Models;
 namespace BB84.SourceGenerators.Requests;
 
 /// <summary>
-/// Represents a request to generate a <c>ToString()</c> override for a class or record marked with the
+/// Represents a request to generate a <c>ToString()</c> override for a class, record or struct marked with the
 /// <c>[GenerateToString]</c> attribute.
 /// </summary>
-/// <param name="Type">The class or record to extend.</param>
+/// <param name="Type">The class, record or struct to extend.</param>
 /// <param name="IsRecord">Indicates whether the type is a record class.</param>
 /// <param name="Properties">The properties included in the output.</param>
 /// <param name="CollectionFormat">The format used for collection properties.</param>
