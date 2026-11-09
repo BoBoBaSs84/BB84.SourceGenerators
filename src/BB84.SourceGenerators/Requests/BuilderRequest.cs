@@ -8,11 +8,11 @@ using BB84.SourceGenerators.Models;
 namespace BB84.SourceGenerators.Requests;
 
 /// <summary>
-/// Represents a request to generate a fluent builder for a class marked with the
+/// Represents a request to generate a fluent builder for a class or struct marked with the
 /// <c>[GenerateBuilder]</c> attribute.
 /// </summary>
-/// <param name="Type">The class to build.</param>
-/// <param name="Properties">The settable properties of the class.</param>
+/// <param name="Type">The class or struct to build.</param>
+/// <param name="Properties">The settable properties of the type.</param>
 internal sealed record BuilderRequest(
 	TypeTargetInfo Type,
 	EquatableArray<PropertyDescriptor> Properties

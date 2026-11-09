@@ -226,6 +226,45 @@ public sealed class ToStringGeneratorDriverTests
 		Assert.Contains("bool appended = base.PrintMembers(builder);", src);
 	}
 
+	[TestMethod]
+	public void StructShouldOverrideToString()
+	{
+		string src = Generate(@"
+	[GenerateToString]
+	public partial struct StructModel { public int Id { get; set; } public string Name { get; set; } }", "partial struct StructModel");
+
+		Assert.Contains("public partial struct StructModel", src);
+		Assert.Contains("public override string ToString()", src);
+		Assert.Contains("nameof(Id)", src);
+		Assert.Contains("nameof(Name)", src);
+		Assert.DoesNotContain("PrintMembers", src);
+	}
+
+	[TestMethod]
+	public void FormattableStructShouldImplementIFormattable()
+	{
+		string src = Generate(@"
+	[GenerateToString(Formattable = true)]
+	public partial struct FormattableStructModel { public decimal Total { get; set; } }", "partial struct FormattableStructModel");
+
+		Assert.Contains("public partial struct FormattableStructModel : IFormattable", src);
+		Assert.Contains("public string ToString(string? format, IFormatProvider? formatProvider)", src);
+	}
+
+	[TestMethod]
+	public void NestedStructShouldBeEmittedInsideOuterClass()
+	{
+		string src = Generate(@"
+	public partial class Outer
+	{
+		[GenerateToString]
+		internal partial struct Inner { public int Id { get; set; } }
+	}", "partial struct Inner");
+
+		Assert.Contains("public partial class Outer", src);
+		Assert.Contains("internal partial struct Inner", src);
+	}
+
 	private static string Generate(string members, string marker)
 	{
 		string source = $@"

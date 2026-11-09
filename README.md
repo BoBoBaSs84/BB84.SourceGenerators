@@ -24,7 +24,7 @@ This package provides sixteen powerful source generators:
 - **[ActionCommand Generator](https://github.com/BoBoBaSs84/BB84.SourceGenerators/blob/main/docs/action-command.md)** - Compile-time `ICommand` property generation (sync, async, parameterized, cancellable) for MVVM
 - **[AutoMapper Generator](https://github.com/BoBoBaSs84/BB84.SourceGenerators/blob/main/docs/auto-mapper.md)** - Compile-time property-to-property mapping method generation
 - **[Assembly Information Generator](https://github.com/BoBoBaSs84/BB84.SourceGenerators/blob/main/docs/assembly-information.md)** - Compile-time assembly metadata constants without reflection
-- **[Builder Generator](https://github.com/BoBoBaSs84/BB84.SourceGenerators/blob/main/docs/builder.md)** - Fluent builder pattern generation for classes
+- **[Builder Generator](https://github.com/BoBoBaSs84/BB84.SourceGenerators/blob/main/docs/builder.md)** - Fluent builder pattern generation for classes and structs
 - **[Cloneable Generator](https://github.com/BoBoBaSs84/BB84.SourceGenerators/blob/main/docs/cloneable.md)** - Compile-time `Clone()` and `DeepClone()` method generation with collection and struct support
 - **[Decorator Generator](https://github.com/BoBoBaSs84/BB84.SourceGenerators/blob/main/docs/decorator.md)** - Compile-time decorator pattern generation with full interface delegation, generic methods, events, and partial method hooks
 - **[Disposable Generator](https://github.com/BoBoBaSs84/BB84.SourceGenerators/blob/main/docs/disposable.md)** - Compile-time `IDisposable` / `IAsyncDisposable` pattern generation with ordered resource cleanup

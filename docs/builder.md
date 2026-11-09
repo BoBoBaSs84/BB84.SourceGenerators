@@ -1,6 +1,6 @@
 # Builder Generator
 
-Generates a fluent builder class for classes, providing `With{PropertyName}(value)` methods for each public settable property and a `Build()` method that creates the instance.
+Generates a fluent builder class for classes and structs, providing `With{PropertyName}(value)` methods for each public settable property and a `Build()` method that creates the instance.
 
 [← Back to overview](../README.md) · [All generators](README.md)
 
@@ -73,3 +73,23 @@ var builder = new UserProfileBuilder()
 UserProfile first = builder.WithId(1).Build();
 UserProfile second = builder.WithId(2).Build();
 ```
+
+### Struct Targets
+
+`[GenerateBuilder]` also targets `struct` declarations. The generated builder is still a `sealed class`, and `Build()` returns a fully initialized struct value:
+
+```csharp
+[GenerateBuilder]
+public partial struct Point
+{
+    public int X { get; set; }
+    public int Y { get; set; }
+}
+
+Point point = new PointBuilder()
+    .WithX(3)
+    .WithY(4)
+    .Build();
+```
+
+`record struct` declarations are not targeted.

@@ -16,7 +16,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 namespace BB84.SourceGenerators;
 
 /// <summary>
-/// Responsible for generating a fluent builder class for classes marked
+/// Responsible for generating a fluent builder class for classes and structs marked
 /// with the <see cref="GenerateBuilderAttribute"/> attribute.
 /// </summary>
 [Generator(LanguageNames.CSharp)]
@@ -27,19 +27,25 @@ public sealed class BuilderGenerator : IIncrementalGenerator
 
 	/// <inheritdoc/>
 	public void Initialize(IncrementalGeneratorInitializationContext context)
-		=> GeneratorHelpers.RegisterRequestGenerator<BuilderRequest>(context, AttributeNames.MetadataName, GeneratorHelpers.IsClassNode, Transform, TrackingNames.Builder, Execute);
+	{
+		// Register for classes
+		GeneratorHelpers.RegisterRequestGenerator<BuilderRequest>(context, AttributeNames.MetadataName, GeneratorHelpers.IsClassNode, Transform, TrackingNames.Builder, Execute);
+
+		// Register for structs
+		GeneratorHelpers.RegisterRequestGenerator<BuilderRequest>(context, AttributeNames.MetadataName, GeneratorHelpers.IsStructNode, Transform, TrackingNames.BuilderStruct, Execute);
+	}
 
 	private static GeneratorResult<BuilderRequest>? Transform(GeneratorAttributeSyntaxContext context, CancellationToken cancellationToken)
 	{
-		if (context.TargetNode is not ClassDeclarationSyntax classDeclaration || context.TargetSymbol is not INamedTypeSymbol classSymbol)
+		if (context.TargetNode is not TypeDeclarationSyntax typeDeclaration || context.TargetSymbol is not INamedTypeSymbol typeSymbol)
 			return null;
 
-		ImmutableArray<PropertyDescriptor> properties = GeneratorHelpers.GetPropertyDescriptors(classSymbol, requireSetter: true);
+		ImmutableArray<PropertyDescriptor> properties = GeneratorHelpers.GetPropertyDescriptors(typeSymbol, requireSetter: true);
 
 		if (properties.Length == 0)
 			return null;
 
-		return GeneratorResult<BuilderRequest>.FromRequest(new BuilderRequest(TypeTargetInfo.Create(classDeclaration, classSymbol), properties.ToEquatableArray()));
+		return GeneratorResult<BuilderRequest>.FromRequest(new BuilderRequest(TypeTargetInfo.Create(typeDeclaration, typeSymbol), properties.ToEquatableArray()));
 	}
 
 	private static void Execute(SourceProductionContext context, BuilderRequest request)

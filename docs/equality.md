@@ -1,6 +1,6 @@
 # Equality Generator
 
-Generates `Equals(object)`, `Equals(T)`, `GetHashCode()`, `operator ==`, and `operator !=` for classes, implementing `IEquatable<T>`. This replaces tedious and error-prone manual equality implementations with zero-overhead generated code.
+Generates `Equals(object)`, `Equals(T)`, `GetHashCode()`, `operator ==`, and `operator !=` for classes and structs, implementing `IEquatable<T>`. This replaces tedious and error-prone manual equality implementations with zero-overhead generated code.
 
 [← Back to overview](../README.md) · [All generators](README.md)
 
@@ -62,6 +62,26 @@ The generator creates the following members on the partial class:
 - `Equals(T?)` implementing `IEquatable<T>` — compares all (or selected) public properties
 - `GetHashCode()` override — produces a consistent hash from all (or selected) public properties
 - `operator ==` and `operator !=` — delegates to `Equals`
+
+**Struct Targets:**
+
+`[GenerateEquality]` also targets `struct` declarations, replacing the slow reflection-based `ValueType.Equals` / `ValueType.GetHashCode`. The members are the same as for classes, adapted to value semantics:
+
+- `Equals(object?)` — `obj is T other && Equals(other)`, so boxed values compare correctly and `null` or other types return `false`
+- `Equals(T)` — takes a non-nullable `T` and has no `null` / `ReferenceEquals` guards
+- `GetHashCode()` — returns `0` for a struct without properties instead of calling the reflection-based base implementation
+- `operator ==` / `operator !=` — take non-nullable `T` and call `left.Equals(right)`
+
+```csharp
+[GenerateEquality]
+public partial struct Money
+{
+    public decimal Amount { get; set; }
+    public string? Currency { get; set; }
+}
+```
+
+`record struct` declarations are not targeted, because they already have compiler-synthesized value equality.
 
 **Collection Properties:**
 

@@ -73,6 +73,59 @@ namespace TestNamespace
 		Assert.IsNotEmpty(generatedSources);
 	}
 
+	[TestMethod]
+	public void ShouldGenerateBuilderForStruct()
+	{
+		string source = @"
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+  [GenerateBuilder]
+  public partial struct PointModel
+  {
+    public int X { get; set; }
+    public int Y { get; set; }
+  }
+}";
+
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources) = RunGenerator(source);
+
+		Assert.IsEmpty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+		string generated = generatedSources.First(s => s.Contains("PointModelBuilder"));
+		Assert.Contains("public sealed class PointModelBuilder", generated);
+		Assert.Contains("WithX", generated);
+		Assert.Contains("WithY", generated);
+		Assert.Contains("public PointModel Build()", generated);
+		Assert.Contains("return new PointModel()", generated);
+	}
+
+	[TestMethod]
+	public void ShouldNestStructBuilderInsideOuterClass()
+	{
+		string source = @"
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+  public partial class Outer
+  {
+    [GenerateBuilder]
+    internal partial struct Inner
+    {
+      public int Id { get; set; }
+    }
+  }
+}";
+
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources) = RunGenerator(source);
+
+		Assert.IsEmpty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+		string generated = generatedSources.First(s => s.Contains("InnerBuilder"));
+		Assert.Contains("public partial class Outer", generated);
+		Assert.Contains("internal sealed class InnerBuilder", generated);
+	}
+
 	private static (ImmutableArray<Diagnostic> Diagnostics, string[] GeneratedSources) RunGenerator(string source)
 	{
 		SyntaxTree syntaxTree = CSharpSyntaxTree.ParseText(source);
