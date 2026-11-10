@@ -705,7 +705,7 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 				string argText = argument.Expression.ToString();
 
 				if (argText.StartsWith("nameof(", StringComparison.Ordinal))
-					argText = argText[7..^1];
+					argText = argText.Substring(7, argText.Length - 8);
 				else if (argText.StartsWith("\"", StringComparison.Ordinal))
 					argText = argText.Trim('"');
 
