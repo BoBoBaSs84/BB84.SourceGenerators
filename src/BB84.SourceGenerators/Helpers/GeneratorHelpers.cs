@@ -118,7 +118,7 @@ internal static class GeneratorHelpers
 	/// <returns>The attribute name without the "Attribute" suffix (e.g., "GenerateToString").</returns>
 	internal static string StripAttributeSuffix(string attributeName)
 		=> attributeName.EndsWith(AttributeKeyword, StringComparison.Ordinal)
-			? attributeName[..^AttributeKeyword.Length]
+			? attributeName.Substring(0, attributeName.Length - AttributeKeyword.Length)
 			: attributeName;
 
 	/// <summary>
@@ -298,8 +298,8 @@ internal static class GeneratorHelpers
 	/// <returns>The converted property name, or an empty string if nothing remains.</returns>
 	internal static string FieldNameToPropertyName(string fieldName)
 	{
-		string name = fieldName.StartsWith("_", StringComparison.OrdinalIgnoreCase) ? fieldName[1..] : fieldName;
-		return name.Length == 0 ? name : $"{char.ToUpperInvariant(name[0])}{name[1..]}";
+		string name = fieldName.StartsWith("_", StringComparison.OrdinalIgnoreCase) ? fieldName.Substring(1) : fieldName;
+		return name.Length == 0 ? name : $"{char.ToUpperInvariant(name[0])}{name.Substring(1)}";
 	}
 
 	/// <summary>
@@ -309,7 +309,7 @@ internal static class GeneratorHelpers
 	/// <param name="propertyName">The property name to convert.</param>
 	/// <returns>The converted field name.</returns>
 	internal static string PropertyNameToFieldName(string propertyName)
-		=> $"_{char.ToLowerInvariant(propertyName[0])}{propertyName[1..]}";
+		=> $"_{char.ToLowerInvariant(propertyName[0])}{propertyName.Substring(1)}";
 
 	/// <summary>
 	/// Gets the value of a positional constructor argument from an attribute on a type symbol.

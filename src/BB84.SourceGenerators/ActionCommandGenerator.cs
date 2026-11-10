@@ -90,7 +90,7 @@ public sealed class ActionCommandGenerator : IIncrementalGenerator
 			return name!;
 
 		string baseName = method.Name.Length > AsyncSuffix.Length && method.Name.EndsWith(AsyncSuffix, StringComparison.Ordinal)
-			? method.Name[..^AsyncSuffix.Length]
+			? method.Name.Substring(0, method.Name.Length - AsyncSuffix.Length)
 			: method.Name;
 
 		return $"{baseName}{CommandSuffix}";
@@ -228,7 +228,7 @@ public sealed class ActionCommandGenerator : IIncrementalGenerator
 
 	private static string BuildCancelCommandName(string commandName)
 	{
-		string baseName = commandName.EndsWith(CommandSuffix, StringComparison.Ordinal) ? commandName[..^CommandSuffix.Length] : commandName;
+		string baseName = commandName.EndsWith(CommandSuffix, StringComparison.Ordinal) ? commandName.Substring(0, commandName.Length - CommandSuffix.Length) : commandName;
 		return $"{baseName}Cancel{CommandSuffix}";
 	}
 
