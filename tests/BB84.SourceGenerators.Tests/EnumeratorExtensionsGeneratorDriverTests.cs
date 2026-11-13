@@ -115,6 +115,7 @@ namespace TestNamespace
 		Assert.Contains("case nameof(MyEnum.One):", generated);
 		Assert.Contains("result = MyEnum.One;", generated);
 		Assert.DoesNotContain("params string[] separators", generated);
+		Assert.DoesNotContain("ToStringFast(this MyEnum value, string separator)", generated);
 	}
 
 	[TestMethod]
@@ -145,6 +146,40 @@ namespace TestNamespace
 		Assert.Contains("public static bool TryParseFast(string? value, out MyFlags result, params string[] separators)", generated);
 		Assert.Contains("value.Split(separators, StringSplitOptions.RemoveEmptyEntries)", generated);
 		Assert.Contains("combined |= flag;", generated);
+	}
+
+	[TestMethod]
+	public void ShouldGenerateToStringFastSeparatorOverloadForSingleBitMembersOnly()
+	{
+		string source = @"
+using System;
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+	[Flags]
+	[GenerateEnumeratorExtensions]
+	public enum MyFlags
+	{
+		None = 0,
+		Read = 1,
+		Write = 2,
+		ReadWrite = Read | Write,
+		Top = 1 << 31
+	}
+}";
+
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources) = RunGenerator(source);
+
+		Assert.IsEmpty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+		string generated = generatedSources.First(s => s.Contains("MyFlagsExtensions"));
+		Assert.Contains("public static string ToStringFast(this MyFlags value, string separator)", generated);
+		Assert.Contains("remaining &= ~MyFlags.Read;", generated);
+		Assert.Contains("remaining &= ~MyFlags.Write;", generated);
+		Assert.Contains("remaining &= ~MyFlags.Top;", generated);
+		Assert.DoesNotContain("remaining &= ~MyFlags.None;", generated);
+		Assert.DoesNotContain("remaining &= ~MyFlags.ReadWrite;", generated);
+		Assert.Contains(": string.Join(separator, names);", generated);
 	}
 
 	[TestMethod]

@@ -16,6 +16,7 @@ namespace BB84.SourceGenerators.Attributes;
 /// <item>A method to get all the enum names as a list.</item>
 /// <item>A method to parse a member name into the enum value. For <c>[Flags]</c> enums an additional
 /// overload parses separator-delimited member names into a combined value.</item>
+/// <item>For <c>[Flags]</c> enums, a method to format a combined value as separator-delimited member names.</item>
 /// </list>
 /// </summary>
 [AttributeUsage(AttributeTargets.Enum, Inherited = false, AllowMultiple = false)]

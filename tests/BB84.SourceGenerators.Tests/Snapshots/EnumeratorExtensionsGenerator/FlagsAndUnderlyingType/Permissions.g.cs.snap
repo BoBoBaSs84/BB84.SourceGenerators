@@ -38,6 +38,45 @@ namespace TestNamespace
     }
 
     /// <summary>
+    /// Returns the name of the enumeration <paramref name="value"/> as a string. If the value is not
+    /// a defined member, the names of all set single-bit members are joined with the
+    /// <paramref name="separator"/>, in declaration order.
+    /// </summary>
+    /// <param name="value">The enumeration value to convert to a string.</param>
+    /// <param name="separator">The delimiter between the member names, for example <c>"|"</c>, <c>","</c>, <c>";"</c> or <c>" "</c>.</param>
+    /// <returns>
+    /// The member name, the delimited names of the set single-bit members, or the result of
+    /// <see cref="Enum.ToString()"/> if the value contains bits not covered by a single-bit member.
+    /// </returns>
+    public static string ToStringFast(this Permissions value, string separator)
+    {
+      if (value.IsDefinedFast())
+        return value.ToStringFast();
+
+      Permissions remaining = value;
+      List<string> names = new List<string>();
+      if ((value & Permissions.Read) == Permissions.Read)
+      {
+        names.Add(nameof(Permissions.Read));
+        remaining &= ~Permissions.Read;
+      }
+      if ((value & Permissions.Write) == Permissions.Write)
+      {
+        names.Add(nameof(Permissions.Write));
+        remaining &= ~Permissions.Write;
+      }
+      if ((value & Permissions.Execute) == Permissions.Execute)
+      {
+        names.Add(nameof(Permissions.Execute));
+        remaining &= ~Permissions.Execute;
+      }
+
+      return remaining != 0 || names.Count == 0
+        ? value.ToString()
+        : string.Join(separator, names);
+    }
+
+    /// <summary>
     /// Returns whether the specified enumeration <paramref name="value"/> is defined
     /// in the <see cref="Permissions"/>.
     /// </summary>
