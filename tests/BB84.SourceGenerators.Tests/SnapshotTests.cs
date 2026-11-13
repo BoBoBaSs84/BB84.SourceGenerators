@@ -109,6 +109,7 @@ public sealed class SnapshotTests
 
 	[TestMethod]
 	[DataRow("Plain")]
+	[DataRow("Aliases")]
 	[DataRow("Descriptions")]
 	[DataRow("FlagsAndUnderlyingType")]
 	[DataRow("Nested")]

@@ -226,6 +226,49 @@ public sealed class EnumeratorExtensionsGeneratorTests
 			Assert.AreEqual(value, parsed, text);
 		}
 	}
+
+	[TestMethod]
+	public void ToStringFastShouldReturnFirstDeclaredNameForAliases()
+	{
+		Assert.AreEqual(nameof(GeneratorTestAliasType.Active), GeneratorTestAliasType.Active.ToStringFast());
+		Assert.AreEqual(nameof(GeneratorTestAliasType.Active), GeneratorTestAliasType.Enabled.ToStringFast());
+		Assert.AreEqual(nameof(GeneratorTestAliasType.Inactive), GeneratorTestAliasType.Inactive.ToStringFast());
+	}
+
+	[TestMethod]
+	public void GetDescriptionFastShouldReturnFirstDeclaredDescriptionForAliases()
+	{
+		Assert.AreEqual("Active value", GeneratorTestAliasType.Active.GetDescriptionFast());
+		Assert.AreEqual("Active value", GeneratorTestAliasType.Enabled.GetDescriptionFast());
+		Assert.AreEqual(nameof(GeneratorTestAliasType.Inactive), GeneratorTestAliasType.Inactive.GetDescriptionFast());
+	}
+
+	[TestMethod]
+	public void IsDefinedFastShouldReturnTrueForAliases()
+	{
+		Assert.IsTrue(GeneratorTestAliasType.Enabled.IsDefinedFast());
+		Assert.IsTrue(GeneratorTestAliasTypeExtensions.IsDefinedFast(nameof(GeneratorTestAliasType.Enabled)));
+		Assert.IsFalse(((GeneratorTestAliasType)3).IsDefinedFast());
+	}
+
+	[TestMethod]
+	public void TryParseFastShouldParseAliasNames()
+	{
+		bool success = GeneratorTestAliasTypeExtensions.TryParseFast(nameof(GeneratorTestAliasType.Enabled), out GeneratorTestAliasType result);
+
+		Assert.IsTrue(success);
+		Assert.AreEqual(GeneratorTestAliasType.Active, result);
+	}
+
+	[TestMethod]
+	public void GetNamesAndValuesFastShouldKeepAliases()
+	{
+		List<string> expectedNames = [nameof(GeneratorTestAliasType.Active), nameof(GeneratorTestAliasType.Enabled), nameof(GeneratorTestAliasType.Inactive)];
+		List<GeneratorTestAliasType> expectedValues = [GeneratorTestAliasType.Active, GeneratorTestAliasType.Active, GeneratorTestAliasType.Inactive];
+
+		CollectionAssert.AreEqual(expectedNames, GeneratorTestAliasTypeExtensions.GetNamesFast().ToList());
+		CollectionAssert.AreEqual(expectedValues, GeneratorTestAliasTypeExtensions.GetValuesFast().ToList());
+	}
 }
 
 [GenerateEnumeratorExtensions]
@@ -250,4 +293,14 @@ public enum GeneratorTestFlags : long
 	Execute = 4,
 	All = Read | Write | Execute,
 	High = long.MinValue
+}
+
+[GenerateEnumeratorExtensions]
+public enum GeneratorTestAliasType
+{
+	[Description("Active value")]
+	Active = 1,
+	[Description("Enabled value")]
+	Enabled = Active,
+	Inactive = 2
 }

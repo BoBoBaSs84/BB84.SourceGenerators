@@ -33,7 +33,7 @@ public sealed class EnumeratorExtensionsGenerator : IIncrementalGenerator
 	private static void Execute(SourceProductionContext context, EnumeratorExtensionsRequest request)
 	{
 		string enumName = request.EnumName;
-		EquatableArray<(string Name, string? Description)> members = request.Members;
+		EquatableArray<(string Name, string? Description, bool IsAlias)> members = request.Members;
 
 		SourceBuilder sb = new();
 
@@ -82,9 +82,7 @@ public sealed class EnumeratorExtensionsGenerator : IIncrementalGenerator
 		SemanticModel semanticModel = context.SemanticModel;
 		INamedTypeSymbol? descriptionAttributeSymbol = semanticModel.Compilation.GetTypeByMetadataName(TypeNames.DescriptionAttribute);
 
-		EquatableArray<(string Name, string? Description)> memberInfos = members
-			.Select(member => (member.Identifier.Text, GetDescriptionFromAttributes(member, semanticModel, descriptionAttributeSymbol)))
-			.ToEquatableArray();
+		EquatableArray<(string Name, string? Description, bool IsAlias)> memberInfos = GetMemberInfos(members, semanticModel, descriptionAttributeSymbol, cancellationToken);
 
 		bool isFlags = IsFlagsEnum(context.TargetSymbol, semanticModel);
 		EquatableArray<string> flagMembers = isFlags
@@ -92,6 +90,23 @@ public sealed class EnumeratorExtensionsGenerator : IIncrementalGenerator
 			: EquatableArray<string>.Empty;
 
 		return GeneratorResult<EnumeratorExtensionsRequest>.FromRequest(new EnumeratorExtensionsRequest(enumDeclaration.Identifier.Text, enumDeclaration.GetNamespace(), memberInfos, isFlags, flagMembers));
+	}
+
+	private static EquatableArray<(string Name, string? Description, bool IsAlias)> GetMemberInfos(ImmutableArray<EnumMemberDeclarationSyntax> members, SemanticModel semanticModel, INamedTypeSymbol? descriptionAttributeSymbol, CancellationToken cancellationToken)
+	{
+		List<(string Name, string? Description, bool IsAlias)> memberInfos = [];
+		HashSet<ulong> seenValues = [];
+
+		foreach (EnumMemberDeclarationSyntax member in members)
+		{
+			// A member whose value was already declared is an alias; the first declared member of a value wins.
+			bool isAlias = semanticModel.GetDeclaredSymbol(member, cancellationToken) is IFieldSymbol { HasConstantValue: true } field
+				&& !seenValues.Add(ToUInt64(field.ConstantValue));
+
+			memberInfos.Add((member.Identifier.Text, GetDescriptionFromAttributes(member, semanticModel, descriptionAttributeSymbol), isAlias));
+		}
+
+		return memberInfos.ToEquatableArray();
 	}
 
 	private static EquatableArray<string> GetSingleBitMemberNames(ImmutableArray<EnumMemberDeclarationSyntax> members, SemanticModel semanticModel, CancellationToken cancellationToken)
@@ -147,7 +162,7 @@ public sealed class EnumeratorExtensionsGenerator : IIncrementalGenerator
 		sb.OpenBrace();
 	}
 
-	private static void AppendToStringFast(SourceBuilder sb, string enumName, EquatableArray<(string Name, string? Description)> members)
+	private static void AppendToStringFast(SourceBuilder sb, string enumName, EquatableArray<(string Name, string? Description, bool IsAlias)> members)
 	{
 		sb.AppendSummary("Returns the name of the enumeration <paramref name=\"value\"/> as a string.");
 		sb.AppendLine("/// <param name=\"value\">The enumeration value to convert to a string.</param>");
@@ -156,7 +171,7 @@ public sealed class EnumeratorExtensionsGenerator : IIncrementalGenerator
 		sb.OpenBrace();
 		sb.AppendLine("return value switch");
 		sb.OpenBrace();
-		foreach ((string memberName, _) in members)
+		foreach ((string memberName, _, _) in members.Where(member => !member.IsAlias))
 		{
 			sb.AppendLine($"{enumName}.{memberName} => nameof({enumName}.{memberName}),");
 		}
@@ -207,7 +222,7 @@ public sealed class EnumeratorExtensionsGenerator : IIncrementalGenerator
 		sb.AppendLine();
 	}
 
-	private static void AppendIsDefinedFast(SourceBuilder sb, string enumName, EquatableArray<(string Name, string? Description)> members)
+	private static void AppendIsDefinedFast(SourceBuilder sb, string enumName, EquatableArray<(string Name, string? Description, bool IsAlias)> members)
 	{
 		sb.AppendLine("/// <summary>");
 		sb.AppendLine("/// Returns whether the specified enumeration <paramref name=\"value\"/> is defined");
@@ -219,7 +234,7 @@ public sealed class EnumeratorExtensionsGenerator : IIncrementalGenerator
 		sb.OpenBrace();
 		sb.AppendLine("return value switch");
 		sb.OpenBrace();
-		foreach ((string memberName, _) in members)
+		foreach ((string memberName, _, _) in members.Where(member => !member.IsAlias))
 		{
 			sb.AppendLine($"{enumName}.{memberName} => true,");
 		}
@@ -238,7 +253,7 @@ public sealed class EnumeratorExtensionsGenerator : IIncrementalGenerator
 		sb.OpenBrace();
 		sb.AppendLine("return name switch");
 		sb.OpenBrace();
-		foreach ((string memberName, _) in members)
+		foreach ((string memberName, _, _) in members)
 		{
 			sb.AppendLine($"nameof({enumName}.{memberName}) => true,");
 		}
@@ -249,7 +264,7 @@ public sealed class EnumeratorExtensionsGenerator : IIncrementalGenerator
 		sb.AppendLine();
 	}
 
-	private static void AppendTryParseFast(SourceBuilder sb, string enumName, EquatableArray<(string Name, string? Description)> members)
+	private static void AppendTryParseFast(SourceBuilder sb, string enumName, EquatableArray<(string Name, string? Description, bool IsAlias)> members)
 	{
 		sb.AppendLine("/// <summary>");
 		sb.AppendLine("/// Tries to convert the specified <paramref name=\"value\"/> to its");
@@ -262,7 +277,7 @@ public sealed class EnumeratorExtensionsGenerator : IIncrementalGenerator
 		sb.OpenBrace();
 		sb.AppendLine("switch (value)");
 		sb.OpenBrace();
-		foreach ((string memberName, _) in members)
+		foreach ((string memberName, _, _) in members)
 		{
 			sb.AppendLine($"case nameof({enumName}.{memberName}):");
 			sb.Indent();
@@ -324,7 +339,7 @@ public sealed class EnumeratorExtensionsGenerator : IIncrementalGenerator
 		sb.AppendLine();
 	}
 
-	private static void AppendGetNamesFast(SourceBuilder sb, string enumName, EquatableArray<(string Name, string? Description)> members)
+	private static void AppendGetNamesFast(SourceBuilder sb, string enumName, EquatableArray<(string Name, string? Description, bool IsAlias)> members)
 	{
 		sb.AppendSummary($"Returns the names of the <see cref=\"{enumName}\"/> enumeration as an collection of strings.");
 		sb.AppendLine("/// <returns>An array of strings containing the names of the enumeration values.</returns>");
@@ -332,7 +347,7 @@ public sealed class EnumeratorExtensionsGenerator : IIncrementalGenerator
 		sb.OpenBrace();
 		sb.AppendLine("return new[]");
 		sb.OpenBrace();
-		foreach ((string memberName, _) in members)
+		foreach ((string memberName, _, _) in members)
 		{
 			sb.AppendLine($"nameof({enumName}.{memberName}),");
 		}
@@ -342,7 +357,7 @@ public sealed class EnumeratorExtensionsGenerator : IIncrementalGenerator
 		sb.AppendLine();
 	}
 
-	private static void AppendGetValuesFast(SourceBuilder sb, string enumName, EquatableArray<(string Name, string? Description)> members)
+	private static void AppendGetValuesFast(SourceBuilder sb, string enumName, EquatableArray<(string Name, string? Description, bool IsAlias)> members)
 	{
 		sb.AppendSummary($"Returns the values of the <see cref=\"{enumName}\"/> enumeration.");
 		sb.AppendLine("/// <returns>An collection of the enumeration values.</returns>");
@@ -350,7 +365,7 @@ public sealed class EnumeratorExtensionsGenerator : IIncrementalGenerator
 		sb.OpenBrace();
 		sb.AppendLine("return new[]");
 		sb.OpenBrace();
-		foreach ((string memberName, _) in members)
+		foreach ((string memberName, _, _) in members)
 		{
 			sb.AppendLine($"{enumName}.{memberName},");
 		}
@@ -360,7 +375,7 @@ public sealed class EnumeratorExtensionsGenerator : IIncrementalGenerator
 		sb.AppendLine();
 	}
 
-	private static void AppendGetDescriptionFast(SourceBuilder sb, string enumName, EquatableArray<(string Name, string? Description)> members)
+	private static void AppendGetDescriptionFast(SourceBuilder sb, string enumName, EquatableArray<(string Name, string? Description, bool IsAlias)> members)
 	{
 		sb.AppendLine("/// <summary>");
 		sb.AppendLine($"/// Returns the description of the <see cref=\"{enumName}\"/> enumeration if the");
@@ -373,7 +388,7 @@ public sealed class EnumeratorExtensionsGenerator : IIncrementalGenerator
 		sb.OpenBrace();
 		sb.AppendLine("return value switch");
 		sb.OpenBrace();
-		foreach ((string memberName, string? description) in members)
+		foreach ((string memberName, string? description, _) in members.Where(member => !member.IsAlias))
 		{
 			if (description is not null)
 				sb.AppendLine($"{enumName}.{memberName} => \"{description}\",");
