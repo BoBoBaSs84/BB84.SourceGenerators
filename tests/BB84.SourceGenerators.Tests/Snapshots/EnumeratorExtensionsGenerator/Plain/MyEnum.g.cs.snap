@@ -7,7 +7,9 @@
 //     the code is regenerated.
 // </auto-generated>
 //------------------------------------------------------------------------------
+#nullable enable
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 
 namespace TestNamespace
@@ -65,6 +67,32 @@ namespace TestNamespace
         nameof(MyEnum.Two) => true,
         _ => false
       };
+    }
+
+    /// <summary>
+    /// Tries to convert the specified <paramref name="value"/> to its
+    /// <see cref="MyEnum"/> equivalent.
+    /// </summary>
+    /// <param name="value">The name of the enumeration value to parse.</param>
+    /// <param name="result">The parsed enumeration value, or the default value if parsing failed.</param>
+    /// <returns>True if <paramref name="value"/> was parsed successfully; otherwise, false.</returns>
+    public static bool TryParseFast(string? value, out MyEnum result)
+    {
+      switch (value)
+      {
+        case nameof(MyEnum.None):
+          result = MyEnum.None;
+          return true;
+        case nameof(MyEnum.One):
+          result = MyEnum.One;
+          return true;
+        case nameof(MyEnum.Two):
+          result = MyEnum.Two;
+          return true;
+        default:
+          result = default;
+          return false;
+      }
     }
 
     /// <summary>

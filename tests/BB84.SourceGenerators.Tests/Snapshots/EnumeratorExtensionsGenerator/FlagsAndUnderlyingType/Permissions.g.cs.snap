@@ -7,7 +7,9 @@
 //     the code is regenerated.
 // </auto-generated>
 //------------------------------------------------------------------------------
+#nullable enable
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 
 namespace TestNamespace
@@ -71,6 +73,74 @@ namespace TestNamespace
         nameof(Permissions.All) => true,
         _ => false
       };
+    }
+
+    /// <summary>
+    /// Tries to convert the specified <paramref name="value"/> to its
+    /// <see cref="Permissions"/> equivalent.
+    /// </summary>
+    /// <param name="value">The name of the enumeration value to parse.</param>
+    /// <param name="result">The parsed enumeration value, or the default value if parsing failed.</param>
+    /// <returns>True if <paramref name="value"/> was parsed successfully; otherwise, false.</returns>
+    public static bool TryParseFast(string? value, out Permissions result)
+    {
+      switch (value)
+      {
+        case nameof(Permissions.None):
+          result = Permissions.None;
+          return true;
+        case nameof(Permissions.Read):
+          result = Permissions.Read;
+          return true;
+        case nameof(Permissions.Write):
+          result = Permissions.Write;
+          return true;
+        case nameof(Permissions.Execute):
+          result = Permissions.Execute;
+          return true;
+        case nameof(Permissions.All):
+          result = Permissions.All;
+          return true;
+        default:
+          result = default;
+          return false;
+      }
+    }
+
+    /// <summary>
+    /// Tries to convert the specified <paramref name="value"/>, containing one or more
+    /// member names delimited by any of the <paramref name="separators"/>, to its combined
+    /// <see cref="Permissions"/> equivalent.
+    /// </summary>
+    /// <param name="value">The delimited names of the enumeration values to parse.</param>
+    /// <param name="result">The combined enumeration value, or the default value if parsing failed.</param>
+    /// <param name="separators">The delimiters between the member names, for example <c>"|"</c>, <c>","</c>, <c>";"</c> or <c>" "</c>.</param>
+    /// <returns>True if every name in <paramref name="value"/> was parsed successfully; otherwise, false.</returns>
+    public static bool TryParseFast(string? value, out Permissions result, params string[] separators)
+    {
+      if (value is null || separators is null || separators.Length == 0)
+        return TryParseFast(value, out result);
+
+      Permissions combined = default;
+      bool parsed = false;
+      foreach (string token in value.Split(separators, StringSplitOptions.RemoveEmptyEntries))
+      {
+        string name = token.Trim();
+        if (name.Length == 0)
+          continue;
+
+        if (!TryParseFast(name, out Permissions flag))
+        {
+          result = default;
+          return false;
+        }
+
+        combined |= flag;
+        parsed = true;
+      }
+
+      result = parsed ? combined : default;
+      return parsed;
     }
 
     /// <summary>

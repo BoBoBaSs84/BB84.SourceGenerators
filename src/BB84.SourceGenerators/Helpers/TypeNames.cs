@@ -29,6 +29,7 @@ internal static class TypeNames
 	internal const string Exception = NamespaceNames.System + ".Exception";
 	internal const string ExcludeFromCodeCoverage = NamespaceNames.SystemDiagnosticsCodeAnalysis + "." + ExcludeFromCodeCoverageShortName;
 	internal const string ExcludeFromCodeCoverageShortName = "ExcludeFromCodeCoverage";
+	internal const string FlagsAttribute = NamespaceNames.System + "." + FlagsAttributeShortName;
 	internal const string FlagsAttributeShortName = "FlagsAttribute";
 	internal const string IAsyncDisposable = NamespaceNames.System + "." + IAsyncDisposableShortName;
 	internal const string IAsyncDisposableShortName = "IAsyncDisposable";
