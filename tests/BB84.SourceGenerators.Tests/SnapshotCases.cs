@@ -988,6 +988,36 @@ internal static class SnapshotCases
 				}
 			}
 			"""),
+		["Aliases"] = new("""
+			using System;
+			using System.ComponentModel;
+			using BB84.SourceGenerators.Attributes;
+
+			namespace TestNamespace
+			{
+				[GenerateEnumeratorExtensions]
+				public enum Status
+				{
+					[Description("Active value")]
+					Active = 1,
+					[Description("Enabled value")]
+					Enabled = Active,
+					Inactive = 2
+				}
+
+				[Flags]
+				[GenerateEnumeratorExtensions]
+				public enum Access
+				{
+					None = 0,
+					Read = 1,
+					CanRead = Read,
+					Write = 2,
+					All = Read | Write,
+					Everything = All
+				}
+			}
+			"""),
 		["Empty"] = new("""
 			using BB84.SourceGenerators.Attributes;
 

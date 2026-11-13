@@ -207,6 +207,75 @@ namespace TestNamespace
 	}
 
 	[TestMethod]
+	public void ShouldEmitOneValueArmPerDistinctValueForAliases()
+	{
+		string source = @"
+using System.ComponentModel;
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+	[GenerateEnumeratorExtensions]
+	public enum Status
+	{
+		[Description(""Active value"")]
+		Active = 1,
+		[Description(""Enabled value"")]
+		Enabled = Active,
+		Inactive = 2,
+		Disabled = 2
+	}
+}";
+
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources) = RunGenerator(source);
+
+		Assert.IsEmpty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+		string generated = generatedSources.First(s => s.Contains("StatusExtensions"));
+		Assert.Contains("Status.Active => nameof(Status.Active),", generated);
+		Assert.DoesNotContain("Status.Enabled => nameof(Status.Enabled),", generated);
+		Assert.DoesNotContain("Status.Disabled => nameof(Status.Disabled),", generated);
+		Assert.Contains("Status.Active => \"Active value\",", generated);
+		Assert.DoesNotContain("Status.Enabled => \"Enabled value\",", generated);
+		Assert.DoesNotContain("Status.Enabled => true,", generated);
+		Assert.Contains("nameof(Status.Enabled) => true,", generated);
+		Assert.Contains("case nameof(Status.Enabled):", generated);
+		Assert.Contains("Status.Disabled,", generated);
+	}
+
+	[TestMethod]
+	public void ShouldCompileFlagsEnumWithAliases()
+	{
+		string source = @"
+using System;
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+	[Flags]
+	[GenerateEnumeratorExtensions]
+	public enum MyFlags : sbyte
+	{
+		None = 0,
+		Empty = None,
+		Read = 1,
+		CanRead = Read,
+		Top = sbyte.MinValue,
+		Sign = -128
+	}
+}";
+
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources) = RunGenerator(source);
+
+		Assert.IsEmpty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+		string generated = generatedSources.First(s => s.Contains("MyFlagsExtensions"));
+		Assert.Contains("MyFlags.Top => true,", generated);
+		Assert.DoesNotContain("MyFlags.Sign => true,", generated);
+		Assert.DoesNotContain("MyFlags.Empty => true,", generated);
+		Assert.DoesNotContain("MyFlags.CanRead => true,", generated);
+		Assert.DoesNotContain("remaining &= ~MyFlags.CanRead;", generated);
+	}
+
+	[TestMethod]
 	public void EmptyEnumShouldNotGenerate()
 	{
 		string source = @"

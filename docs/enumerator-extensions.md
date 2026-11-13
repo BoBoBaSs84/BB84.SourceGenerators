@@ -80,6 +80,27 @@ IEnumerable<string> names = StatusExtensions.GetNamesFast();
 IEnumerable<Status> values = StatusExtensions.GetValuesFast();
 ```
 
+### Aliases
+
+Members that share a value with an earlier member (aliases) are supported. Value-based methods (`ToStringFast()`, `IsDefinedFast(this TEnum value)`, `GetDescriptionFast()`) emit one case per distinct value, and the first declared member wins. Name-based methods (`IsDefinedFast(string name)`, `TryParseFast`) keep every member. `GetNamesFast()` and `GetValuesFast()` list every member, so `GetValuesFast()` contains the duplicate values, like `Enum.GetValues()`.
+
+```csharp
+[GenerateEnumeratorExtensions]
+public enum State
+{
+    [System.ComponentModel.Description("Is active")]
+    Active = 1,
+    Enabled = Active,
+    Inactive = 2
+}
+
+State.Enabled.ToStringFast();                            // "Active", first declared member
+State.Enabled.GetDescriptionFast();                      // "Is active"
+StateExtensions.IsDefinedFast("Enabled");                // true
+StateExtensions.TryParseFast("Enabled", out State s);    // true, State.Active
+StateExtensions.GetValuesFast();                         // Active, Active, Inactive
+```
+
 ### Flags Enums
 
 For enumerations decorated with `[Flags]`, the generator emits two additional overloads that convert combined values to and from separator-delimited member names.

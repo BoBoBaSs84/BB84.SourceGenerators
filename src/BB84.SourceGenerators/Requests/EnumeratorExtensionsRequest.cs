@@ -13,7 +13,10 @@ namespace BB84.SourceGenerators.Requests;
 /// </summary>
 /// <param name="EnumName">The name of the enumeration.</param>
 /// <param name="NamespaceName">The namespace of the enumeration.</param>
-/// <param name="Members">The enumeration members in declaration order, with their <c>[Description]</c> text, if any.</param>
+/// <param name="Members">
+/// The enumeration members in declaration order, with their <c>[Description]</c> text, if any, and whether
+/// the member is an alias, i.e. its value was already declared by an earlier member.
+/// </param>
 /// <param name="IsFlags">Indicates whether the enumeration is decorated with <c>[Flags]</c>.</param>
 /// <param name="FlagMembers">
 /// The names of the single-bit members in declaration order, one per distinct bit; empty unless <paramref name="IsFlags"/> is set.
@@ -21,7 +24,7 @@ namespace BB84.SourceGenerators.Requests;
 internal sealed record EnumeratorExtensionsRequest(
 	string EnumName,
 	string NamespaceName,
-	EquatableArray<(string Name, string? Description)> Members,
+	EquatableArray<(string Name, string? Description, bool IsAlias)> Members,
 	bool IsFlags,
 	EquatableArray<string> FlagMembers
 	);
