@@ -48,6 +48,10 @@ public sealed class EnumeratorExtensionsGenerator : IIncrementalGenerator
 		AppendClassStart(sb, enumName);
 
 		AppendToStringFast(sb, enumName, members);
+
+		if (request.IsFlags)
+			AppendToStringFastFlags(sb, enumName, request.FlagMembers);
+
 		AppendIsDefinedFast(sb, enumName, members);
 		AppendTryParseFast(sb, enumName, members);
 
@@ -83,9 +87,47 @@ public sealed class EnumeratorExtensionsGenerator : IIncrementalGenerator
 			.ToEquatableArray();
 
 		bool isFlags = IsFlagsEnum(context.TargetSymbol, semanticModel);
+		EquatableArray<string> flagMembers = isFlags
+			? GetSingleBitMemberNames(members, semanticModel, cancellationToken)
+			: EquatableArray<string>.Empty;
 
-		return GeneratorResult<EnumeratorExtensionsRequest>.FromRequest(new EnumeratorExtensionsRequest(enumDeclaration.Identifier.Text, enumDeclaration.GetNamespace(), memberInfos, isFlags));
+		return GeneratorResult<EnumeratorExtensionsRequest>.FromRequest(new EnumeratorExtensionsRequest(enumDeclaration.Identifier.Text, enumDeclaration.GetNamespace(), memberInfos, isFlags, flagMembers));
 	}
+
+	private static EquatableArray<string> GetSingleBitMemberNames(ImmutableArray<EnumMemberDeclarationSyntax> members, SemanticModel semanticModel, CancellationToken cancellationToken)
+	{
+		List<string> names = [];
+		HashSet<ulong> seenBits = [];
+
+		foreach (EnumMemberDeclarationSyntax member in members)
+		{
+			if (semanticModel.GetDeclaredSymbol(member, cancellationToken) is not IFieldSymbol { HasConstantValue: true } field)
+				continue;
+
+			ulong bits = ToUInt64(field.ConstantValue);
+
+			// Only distinct single-bit members; the first declared alias of a bit wins.
+			if (bits != 0 && (bits & (bits - 1)) == 0 && seenBits.Add(bits))
+				names.Add(member.Identifier.Text);
+		}
+
+		return names.ToEquatableArray();
+	}
+
+	// Signed values go through the unsigned type of the same width, so the sign bit stays a single bit.
+	private static ulong ToUInt64(object? value)
+		=> value switch
+		{
+			sbyte v => unchecked((byte)v),
+			short v => unchecked((ushort)v),
+			int v => unchecked((uint)v),
+			long v => unchecked((ulong)v),
+			byte v => v,
+			ushort v => v,
+			uint v => v,
+			ulong v => v,
+			_ => 0
+		};
 
 	private static bool IsFlagsEnum(ISymbol enumSymbol, SemanticModel semanticModel)
 	{
@@ -121,6 +163,46 @@ public sealed class EnumeratorExtensionsGenerator : IIncrementalGenerator
 		sb.AppendLine("_ => value.ToString()");
 		sb.Outdent();
 		sb.AppendLine("};");
+		sb.CloseBrace();
+		sb.AppendLine();
+	}
+
+	private static void AppendToStringFastFlags(SourceBuilder sb, string enumName, EquatableArray<string> flagMembers)
+	{
+		sb.AppendLine("/// <summary>");
+		sb.AppendLine("/// Returns the name of the enumeration <paramref name=\"value\"/> as a string. If the value is not");
+		sb.AppendLine("/// a defined member, the names of all set single-bit members are joined with the");
+		sb.AppendLine("/// <paramref name=\"separator\"/>, in declaration order.");
+		sb.AppendLine("/// </summary>");
+		sb.AppendLine("/// <param name=\"value\">The enumeration value to convert to a string.</param>");
+		sb.AppendLine("/// <param name=\"separator\">The delimiter between the member names, for example <c>\"|\"</c>, <c>\",\"</c>, <c>\";\"</c> or <c>\" \"</c>.</param>");
+		sb.AppendLine("/// <returns>");
+		sb.AppendLine("/// The member name, the delimited names of the set single-bit members, or the result of");
+		sb.AppendLine("/// <see cref=\"Enum.ToString()\"/> if the value contains bits not covered by a single-bit member.");
+		sb.AppendLine("/// </returns>");
+		sb.AppendLine($"public static string ToStringFast(this {enumName} value, string separator)");
+		sb.OpenBrace();
+		sb.AppendLine("if (value.IsDefinedFast())");
+		sb.Indent();
+		sb.AppendLine("return value.ToStringFast();");
+		sb.Outdent();
+		sb.AppendLine();
+		sb.AppendLine($"{enumName} remaining = value;");
+		sb.AppendLine("List<string> names = new List<string>();");
+		foreach (string memberName in flagMembers)
+		{
+			sb.AppendLine($"if ((value & {enumName}.{memberName}) == {enumName}.{memberName})");
+			sb.OpenBrace();
+			sb.AppendLine($"names.Add(nameof({enumName}.{memberName}));");
+			sb.AppendLine($"remaining &= ~{enumName}.{memberName};");
+			sb.CloseBrace();
+		}
+		sb.AppendLine();
+		sb.AppendLine("return remaining != 0 || names.Count == 0");
+		sb.Indent();
+		sb.AppendLine("? value.ToString()");
+		sb.AppendLine(": string.Join(separator, names);");
+		sb.Outdent();
 		sb.CloseBrace();
 		sb.AppendLine();
 	}

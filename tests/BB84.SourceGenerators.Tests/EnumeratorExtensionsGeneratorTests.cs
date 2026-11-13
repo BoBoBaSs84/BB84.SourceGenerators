@@ -176,6 +176,56 @@ public sealed class EnumeratorExtensionsGeneratorTests
 		Assert.IsFalse(GeneratorTestFlagsExtensions.TryParseFast("Read|Write", out GeneratorTestFlags combined, null!));
 		Assert.AreEqual(GeneratorTestFlags.None, combined);
 	}
+
+	[TestMethod]
+	[DataRow(GeneratorTestFlags.None, nameof(GeneratorTestFlags.None))]
+	[DataRow(GeneratorTestFlags.Read, nameof(GeneratorTestFlags.Read))]
+	[DataRow(GeneratorTestFlags.All, nameof(GeneratorTestFlags.All))]
+	[DataRow(GeneratorTestFlags.High, nameof(GeneratorTestFlags.High))]
+	public void ToStringFastWithSeparatorShouldReturnMemberNameForDefinedValues(GeneratorTestFlags value, string expected)
+		=> Assert.AreEqual(expected, value.ToStringFast("|"));
+
+	[TestMethod]
+	[DataRow(GeneratorTestFlags.Read | GeneratorTestFlags.Write, "|", "Read|Write")]
+	[DataRow(GeneratorTestFlags.Write | GeneratorTestFlags.Execute, ",", "Write,Execute")]
+	[DataRow(GeneratorTestFlags.Execute | GeneratorTestFlags.Read, ";", "Read;Execute")]
+	[DataRow(GeneratorTestFlags.Read | GeneratorTestFlags.High, " ", "Read High")]
+	[DataRow(GeneratorTestFlags.All | GeneratorTestFlags.High, ", ", "Read, Write, Execute, High")]
+	public void ToStringFastWithSeparatorShouldJoinSingleBitMembers(GeneratorTestFlags value, string separator, string expected)
+		=> Assert.AreEqual(expected, value.ToStringFast(separator));
+
+	[TestMethod]
+	public void ToStringFastWithSeparatorShouldFallBackForUncoveredBits()
+	{
+		Assert.AreEqual("8", ((GeneratorTestFlags)8).ToStringFast("|"));
+		Assert.AreEqual("9", (GeneratorTestFlags.Read | (GeneratorTestFlags)8).ToStringFast("|"));
+	}
+
+	[TestMethod]
+	[DataRow("|")]
+	[DataRow(",")]
+	[DataRow(";")]
+	[DataRow(" ")]
+	[DataRow(", ")]
+	public void ToStringFastWithSeparatorShouldRoundTripWithTryParseFast(string separator)
+	{
+		GeneratorTestFlags[] bits = [GeneratorTestFlags.Read, GeneratorTestFlags.Write, GeneratorTestFlags.Execute, GeneratorTestFlags.High];
+
+		for (int mask = 0; mask < 1 << bits.Length; mask++)
+		{
+			GeneratorTestFlags value = GeneratorTestFlags.None;
+			for (int i = 0; i < bits.Length; i++)
+			{
+				if ((mask & (1 << i)) != 0)
+					value |= bits[i];
+			}
+
+			string text = value.ToStringFast(separator);
+
+			Assert.IsTrue(GeneratorTestFlagsExtensions.TryParseFast(text, out GeneratorTestFlags parsed, separator), text);
+			Assert.AreEqual(value, parsed, text);
+		}
+	}
 }
 
 [GenerateEnumeratorExtensions]
@@ -198,5 +248,6 @@ public enum GeneratorTestFlags : long
 	Read = 1,
 	Write = 2,
 	Execute = 4,
-	All = Read | Write | Execute
+	All = Read | Write | Execute,
+	High = long.MinValue
 }

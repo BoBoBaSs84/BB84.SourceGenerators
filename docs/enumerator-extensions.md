@@ -47,6 +47,7 @@ public enum Status
 The generator creates the following extension methods:
 
 - `ToStringFast()` - Returns the name of the enum value as a string
+- `ToStringFast(string separator)` - Returns the member name, or the set single-bit member names joined with `separator`; only generated for `[Flags]` enums
 - `IsDefinedFast(this TEnum value)` - Checks if an enum value is defined
 - `IsDefinedFast(string name)` - Checks if an enum name is defined
 - `TryParseFast(string? value, out TEnum result)` - Parses an exact member name (ordinal, case-sensitive) into the enum value (static method)
@@ -81,7 +82,11 @@ IEnumerable<Status> values = StatusExtensions.GetValuesFast();
 
 ### Flags Enums
 
-For enumerations decorated with `[Flags]`, an additional `TryParseFast` overload parses member names delimited by any of the given separators and combines them with a bitwise OR. Each token is trimmed and empty tokens are skipped. The call fails, and `result` is set to `default`, if any token is not an exact member name or if no token remains. Without separators (`null` or empty) the overload behaves like the exact-name `TryParseFast`.
+For enumerations decorated with `[Flags]`, the generator emits two additional overloads that convert combined values to and from separator-delimited member names.
+
+`ToStringFast(string separator)` returns the member name if the value is a defined member (including `0` and composite members such as `All`). Otherwise it joins the names of all set single-bit members with `separator`, in declaration order. If the value contains bits that no single-bit member covers, it falls back to `Enum.ToString()`.
+
+The additional `TryParseFast` overload parses member names delimited by any of the given separators and combines them with a bitwise OR. Each token is trimmed and empty tokens are skipped. The call fails, and `result` is set to `default`, if any token is not an exact member name or if no token remains. Without separators (`null` or empty) the overload behaves like the exact-name `TryParseFast`.
 
 ```csharp
 [Flags]
@@ -94,6 +99,10 @@ public enum Permissions
     Execute = 4,
     All = Read | Write | Execute
 }
+
+(Permissions.Read | Permissions.Write).ToStringFast("|");                             // "Read|Write"
+(Permissions.Read | Permissions.Write | Permissions.Execute).ToStringFast("|");       // "All", defined member
+((Permissions)8).ToStringFast("|");                                                   // "8", uncovered bits
 
 PermissionsExtensions.TryParseFast("Read|Write", out Permissions a, "|");             // true, Read | Write
 PermissionsExtensions.TryParseFast("Read, Execute", out Permissions b, ",");          // true, Read | Execute
