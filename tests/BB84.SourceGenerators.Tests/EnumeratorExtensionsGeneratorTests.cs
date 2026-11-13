@@ -84,6 +84,98 @@ public sealed class EnumeratorExtensionsGeneratorTests
 		Assert.AreEqual("Two value", GeneratorTestType.Two.GetDescriptionFast());
 		Assert.AreEqual(nameof(GeneratorTestType.Three), GeneratorTestType.Three.GetDescriptionFast());
 	}
+
+	[TestMethod]
+	[DataRow(nameof(GeneratorTestType.None), GeneratorTestType.None)]
+	[DataRow(nameof(GeneratorTestType.One), GeneratorTestType.One)]
+	[DataRow(nameof(GeneratorTestType.Two), GeneratorTestType.Two)]
+	[DataRow(nameof(GeneratorTestType.Three), GeneratorTestType.Three)]
+	public void TryParseFastShouldReturnTrueForDefinedNames(string value, GeneratorTestType expected)
+	{
+		bool success = GeneratorTestTypeExtensions.TryParseFast(value, out GeneratorTestType result);
+
+		Assert.IsTrue(success);
+		Assert.AreEqual(expected, result);
+	}
+
+	[TestMethod]
+	[DataRow(null)]
+	[DataRow("")]
+	[DataRow("Undefined")]
+	[DataRow("one")]
+	[DataRow(" One")]
+	[DataRow("1")]
+	[DataRow("One, Two")]
+	public void TryParseFastShouldReturnFalseForInvalidNames(string? value)
+	{
+		bool success = GeneratorTestTypeExtensions.TryParseFast(value, out GeneratorTestType result);
+
+		Assert.IsFalse(success);
+		Assert.AreEqual(default, result);
+	}
+
+	[TestMethod]
+	public void TryParseFastShouldRejectCombinationsForFlagsWithoutSeparators()
+	{
+		bool success = GeneratorTestFlagsExtensions.TryParseFast("Read, Write", out GeneratorTestFlags result);
+
+		Assert.IsFalse(success);
+		Assert.AreEqual(GeneratorTestFlags.None, result);
+	}
+
+	[TestMethod]
+	[DataRow("Read|Write", "|", GeneratorTestFlags.Read | GeneratorTestFlags.Write)]
+	[DataRow("Read,Execute", ",", GeneratorTestFlags.Read | GeneratorTestFlags.Execute)]
+	[DataRow("Write;Execute", ";", GeneratorTestFlags.Write | GeneratorTestFlags.Execute)]
+	[DataRow("Read Write Execute", " ", GeneratorTestFlags.All)]
+	[DataRow("Read, Write", ",", GeneratorTestFlags.Read | GeneratorTestFlags.Write)]
+	[DataRow("Read, ,Write", ",", GeneratorTestFlags.Read | GeneratorTestFlags.Write)]
+	[DataRow("Read||Write|", "|", GeneratorTestFlags.Read | GeneratorTestFlags.Write)]
+	[DataRow("Read|Read", "|", GeneratorTestFlags.Read)]
+	[DataRow("All", "|", GeneratorTestFlags.All)]
+	[DataRow("None", "|", GeneratorTestFlags.None)]
+	[DataRow("Write", "|", GeneratorTestFlags.Write)]
+	public void TryParseFastShouldCombineFlagsForSeparator(string value, string separator, GeneratorTestFlags expected)
+	{
+		bool success = GeneratorTestFlagsExtensions.TryParseFast(value, out GeneratorTestFlags result, separator);
+
+		Assert.IsTrue(success);
+		Assert.AreEqual(expected, result);
+	}
+
+	[TestMethod]
+	public void TryParseFastShouldCombineFlagsForMultipleSeparators()
+	{
+		bool success = GeneratorTestFlagsExtensions.TryParseFast("Read | Write; Execute", out GeneratorTestFlags result, "|", ",", ";", " ");
+
+		Assert.IsTrue(success);
+		Assert.AreEqual(GeneratorTestFlags.All, result);
+	}
+
+	[TestMethod]
+	[DataRow(null)]
+	[DataRow("")]
+	[DataRow(" | ")]
+	[DataRow("Read|Unknown")]
+	[DataRow("Read|1")]
+	[DataRow("Read|write")]
+	public void TryParseFastShouldReturnFalseForInvalidFlags(string? value)
+	{
+		bool success = GeneratorTestFlagsExtensions.TryParseFast(value, out GeneratorTestFlags result, "|");
+
+		Assert.IsFalse(success);
+		Assert.AreEqual(GeneratorTestFlags.None, result);
+	}
+
+	[TestMethod]
+	public void TryParseFastShouldFallBackToExactNameWithoutSeparators()
+	{
+		Assert.IsTrue(GeneratorTestFlagsExtensions.TryParseFast("Write", out GeneratorTestFlags single, []));
+		Assert.AreEqual(GeneratorTestFlags.Write, single);
+
+		Assert.IsFalse(GeneratorTestFlagsExtensions.TryParseFast("Read|Write", out GeneratorTestFlags combined, null!));
+		Assert.AreEqual(GeneratorTestFlags.None, combined);
+	}
 }
 
 [GenerateEnumeratorExtensions]
@@ -96,4 +188,15 @@ public enum GeneratorTestType
 	[Description("Two value")]
 	Two = 2,
 	Three = 3
+}
+
+[Flags]
+[GenerateEnumeratorExtensions]
+public enum GeneratorTestFlags : long
+{
+	None = 0,
+	Read = 1,
+	Write = 2,
+	Execute = 4,
+	All = Read | Write | Execute
 }

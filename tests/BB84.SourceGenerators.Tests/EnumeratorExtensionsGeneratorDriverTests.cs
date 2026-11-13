@@ -91,6 +91,87 @@ namespace TestNamespace
 	}
 
 	[TestMethod]
+	public void ShouldGenerateTryParseFastWithoutFlagsOverloadForPlainEnum()
+	{
+		string source = @"
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+	[GenerateEnumeratorExtensions]
+	public enum MyEnum
+	{
+		None = 0,
+		One = 1
+	}
+}";
+
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources) = RunGenerator(source);
+
+		Assert.IsEmpty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+		string generated = generatedSources.First(s => s.Contains("MyEnumExtensions"));
+		Assert.Contains("#nullable enable", generated);
+		Assert.Contains("public static bool TryParseFast(string? value, out MyEnum result)", generated);
+		Assert.Contains("case nameof(MyEnum.One):", generated);
+		Assert.Contains("result = MyEnum.One;", generated);
+		Assert.DoesNotContain("params string[] separators", generated);
+	}
+
+	[TestMethod]
+	public void ShouldGenerateTryParseFastSeparatorOverloadForFlagsEnum()
+	{
+		string source = @"
+using System;
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+	[Flags]
+	[GenerateEnumeratorExtensions]
+	public enum MyFlags : long
+	{
+		None = 0,
+		Read = 1,
+		Write = 2,
+		All = Read | Write
+	}
+}";
+
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources) = RunGenerator(source);
+
+		Assert.IsEmpty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+		string generated = generatedSources.First(s => s.Contains("MyFlagsExtensions"));
+		Assert.Contains("public static bool TryParseFast(string? value, out MyFlags result)", generated);
+		Assert.Contains("public static bool TryParseFast(string? value, out MyFlags result, params string[] separators)", generated);
+		Assert.Contains("value.Split(separators, StringSplitOptions.RemoveEmptyEntries)", generated);
+		Assert.Contains("combined |= flag;", generated);
+	}
+
+	[TestMethod]
+	public void ShouldDetectFullyQualifiedFlagsAttribute()
+	{
+		string source = @"
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+	[System.FlagsAttribute]
+	[GenerateEnumeratorExtensions]
+	public enum MyFlags
+	{
+		None = 0,
+		Read = 1
+	}
+}";
+
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources) = RunGenerator(source);
+
+		Assert.IsEmpty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+		string generated = generatedSources.First(s => s.Contains("MyFlagsExtensions"));
+		Assert.Contains("params string[] separators", generated);
+	}
+
+	[TestMethod]
 	public void EmptyEnumShouldNotGenerate()
 	{
 		string source = @"
@@ -124,10 +205,13 @@ namespace TestNamespace
 		IIncrementalGenerator[] generators = [new AttributeSourceGenerator(), new EnumeratorExtensionsGenerator()];
 
 		GeneratorDriver driver = CSharpGeneratorDriver.Create(generators);
-		driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out _, out ImmutableArray<Diagnostic> diagnostics);
+		driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out Compilation outputCompilation, out ImmutableArray<Diagnostic> generatorDiagnostics);
 
 		GeneratorDriverRunResult runResult = driver.GetRunResult();
 		string[] generatedSources = [.. runResult.GeneratedTrees.Select(t => t.GetText().ToString())];
+
+		// Include compilation diagnostics so the generated code is verified to compile.
+		ImmutableArray<Diagnostic> diagnostics = generatorDiagnostics.AddRange(outputCompilation.GetDiagnostics());
 
 		return (diagnostics, generatedSources);
 	}
