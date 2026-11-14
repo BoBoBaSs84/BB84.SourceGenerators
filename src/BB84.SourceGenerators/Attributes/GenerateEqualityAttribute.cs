@@ -31,7 +31,7 @@ internal sealed class GenerateEqualityAttribute(params string[] excludePropertie
 	/// When <see langword="true"/>, the generator walks the base type hierarchy (up to but not including
 	/// <see cref="object"/>) and includes inherited properties alongside the declared ones.
 	/// The <c>excludeProperties</c> list applies to inherited members as well.
-	/// Defaults to <see langword="true"/>.
+	/// Defaults to <see langword="false"/>.
 	/// </summary>
-	public bool IncludeInherited { get; set; } = true;
+	public bool IncludeInherited { get; set; }
 }
