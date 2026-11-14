@@ -39,6 +39,8 @@ public sealed class ActionCommandGenerator : IIncrementalGenerator
 	private static readonly (string MetadataName, string TypeName, string ShortName) AttributeNames =
 		GeneratorHelpers.GetAttributeNames<ActionCommandAttribute>();
 
+	private static readonly string NotificationsAttributeName = typeof(GenerateNotificationsAttribute).FullName;
+
 	private static readonly string[] TemplateNames =
 		[IActionCommandName, IAsyncActionCommandName, ActionCommandName, AsyncActionCommandName];
 
@@ -76,16 +78,13 @@ public sealed class ActionCommandGenerator : IIncrementalGenerator
 	/// <returns>The generated command name, or <see langword="null"/>.</returns>
 	internal static string? GetCommandName(IMethodSymbol method)
 	{
-		AttributeData? attribute = method.GetAttributes().FirstOrDefault(IsActionCommandAttribute);
+		AttributeData? attribute = AttributeHelpers.GetAttribute(method, AttributeNames.MetadataName);
 		return attribute is null ? null : GetCommandName(method, attribute);
 	}
 
-	private static bool IsActionCommandAttribute(AttributeData attribute)
-		=> attribute.AttributeClass?.Name == AttributeNames.TypeName;
-
 	private static string GetCommandName(IMethodSymbol method, AttributeData attribute)
 	{
-		string? name = GeneratorHelpers.GetNamedArgument<string?>(attribute, nameof(ActionCommandAttribute.Name), null);
+		string? name = AttributeHelpers.GetNamedArgument<string?>(attribute, nameof(ActionCommandAttribute.Name), null);
 		if (!string.IsNullOrWhiteSpace(name))
 			return name!;
 
@@ -211,10 +210,10 @@ public sealed class ActionCommandGenerator : IIncrementalGenerator
 	/// <returns>The effective command options.</returns>
 	private static CommandOptions ReadOptions(AttributeData attribute, bool isAsync, ImmutableArray<DiagnosticInfo>.Builder diagnostics, LocationInfo? location, string methodName)
 	{
-		string? canExecuteName = GeneratorHelpers.GetNamedArgument<string?>(attribute, nameof(ActionCommandAttribute.CanExecute), null);
-		string? exceptionHandlerName = GeneratorHelpers.GetNamedArgument<string?>(attribute, nameof(ActionCommandAttribute.ExceptionHandler), null);
-		bool allowConcurrentExecutions = GeneratorHelpers.GetNamedArgument(attribute, nameof(ActionCommandAttribute.AllowConcurrentExecutions), false);
-		bool includeCancelCommand = GeneratorHelpers.GetNamedArgument(attribute, nameof(ActionCommandAttribute.IncludeCancelCommand), false);
+		string? canExecuteName = AttributeHelpers.GetNamedArgument<string?>(attribute, nameof(ActionCommandAttribute.CanExecute), null);
+		string? exceptionHandlerName = AttributeHelpers.GetNamedArgument<string?>(attribute, nameof(ActionCommandAttribute.ExceptionHandler), null);
+		bool allowConcurrentExecutions = AttributeHelpers.GetNamedArgument(attribute, nameof(ActionCommandAttribute.AllowConcurrentExecutions), false);
+		bool includeCancelCommand = AttributeHelpers.GetNamedArgument(attribute, nameof(ActionCommandAttribute.IncludeCancelCommand), false);
 
 		if (isAsync)
 			return new CommandOptions(canExecuteName, exceptionHandlerName, allowConcurrentExecutions, includeCancelCommand);
@@ -391,7 +390,7 @@ public sealed class ActionCommandGenerator : IIncrementalGenerator
 	}
 
 	private static bool IsNotificationsType(INamedTypeSymbol type)
-		=> type.GetAttributes().Any(static attribute => attribute.AttributeClass?.Name == nameof(GenerateNotificationsAttribute));
+		=> AttributeHelpers.HasAttribute(type, NotificationsAttributeName);
 
 	/// <summary>
 	/// Builds the exception handler delegate expression for the given member name.

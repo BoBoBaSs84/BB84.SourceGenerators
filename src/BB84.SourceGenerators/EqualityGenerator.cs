@@ -51,8 +51,9 @@ public sealed class EqualityGenerator : IIncrementalGenerator
 		if (context.TargetNode is not TypeDeclarationSyntax typeDeclaration || context.TargetSymbol is not INamedTypeSymbol typeSymbol)
 			return null;
 
-		bool includeInherited = GetIncludeInherited(typeDeclaration, context.SemanticModel);
-		HashSet<string> excludedProperties = GeneratorHelpers.GetExcludedProperties(typeDeclaration, context.SemanticModel, nameof(GenerateEqualityAttribute));
+		AttributeData attribute = context.Attributes[0];
+		bool includeInherited = GetIncludeInherited(attribute);
+		HashSet<string> excludedProperties = AttributeHelpers.GetExcludedProperties(attribute);
 		ImmutableArray<PropertyDescriptor> properties = GeneratorHelpers.GetPropertyDescriptors(typeSymbol, excludedProperties, detectCollections: true, includeInherited: includeInherited);
 
 		return GeneratorResult<EqualityRequest>.FromRequest(new EqualityRequest(TypeTargetInfo.Create(typeDeclaration, typeSymbol), properties.ToEquatableArray()));
@@ -323,8 +324,8 @@ public sealed class EqualityGenerator : IIncrementalGenerator
 		sb.CloseBrace();
 	}
 
-	private static bool GetIncludeInherited(TypeDeclarationSyntax typeDeclaration, SemanticModel semanticModel)
-		=> GeneratorHelpers.GetNamedArgumentValue(typeDeclaration, semanticModel, AttributeNames.ShortName, AttributeNames.TypeName, nameof(GenerateEqualityAttribute.IncludeInherited), false);
+	private static bool GetIncludeInherited(AttributeData attribute)
+		=> AttributeHelpers.GetNamedArgument(attribute, nameof(GenerateEqualityAttribute.IncludeInherited), false);
 
 	/// <summary>
 	/// Describes how a property is compared and hashed in the generated members.

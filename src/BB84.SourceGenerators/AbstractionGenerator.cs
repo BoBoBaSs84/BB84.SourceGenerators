@@ -323,25 +323,17 @@ public sealed class AbstractionGenerator : IIncrementalGenerator
 	/// </returns>
 	private static GeneratorResult<AbstractionRequest>? Transform(GeneratorAttributeSyntaxContext context, CancellationToken cancellationToken)
 	{
-		foreach (AttributeData attributeData in context.TargetSymbol.GetAttributes())
-		{
-			if (attributeData.AttributeClass?.ToDisplayString() == AttributeNames.MetadataName)
-			{
-				// Extract constructor arguments
-				TypedConstant targetTypeArg = attributeData.ConstructorArguments[0];
-				TypedConstant abstractionTypeArg = attributeData.ConstructorArguments[1];
-				TypedConstant implementationTypeArg = attributeData.ConstructorArguments[2];
+		AttributeData attributeData = context.Attributes[0];
 
-				string[] excludeMethods = GetStringArrayArgument(attributeData, nameof(GenerateAbstractionAttribute.ExcludeMethods));
-				string[] excludeProperties = GetStringArrayArgument(attributeData, nameof(GenerateAbstractionAttribute.ExcludeProperties));
+		if (AttributeHelpers.GetConstructorArgument<INamedTypeSymbol?>(attributeData, 0, null) is not INamedTypeSymbol targetType
+			|| AttributeHelpers.GetConstructorArgument<INamedTypeSymbol?>(attributeData, 1, null) is not INamedTypeSymbol abstractionType
+			|| AttributeHelpers.GetConstructorArgument<INamedTypeSymbol?>(attributeData, 2, null) is not INamedTypeSymbol implementationType)
+			return null;
 
-				if (targetTypeArg.Value is INamedTypeSymbol targetType
-					&& abstractionTypeArg.Value is INamedTypeSymbol abstractionType
-					&& implementationTypeArg.Value is INamedTypeSymbol implementationType)
-					return GeneratorResult<AbstractionRequest>.FromRequest(CreateRequest(targetType, abstractionType, implementationType, excludeMethods, excludeProperties));
-			}
-		}
-		return null;
+		string[] excludeMethods = GetStringArrayArgument(attributeData, nameof(GenerateAbstractionAttribute.ExcludeMethods));
+		string[] excludeProperties = GetStringArrayArgument(attributeData, nameof(GenerateAbstractionAttribute.ExcludeProperties));
+
+		return GeneratorResult<AbstractionRequest>.FromRequest(CreateRequest(targetType, abstractionType, implementationType, excludeMethods, excludeProperties));
 	}
 
 	private static AbstractionRequest CreateRequest(INamedTypeSymbol targetType, INamedTypeSymbol abstractionType, INamedTypeSymbol implementationType, string[] excludeMethods, string[] excludeProperties)
@@ -368,7 +360,7 @@ public sealed class AbstractionGenerator : IIncrementalGenerator
 	}
 
 	private static string[] GetStringArrayArgument(AttributeData attributeData, string name)
-		=> GeneratorHelpers.GetNamedArrayArgument(attributeData, name) is ImmutableArray<TypedConstant> values
+		=> AttributeHelpers.GetNamedArrayArgument(attributeData, name) is ImmutableArray<TypedConstant> values
 			? [.. values.Select(v => v.Value as string ?? string.Empty)]
 			: [];
 }

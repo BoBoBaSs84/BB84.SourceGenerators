@@ -81,61 +81,6 @@ internal static class GeneratorHelpers
 	}
 
 	/// <summary>
-	/// Gets the set of excluded property names from an attribute's constructor arguments on a type declaration.
-	/// </summary>
-	/// <param name="typeDeclaration">The type declaration syntax (class or struct).</param>
-	/// <param name="semanticModel">The semantic model.</param>
-	/// <param name="attributeFullName">The full name of the attribute (e.g., "GenerateToStringAttribute").</param>
-	/// <returns>A set of excluded property names.</returns>
-	internal static HashSet<string> GetExcludedProperties(
-		TypeDeclarationSyntax typeDeclaration,
-		SemanticModel semanticModel,
-		string attributeFullName)
-	{
-		string attributeShortName = StripAttributeSuffix(attributeFullName);
-		HashSet<string> excluded = new(StringComparer.Ordinal);
-
-		foreach (AttributeSyntax attribute in FindAttributes(typeDeclaration.AttributeLists, attributeFullName, attributeShortName))
-		{
-			if (attribute.ArgumentList is null)
-				continue;
-
-			foreach (AttributeArgumentSyntax argument in attribute.ArgumentList.Arguments)
-			{
-				Optional<object?> constantValue = semanticModel.GetConstantValue(argument.Expression);
-
-				if (constantValue.HasValue && constantValue.Value is string value)
-					_ = excluded.Add(value);
-			}
-		}
-
-		return excluded;
-	}
-
-	/// <summary>
-	/// Gets the set of excluded property names from a named <see cref="string"/> array argument of an attribute,
-	/// such as <c>ExcludeProperties = [nameof(Cache)]</c>.
-	/// </summary>
-	/// <param name="attribute">The attribute data.</param>
-	/// <param name="argumentName">The name of the named argument.</param>
-	/// <returns>A set of excluded property names; empty if the argument is not set.</returns>
-	internal static HashSet<string> GetExcludedProperties(AttributeData attribute, string argumentName)
-	{
-		HashSet<string> excluded = new(StringComparer.Ordinal);
-
-		if (GetNamedArrayArgument(attribute, argumentName) is ImmutableArray<TypedConstant> values)
-		{
-			foreach (TypedConstant value in values)
-			{
-				if (value.Value is string name)
-					_ = excluded.Add(name);
-			}
-		}
-
-		return excluded;
-	}
-
-	/// <summary>
 	/// Strips the "Attribute" suffix from an attribute type name.
 	/// </summary>
 	/// <param name="attributeName">The full attribute name (e.g., "GenerateToStringAttribute").</param>
@@ -144,135 +89,6 @@ internal static class GeneratorHelpers
 		=> attributeName.EndsWith(AttributeKeyword, StringComparison.Ordinal)
 			? attributeName.Substring(0, attributeName.Length - AttributeKeyword.Length)
 			: attributeName;
-
-	/// <summary>
-	/// Gets the value of a named argument from an attribute on a type declaration.
-	/// Searches the attribute lists for an attribute matching <paramref name="attributeShortName"/> or
-	/// <paramref name="attributeFullName"/>, then looks for a named argument with the given <paramref name="propertyName"/>.
-	/// </summary>
-	/// <typeparam name="T">The expected type of the argument value.</typeparam>
-	/// <param name="typeDeclaration">The type declaration syntax.</param>
-	/// <param name="semanticModel">The semantic model.</param>
-	/// <param name="attributeShortName">The short name of the attribute.</param>
-	/// <param name="attributeFullName">The full name of the attribute.</param>
-	/// <param name="propertyName">The name of the named argument to extract.</param>
-	/// <param name="defaultValue">The default value to return if the argument is not found.</param>
-	/// <returns>The extracted value, or <paramref name="defaultValue"/> if not found.</returns>
-	internal static T GetNamedArgumentValue<T>(
-		TypeDeclarationSyntax typeDeclaration,
-		SemanticModel semanticModel,
-		string attributeShortName,
-		string attributeFullName,
-		string propertyName,
-		T defaultValue)
-	{
-		foreach (AttributeSyntax attribute in FindAttributes(typeDeclaration.AttributeLists, attributeFullName, attributeShortName))
-		{
-			if (attribute.ArgumentList is null)
-				return defaultValue;
-
-			foreach (AttributeArgumentSyntax arg in attribute.ArgumentList.Arguments)
-			{
-				if (arg.NameEquals?.Name.Identifier.Text != propertyName)
-					continue;
-
-				Optional<object?> value = semanticModel.GetConstantValue(arg.Expression);
-
-				if (value.HasValue && value.Value is T typedValue)
-					return typedValue;
-
-				break;
-			}
-
-			return defaultValue;
-		}
-
-		return defaultValue;
-	}
-
-	/// <summary>
-	/// Finds the attributes in the given attribute lists whose name, as written in source, matches
-	/// <paramref name="attributeFullName"/> or <paramref name="attributeShortName"/>.
-	/// </summary>
-	/// <param name="attributeLists">The attribute lists of a declaration.</param>
-	/// <param name="attributeFullName">The simple type name of the attribute (e.g., "AlsoNotifyAttribute").</param>
-	/// <param name="attributeShortName">The attribute name without the "Attribute" suffix (e.g., "AlsoNotify").</param>
-	/// <returns>The matching attributes, in declaration order.</returns>
-	internal static IEnumerable<AttributeSyntax> FindAttributes(SyntaxList<AttributeListSyntax> attributeLists, string attributeFullName, string attributeShortName)
-	{
-		foreach (AttributeListSyntax attributeList in attributeLists)
-		{
-			foreach (AttributeSyntax attribute in attributeList.Attributes)
-			{
-				string name = attribute.Name.ToString();
-
-				if (name == attributeFullName || name == attributeShortName)
-					yield return attribute;
-			}
-		}
-	}
-
-	/// <summary>
-	/// Gets the value of a named argument from attribute data.
-	/// </summary>
-	/// <typeparam name="T">The expected type of the argument value.</typeparam>
-	/// <param name="attribute">The attribute data to inspect.</param>
-	/// <param name="name">The name of the named argument.</param>
-	/// <param name="defaultValue">The default value to return if the argument is not found.</param>
-	/// <returns>The argument value, or <paramref name="defaultValue"/> if not found.</returns>
-	internal static T GetNamedArgument<T>(AttributeData attribute, string name, T defaultValue)
-	{
-		foreach (KeyValuePair<string, TypedConstant> argument in attribute.NamedArguments)
-		{
-			if (argument.Key == name && argument.Value.Value is T value)
-				return value;
-		}
-
-		return defaultValue;
-	}
-
-	/// <summary>
-	/// Gets the elements of an array-valued named argument from attribute data.
-	/// </summary>
-	/// <param name="attribute">The attribute data to inspect.</param>
-	/// <param name="name">The name of the named argument.</param>
-	/// <returns>The array elements, or <see langword="null"/> if the argument is not set.</returns>
-	internal static ImmutableArray<TypedConstant>? GetNamedArrayArgument(AttributeData attribute, string name)
-	{
-		foreach (KeyValuePair<string, TypedConstant> argument in attribute.NamedArguments)
-		{
-			if (argument.Key == name && argument.Value.Kind is TypedConstantKind.Array)
-				return argument.Value.Values;
-		}
-
-		return null;
-	}
-
-	/// <summary>
-	/// Gets the single constructor argument of the first attribute on <paramref name="symbol"/> whose
-	/// class matches <paramref name="attributeName"/> and has exactly one argument of type <typeparamref name="T"/>.
-	/// </summary>
-	/// <typeparam name="T">The expected type of the argument value.</typeparam>
-	/// <param name="symbol">The symbol to inspect.</param>
-	/// <param name="attributeName">The fully qualified name of the attribute.</param>
-	/// <param name="value">When this method returns <see langword="true"/>, contains the argument value.</param>
-	/// <returns><see langword="true"/> if a matching attribute was found; otherwise, <see langword="false"/>.</returns>
-	internal static bool TryGetSingleCtorArg<T>(ISymbol symbol, string attributeName, out T value)
-	{
-		foreach (AttributeData attributeData in symbol.GetAttributes())
-		{
-			if (attributeData.AttributeClass?.ToDisplayString() == attributeName
-				&& attributeData.ConstructorArguments.Length == 1
-				&& attributeData.ConstructorArguments[0].Value is T typedValue)
-			{
-				value = typedValue;
-				return true;
-			}
-		}
-
-		value = default!;
-		return false;
-	}
 
 	/// <summary>
 	/// Checks whether the given type implements the interface with the given fully qualified name.
@@ -312,36 +128,6 @@ internal static class GeneratorHelpers
 				RefKind.RefReadOnlyParameter when includeRefReadOnly => "ref readonly ",
 				_ => string.Empty
 			};
-	}
-
-	/// <summary>
-	/// Gets the value of a positional constructor argument from an attribute on a type symbol.
-	/// Searches the attributes of <paramref name="typeSymbol"/> for one whose class name matches
-	/// <paramref name="attributeFullName"/>, then returns the constructor argument at <paramref name="index"/>.
-	/// </summary>
-	/// <typeparam name="T">The expected type of the constructor argument value.</typeparam>
-	/// <param name="typeSymbol">The type symbol to inspect.</param>
-	/// <param name="attributeFullName">The simple type name of the attribute (e.g., "GenerateIniFileAttribute").</param>
-	/// <param name="index">The zero-based index of the constructor argument.</param>
-	/// <param name="defaultValue">The default value to return if the argument is not found.</param>
-	/// <returns>The extracted value, or <paramref name="defaultValue"/> if not found.</returns>
-	internal static T GetConstructorArgumentValue<T>(
-		INamedTypeSymbol typeSymbol,
-		string attributeFullName,
-		int index,
-		T defaultValue)
-	{
-		foreach (AttributeData attributeData in typeSymbol.GetAttributes())
-		{
-			if (attributeData.AttributeClass?.Name != attributeFullName)
-				continue;
-
-			return attributeData.ConstructorArguments.Length > index && attributeData.ConstructorArguments[index].Value is T typedValue
-				? typedValue
-				: defaultValue;
-		}
-
-		return defaultValue;
 	}
 
 	/// <summary>
@@ -570,12 +356,12 @@ internal static class GeneratorHelpers
 			int? order = null;
 
 			if (cloneableAttributeName is not null)
-				isCloneable = HasAttribute(propertySymbol.Type, cloneableAttributeName);
+				isCloneable = AttributeHelpers.HasAttribute(propertySymbol.Type, cloneableAttributeName);
 
-			if (toStringFormatAttributeName is not null && TryGetSingleCtorArg(propertySymbol, toStringFormatAttributeName, out string fmt))
+			if (toStringFormatAttributeName is not null && AttributeHelpers.TryGetSingleCtorArg(propertySymbol, toStringFormatAttributeName, out string fmt))
 				formatString = fmt;
 
-			if (toStringOrderAttributeName is not null && TryGetSingleCtorArg(propertySymbol, toStringOrderAttributeName, out int ord))
+			if (toStringOrderAttributeName is not null && AttributeHelpers.TryGetSingleCtorArg(propertySymbol, toStringOrderAttributeName, out int ord))
 				order = ord;
 
 			bool isFormattable = false;
@@ -627,7 +413,7 @@ internal static class GeneratorHelpers
 		if (typeSymbol is IArrayTypeSymbol arrayType)
 		{
 			string elementType = arrayType.ElementType.ToFullyQualifiedDisplayString();
-			bool elementCloneable = cloneableAttributeName is not null && HasAttribute(arrayType.ElementType, cloneableAttributeName);
+			bool elementCloneable = cloneableAttributeName is not null && AttributeHelpers.HasAttribute(arrayType.ElementType, cloneableAttributeName);
 			return (CollectionKind.Array, elementType, elementCloneable, null, false);
 		}
 
@@ -640,7 +426,7 @@ internal static class GeneratorHelpers
 			{
 				string keyType = namedType.TypeArguments[0].ToFullyQualifiedDisplayString();
 				string valueType = namedType.TypeArguments[1].ToFullyQualifiedDisplayString();
-				bool valueCloneable = cloneableAttributeName is not null && HasAttribute(namedType.TypeArguments[1], cloneableAttributeName);
+				bool valueCloneable = cloneableAttributeName is not null && AttributeHelpers.HasAttribute(namedType.TypeArguments[1], cloneableAttributeName);
 				return (CollectionKind.Dictionary, keyType, false, valueType, valueCloneable);
 			}
 
@@ -648,7 +434,7 @@ internal static class GeneratorHelpers
 			if (originalDef == TypeNames.ListDefinition)
 			{
 				string elementType = namedType.TypeArguments[0].ToFullyQualifiedDisplayString();
-				bool elementCloneable = cloneableAttributeName is not null && HasAttribute(namedType.TypeArguments[0], cloneableAttributeName);
+				bool elementCloneable = cloneableAttributeName is not null && AttributeHelpers.HasAttribute(namedType.TypeArguments[0], cloneableAttributeName);
 				return (CollectionKind.List, elementType, elementCloneable, null, false);
 			}
 
@@ -656,7 +442,7 @@ internal static class GeneratorHelpers
 			if (originalDef == TypeNames.ImmutableArrayDefinition)
 			{
 				string elementType = namedType.TypeArguments[0].ToFullyQualifiedDisplayString();
-				bool elementCloneable = cloneableAttributeName is not null && HasAttribute(namedType.TypeArguments[0], cloneableAttributeName);
+				bool elementCloneable = cloneableAttributeName is not null && AttributeHelpers.HasAttribute(namedType.TypeArguments[0], cloneableAttributeName);
 				return (CollectionKind.ImmutableArray, elementType, elementCloneable, null, false);
 			}
 
@@ -666,7 +452,7 @@ internal static class GeneratorHelpers
 				or TypeNames.IReadOnlyCollectionDefinition)
 			{
 				string elementType = namedType.TypeArguments[0].ToFullyQualifiedDisplayString();
-				bool elementCloneable = cloneableAttributeName is not null && HasAttribute(namedType.TypeArguments[0], cloneableAttributeName);
+				bool elementCloneable = cloneableAttributeName is not null && AttributeHelpers.HasAttribute(namedType.TypeArguments[0], cloneableAttributeName);
 				return (CollectionKind.ReadOnlyCollection, elementType, elementCloneable, null, false);
 			}
 		}
@@ -674,21 +460,6 @@ internal static class GeneratorHelpers
 		return (CollectionKind.None, null, false, null, false);
 	}
 
-	/// <summary>
-	/// Checks whether a symbol has an attribute with the given fully qualified name.
-	/// </summary>
-	/// <param name="symbol">The symbol to inspect.</param>
-	/// <param name="attributeName">The fully qualified name of the attribute.</param>
-	/// <returns><see langword="true"/> if the attribute is present; otherwise, <see langword="false"/>.</returns>
-	internal static bool HasAttribute(ISymbol symbol, string attributeName)
-	{
-		foreach (AttributeData attr in symbol.GetAttributes())
-		{
-			if (attr.AttributeClass?.ToDisplayString() == attributeName)
-				return true;
-		}
-		return false;
-	}
 
 	/// <summary>
 	/// Enumerates public, non-static, non-indexer property symbols from the given type,

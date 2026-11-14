@@ -173,32 +173,10 @@ public sealed class FactoryGenerator : IIncrementalGenerator
 	}
 
 	private static INamedTypeSymbol? GetInterfaceTypeFromAttribute(INamedTypeSymbol classSymbol)
-	{
-		foreach (AttributeData attribute in classSymbol.GetAttributes())
-		{
-			if (attribute.AttributeClass?.ToDisplayString() != AttributeNames.MetadataName)
-				continue;
-
-			if (attribute.ConstructorArguments.Length > 0 && attribute.ConstructorArguments[0].Value is INamedTypeSymbol typeSymbol)
-				return typeSymbol;
-		}
-
-		return null;
-	}
+		=> AttributeHelpers.GetConstructorArgument<INamedTypeSymbol?>(classSymbol, AttributeNames.MetadataName, 0, null);
 
 	private static string GetFactoryKey(INamedTypeSymbol type)
-	{
-		foreach (AttributeData attribute in type.GetAttributes())
-		{
-			if (attribute.AttributeClass?.ToDisplayString() != FactoryKeyAttributeName)
-				continue;
-
-			if (attribute.ConstructorArguments.Length > 0 && attribute.ConstructorArguments[0].Value is string key)
-				return key;
-		}
-
-		return type.Name;
-	}
+		=> AttributeHelpers.GetConstructorArgument(type, FactoryKeyAttributeName, 0, type.Name);
 
 	private static bool ImplementsInterface(INamedTypeSymbol type, INamedTypeSymbol interfaceSymbol)
 	{

@@ -64,7 +64,7 @@ public sealed class CommandArgumentGenerator : IIncrementalGenerator
 				diagnostics.Add(DiagnosticInfo.Create(DiagnosticDescriptors.CommandArgumentNonPrivateConstructorDiagnostic, GetLocation(constructor, type), type.Name));
 		}
 
-		HashSet<string> excluded = GeneratorHelpers.GetExcludedProperties(context.Attributes[0], nameof(GenerateCommandArgumentAttribute.ExcludeProperties));
+		HashSet<string> excluded = AttributeHelpers.GetExcludedProperties(context.Attributes[0], nameof(GenerateCommandArgumentAttribute.ExcludeProperties));
 		List<CommandArgumentOption> options = CollectOptions(context.SemanticModel, typeSymbol, type, excluded, diagnostics, cancellationToken);
 
 		if (diagnostics.Count > 0)

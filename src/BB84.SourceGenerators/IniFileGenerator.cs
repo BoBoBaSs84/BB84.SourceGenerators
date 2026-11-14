@@ -76,9 +76,10 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 		if (context.TargetNode is not ClassDeclarationSyntax classDeclaration || context.TargetSymbol is not INamedTypeSymbol classSymbol)
 			return null;
 
-		string stringComparison = GetStringComparison(classSymbol).ToString();
-		string sectionDelimiter = GetSectionDelimiter(classSymbol);
-		bool serializeComments = GetSerializeComments(classDeclaration, context.SemanticModel);
+		AttributeData attribute = context.Attributes[0];
+		string stringComparison = GetStringComparison(attribute).ToString();
+		string sectionDelimiter = GetSectionDelimiter(attribute);
+		bool serializeComments = GetSerializeComments(attribute);
 
 		List<IniFileSection> sections = [];
 		CollectSections(new SectionWalkContext(sections, sectionDelimiter, serializeComments), classSymbol, null, null, 0);
@@ -402,7 +403,7 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 			if (member is not IPropertySymbol propertySymbol)
 				continue;
 
-			AttributeData? sectionAttribute = FindAttribute(propertySymbol, SectionAttributeName);
+			AttributeData? sectionAttribute = AttributeHelpers.GetAttribute(propertySymbol, SectionAttributeName);
 
 			if (sectionAttribute is null)
 				continue;
@@ -437,7 +438,7 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 			if (member is not IPropertySymbol propertySymbol)
 				continue;
 
-			AttributeData? valueAttribute = FindAttribute(propertySymbol, ValueAttributeName);
+			AttributeData? valueAttribute = AttributeHelpers.GetAttribute(propertySymbol, ValueAttributeName);
 
 			if (valueAttribute is null)
 				continue;
@@ -473,7 +474,7 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 			if (isEnum)
 			{
 				enumFullName = propertySymbol.Type.ToFullyQualifiedDisplayString();
-				isFlagsEnum = propertySymbol.Type.GetAttributes().Any(a => a.AttributeClass?.ToMinimalDisplayString() == TypeNames.FlagsAttributeShortName);
+				isFlagsEnum = AttributeHelpers.HasAttribute(propertySymbol.Type, TypeNames.FlagsAttribute);
 			}
 
 			string? comment = serializeComments ? GeneratorHelpers.GetXmlSummaryComment(propertySymbol) : null;
@@ -542,14 +543,14 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 			: GetTypeFormat(value.TypeName).ScalarToString(expression);
 	}
 
-	private static StringComparison GetStringComparison(INamedTypeSymbol classSymbol)
-		=> (StringComparison)GeneratorHelpers.GetConstructorArgumentValue(classSymbol, AttributeNames.TypeName, 0, (int)StringComparison.OrdinalIgnoreCase);
+	private static StringComparison GetStringComparison(AttributeData attribute)
+		=> (StringComparison)AttributeHelpers.GetConstructorArgument(attribute, 0, (int)StringComparison.OrdinalIgnoreCase);
 
-	private static string GetSectionDelimiter(INamedTypeSymbol classSymbol)
-		=> GeneratorHelpers.GetConstructorArgumentValue(classSymbol, AttributeNames.TypeName, 1, ".");
+	private static string GetSectionDelimiter(AttributeData attribute)
+		=> AttributeHelpers.GetConstructorArgument(attribute, 1, ".");
 
-	private static bool GetSerializeComments(ClassDeclarationSyntax classDeclaration, SemanticModel semanticModel)
-		=> GeneratorHelpers.GetNamedArgumentValue(classDeclaration, semanticModel, AttributeNames.ShortName, AttributeNames.TypeName, nameof(GenerateIniFileAttribute.SerializeComments), false);
+	private static bool GetSerializeComments(AttributeData attribute)
+		=> AttributeHelpers.GetNamedArgument(attribute, nameof(GenerateIniFileAttribute.SerializeComments), false);
 
 	private static void ValidateSectionPropertiesOnType(List<DiagnosticInfo> diagnostics, INamedTypeSymbol typeSymbol)
 	{
@@ -558,7 +559,7 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 			if (member is not IPropertySymbol propertySymbol)
 				continue;
 
-			AttributeData? sectionAttribute = FindAttribute(propertySymbol, SectionAttributeName);
+			AttributeData? sectionAttribute = AttributeHelpers.GetAttribute(propertySymbol, SectionAttributeName);
 
 			if (sectionAttribute is null)
 				continue;
@@ -590,24 +591,10 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 		}
 	}
 
-	private static AttributeData? FindAttribute(IPropertySymbol propertySymbol, string attributeName)
-	{
-		foreach (AttributeData attr in propertySymbol.GetAttributes())
-		{
-			if (attr.AttributeClass?.ToDisplayString() == attributeName)
-				return attr;
-		}
-
-		return null;
-	}
-
 	private static string GetExplicitNameOrDefault(AttributeData attribute, string defaultName)
 	{
-		return attribute.ConstructorArguments.Length > 0
-			&& attribute.ConstructorArguments[0].Value is string explicitName
-			&& !string.IsNullOrEmpty(explicitName)
-			? explicitName
-			: defaultName;
+		string? explicitName = AttributeHelpers.GetConstructorArgument<string?>(attribute, 0, null);
+		return string.IsNullOrEmpty(explicitName) ? defaultName : explicitName!;
 	}
 
 	private static IniTypeFormat InvariantFormat(SpecialType specialType, string typeName)

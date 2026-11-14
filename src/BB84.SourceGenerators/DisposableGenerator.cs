@@ -98,10 +98,10 @@ public sealed class DisposableGenerator : IIncrementalGenerator
 	}
 
 	private static bool GetGenerateFinalizer(INamedTypeSymbol namedTypeSymbol)
-		=> GeneratorHelpers.GetConstructorArgumentValue(namedTypeSymbol, AttributeNames.TypeName, 0, false);
+		=> AttributeHelpers.GetConstructorArgument(namedTypeSymbol, AttributeNames.MetadataName, 0, false);
 
 	private static bool GetGenerateAsync(INamedTypeSymbol namedTypeSymbol)
-		=> GeneratorHelpers.GetConstructorArgumentValue(namedTypeSymbol, AttributeNames.TypeName, 1, false);
+		=> AttributeHelpers.GetConstructorArgument(namedTypeSymbol, AttributeNames.MetadataName, 1, false);
 
 	private static ImmutableArray<(string FieldName, int Order, int SourceIndex)> GetDisposableFields(ClassDeclarationSyntax classDeclaration)
 	{

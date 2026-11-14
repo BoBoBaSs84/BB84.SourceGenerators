@@ -107,6 +107,36 @@ namespace TestNamespace
 	}
 
 	[TestMethod]
+	public void ShouldReadMemberAttributesWhenQualifiedOrAliased()
+	{
+		string source = @"
+using Notify = BB84.SourceGenerators.Attributes.AlsoNotifyAttribute;
+
+namespace TestNamespace
+{
+	[BB84.SourceGenerators.Attributes.GenerateNotifications]
+	public partial class QualifiedModel
+	{
+		[BB84.SourceGenerators.Attributes.AlsoNotify(nameof(FullName))]
+		private string _firstName;
+		[Notify(""FullName"")]
+		private string _lastName;
+		[global::BB84.SourceGenerators.Attributes.ExcludeFromNotificationAttribute]
+		private string _secret;
+		private string _fullName;
+	}
+}";
+
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources) = RunGenerator(source);
+
+		Assert.IsEmpty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+		string generated = generatedSources.First(s => s.Contains("partial class QualifiedModel"));
+		Assert.Contains("RaisePropertyChanged(nameof(FirstName), nameof(FullName));", generated);
+		Assert.Contains("RaisePropertyChanged(nameof(LastName), nameof(FullName));", generated);
+		Assert.DoesNotContain("Secret", generated);
+	}
+
+	[TestMethod]
 	public void ShouldGenerateSourceForRecordClass()
 	{
 		string source = @"

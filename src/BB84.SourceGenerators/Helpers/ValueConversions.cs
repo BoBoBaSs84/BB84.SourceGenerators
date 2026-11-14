@@ -48,7 +48,7 @@ internal static class ValueConversions
 
 		if (underlying.TypeKind == TypeKind.Enum)
 		{
-			kind = GeneratorHelpers.HasAttribute(underlying, TypeNames.FlagsAttribute) ? ValueConversionKind.FlagsEnum : ValueConversionKind.Enum;
+			kind = AttributeHelpers.HasAttribute(underlying, TypeNames.FlagsAttribute) ? ValueConversionKind.FlagsEnum : ValueConversionKind.Enum;
 			return true;
 		}
 
