@@ -18,7 +18,7 @@ A collection of C# source generators that automatically generate boilerplate cod
 
 ## Features
 
-This package provides sixteen powerful source generators:
+This package provides seventeen powerful source generators:
 
 - **[Abstraction Generator](https://github.com/BoBoBaSs84/BB84.SourceGenerators/blob/main/docs/abstraction.md)** - Interface and implementation generation for static classes
 - **[ActionCommand Generator](https://github.com/BoBoBaSs84/BB84.SourceGenerators/blob/main/docs/action-command.md)** - Compile-time `ICommand` property generation (sync, async, parameterized, cancellable) for MVVM
@@ -29,6 +29,7 @@ This package provides sixteen powerful source generators:
 - **[Decorator Generator](https://github.com/BoBoBaSs84/BB84.SourceGenerators/blob/main/docs/decorator.md)** - Compile-time decorator pattern generation with full interface delegation, generic methods, events, and partial method hooks
 - **[Disposable Generator](https://github.com/BoBoBaSs84/BB84.SourceGenerators/blob/main/docs/disposable.md)** - Compile-time `IDisposable` / `IAsyncDisposable` pattern generation with ordered resource cleanup
 - **[Enumerator Extensions Generator](https://github.com/BoBoBaSs84/BB84.SourceGenerators/blob/main/docs/enumerator-extensions.md)** - Fast, allocation-free extension methods for enums
+- **[Environment Variables Generator](https://github.com/BoBoBaSs84/BB84.SourceGenerators/blob/main/docs/environment-variables.md)** - Compile-time reading of settings from environment variables, with type conversion and error reporting
 - **[Equality Generator](https://github.com/BoBoBaSs84/BB84.SourceGenerators/blob/main/docs/equality.md)** - Compile-time `Equals`, `GetHashCode`, and operator generation
 - **[Factory Generator](https://github.com/BoBoBaSs84/BB84.SourceGenerators/blob/main/docs/factory.md)** - Compile-time factory pattern generation with automatic implementation discovery
 - **[INI File Generator](https://github.com/BoBoBaSs84/BB84.SourceGenerators/blob/main/docs/ini-file.md)** - Compile-time INI file serialization and deserialization

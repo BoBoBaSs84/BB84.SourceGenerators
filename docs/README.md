@@ -15,6 +15,7 @@
 | [Decorator Generator](decorator.md)                             | Compile-time decorator pattern generation with full interface delegation, generic methods, events, and partial method hooks |
 | [Disposable Generator](disposable.md)                           | Compile-time `IDisposable` / `IAsyncDisposable` pattern generation with ordered resource cleanup                            |
 | [Enumerator Extensions Generator](enumerator-extensions.md)     | Fast, allocation-free extension methods for enums                                                                           |
+| [Environment Variables Generator](environment-variables.md)     | Compile-time reading of settings from environment variables, with type conversion and error reporting                       |
 | [Equality Generator](equality.md)                               | Compile-time `Equals`, `GetHashCode`, and operator generation                                                               |
 | [Factory Generator](factory.md)                                 | Compile-time factory pattern generation with automatic implementation discovery                                             |
 | [INI File Generator](ini-file.md)                               | Compile-time INI file serialization and deserialization                                                                     |

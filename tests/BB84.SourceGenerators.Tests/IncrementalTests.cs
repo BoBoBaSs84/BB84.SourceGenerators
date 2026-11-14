@@ -99,6 +99,15 @@ public sealed class IncrementalTests
 
 	[TestMethod]
 	[DataRow("Plain")]
+	[DataRow("AllTypes")]
+	[DataRow("Inheritance")]
+	[DataRow("PartialProperties")]
+	[DataRow("NestedAndAsIs")]
+	public void EnvironmentVariables(string caseName)
+		=> Verify(SnapshotCases.EnvironmentVariables[caseName], new EnvironmentVariablesGenerator(), TrackingNames.EnvironmentVariables);
+
+	[TestMethod]
+	[DataRow("Plain")]
 	[DataRow("ExcludesAndInheritance")]
 	[DataRow("Collections")]
 	[DataRow("NestedAndNullable")]

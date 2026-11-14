@@ -1,0 +1,79 @@
+// Copyright: 2026 Robert Peter Meyer
+// License: MIT
+//
+// This source code is licensed under the MIT license found in the
+// LICENSE file in the root directory of this source tree.
+namespace BB84.SourceGenerators.Attributes;
+
+/// <summary>
+/// Specifies how the environment variable names are built from the prefix and the property names.
+/// </summary>
+internal enum EnvironmentVariableNamingStyle
+{
+	/// <summary>
+	/// The prefix is upper-cased and the property name is converted to upper snake case:
+	/// <c>MyApp</c> and <c>ConnectTimeoutMs</c> become <c>MYAPP_CONNECT_TIMEOUT_MS</c>. This is the default.
+	/// </summary>
+	UpperSnakeCase = 0,
+
+	/// <summary>
+	/// The prefix and the property name are used as written: <c>MyApp</c> and <c>ConnectTimeoutMs</c>
+	/// become <c>MyApp_ConnectTimeoutMs</c>.
+	/// </summary>
+	AsIs = 1,
+}
+
+/// <summary>
+/// Indicates that static <c>Read</c> and <c>TryRead</c> methods should be generated for the
+/// decorated partial class or record class, which fill its public properties from environment
+/// variables named <c>&lt;Prefix&gt;&lt;Separator&gt;&lt;PropertyName&gt;</c>.
+/// </summary>
+/// <remarks>
+/// <para>
+/// Non-nullable properties without an initializer are mandatory; nullable properties and properties
+/// with an initializer are optional, and the initializer is the fallback value. Empty or whitespace
+/// values are treated as missing.
+/// </para>
+/// <para>
+/// Partial property declarations of the decorated type are implemented to read the environment
+/// variable on every access, and to write it when <see cref="Writable"/> is <see langword="true"/>.
+/// </para>
+/// </remarks>
+/// <param name="prefix">The prefix of the environment variable names, for example <c>MyApp</c>.</param>
+[AttributeUsage(AttributeTargets.Class, Inherited = false, AllowMultiple = false)]
+internal sealed class GenerateEnvironmentVariablesAttribute(string prefix) : Attribute
+{
+	/// <summary>
+	/// Gets the prefix of the environment variable names.
+	/// </summary>
+	public string Prefix => prefix;
+
+	/// <summary>
+	/// Gets or sets the separator placed between the prefix and the property name.
+	/// Defaults to <c>"_"</c>.
+	/// </summary>
+	public string Separator { get; set; } = "_";
+
+	/// <summary>
+	/// Gets or sets how the environment variable names are built.
+	/// Defaults to <see cref="EnvironmentVariableNamingStyle.UpperSnakeCase"/>.
+	/// </summary>
+	public EnvironmentVariableNamingStyle NamingStyle { get; set; } = EnvironmentVariableNamingStyle.UpperSnakeCase;
+
+	/// <summary>
+	/// Gets or sets the names of the properties that are not read from environment variables.
+	/// </summary>
+	public string[]? ExcludeProperties { get; set; }
+
+	/// <summary>
+	/// Gets or sets a value indicating whether the public properties of the base classes are read as well.
+	/// Defaults to <see langword="false"/>.
+	/// </summary>
+	public bool IncludeInherited { get; set; }
+
+	/// <summary>
+	/// Gets or sets a value indicating whether the setters of partial properties write the environment
+	/// variable of the current process. Defaults to <see langword="false"/>.
+	/// </summary>
+	public bool Writable { get; set; }
+}

@@ -730,4 +730,88 @@ internal static class GeneratorHelpers
 		}
 		while (current is not null && current.SpecialType != SpecialType.System_Object);
 	}
+
+	/// <summary>
+	/// Gets the initializer of the given property, as declared in any of its declarations.
+	/// </summary>
+	/// <param name="property">The property symbol.</param>
+	/// <param name="cancellationToken">The cancellation token.</param>
+	/// <returns>The initializer clause, or <see langword="null"/> if the property has no initializer.</returns>
+	internal static EqualsValueClauseSyntax? GetPropertyInitializer(IPropertySymbol property, CancellationToken cancellationToken = default)
+	{
+		foreach (SyntaxReference syntaxReference in property.DeclaringSyntaxReferences)
+		{
+			if (syntaxReference.GetSyntax(cancellationToken) is PropertyDeclarationSyntax { Initializer: { } initializer })
+				return initializer;
+		}
+
+		return null;
+	}
+
+	/// <summary>
+	/// Formats a constant value as a C# literal that can be assigned to <paramref name="type"/>,
+	/// independent of the culture of the build machine. Enum values are cast to the enum type.
+	/// </summary>
+	/// <param name="value">The constant value, as returned by <see cref="SemanticModel.GetConstantValue(SyntaxNode, CancellationToken)"/>.</param>
+	/// <param name="type">The type the literal is assigned to.</param>
+	/// <returns>The C# literal.</returns>
+	internal static string FormatLiteral(object? value, ITypeSymbol type)
+	{
+		if (value is null)
+			return "null";
+
+		ITypeSymbol underlying = ValueConversions.GetUnderlyingType(type);
+		string literal = value switch
+		{
+			double d when double.IsNaN(d) => "double.NaN",
+			double d when double.IsPositiveInfinity(d) => "double.PositiveInfinity",
+			double d when double.IsNegativeInfinity(d) => "double.NegativeInfinity",
+			float f when float.IsNaN(f) => "float.NaN",
+			float f when float.IsPositiveInfinity(f) => "float.PositiveInfinity",
+			float f when float.IsNegativeInfinity(f) => "float.NegativeInfinity",
+			_ => SymbolDisplay.FormatPrimitive(value, quoteStrings: true, useHexadecimalNumbers: false) + value switch
+			{
+				float => "F",
+				double => "D",
+				decimal => "M",
+				long => "L",
+				ulong => "UL",
+				uint => "U",
+				_ => string.Empty,
+			},
+		};
+
+		return underlying.TypeKind == TypeKind.Enum
+			? $"({underlying.ToPropertyTypeDisplayString()})({literal})"
+			: literal;
+	}
+
+	/// <summary>
+	/// Converts a PascalCase or camelCase name to upper snake case, keeping acronyms together
+	/// (e.g. <c>ConnectTimeoutMs</c> to <c>CONNECT_TIMEOUT_MS</c>, <c>HTTPPort</c> to <c>HTTP_PORT</c>).
+	/// </summary>
+	/// <param name="name">The name to convert.</param>
+	/// <returns>The upper snake case name.</returns>
+	internal static string ToUpperSnakeCase(string name)
+	{
+		System.Text.StringBuilder builder = new(name.Length + 8);
+
+		for (int i = 0; i < name.Length; i++)
+		{
+			char current = name[i];
+
+			if (i > 0 && char.IsUpper(current) && name[i - 1] != '_')
+			{
+				char previous = name[i - 1];
+				bool nextIsLower = i + 1 < name.Length && char.IsLower(name[i + 1]);
+
+				if (char.IsLower(previous) || char.IsDigit(previous) || (char.IsUpper(previous) && nextIsLower))
+					_ = builder.Append('_');
+			}
+
+			_ = builder.Append(char.ToUpperInvariant(current));
+		}
+
+		return builder.ToString();
+	}
 }

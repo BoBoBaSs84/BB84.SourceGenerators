@@ -22,6 +22,7 @@ internal static class TrackingNames
 	internal const string Decorator = nameof(Decorator);
 	internal const string Disposable = nameof(Disposable);
 	internal const string EnumeratorExtensions = nameof(EnumeratorExtensions);
+	internal const string EnvironmentVariables = nameof(EnvironmentVariables);
 	internal const string Equality = nameof(Equality);
 	internal const string EqualityStruct = nameof(EqualityStruct);
 	internal const string Factory = nameof(Factory);

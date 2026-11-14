@@ -27,6 +27,7 @@
 		<EmbeddedResource Include="Attributes\ActionCommandAttribute.cs" LogicalName="ActionCommandAttribute.cs" />
 		<EmbeddedResource Include="Attributes\AlsoNotifyAttribute.cs" LogicalName="AlsoNotifyAttribute.cs" />
 		<EmbeddedResource Include="Attributes\DisposeResourceAttribute.cs" LogicalName="DisposeResourceAttribute.cs" />
+		<EmbeddedResource Include="Attributes\EnvironmentVariableNameAttribute.cs" LogicalName="EnvironmentVariableNameAttribute.cs" />
 		<EmbeddedResource Include="Attributes\ExcludeFromNotificationAttribute.cs" LogicalName="ExcludeFromNotificationAttribute.cs" />
 		<EmbeddedResource Include="Attributes\GenerateAbstractionAttribute.cs" LogicalName="GenerateAbstractionAttribute.cs" />
 		<EmbeddedResource Include="Attributes\GenerateAssemblyInformationAttribute.cs" LogicalName="GenerateAssemblyInformationAttribute.cs" />
@@ -36,6 +37,7 @@
 		<EmbeddedResource Include="Attributes\GenerateDecoratorAttribute.cs" LogicalName="GenerateDecoratorAttribute.cs" />
 		<EmbeddedResource Include="Attributes\GenerateDisposableAttribute.cs" LogicalName="GenerateDisposableAttribute.cs" />
 		<EmbeddedResource Include="Attributes\GenerateEnumeratorExtensionsAttribute.cs" LogicalName="GenerateEnumeratorExtensionsAttribute.cs" />
+		<EmbeddedResource Include="Attributes\GenerateEnvironmentVariablesAttribute.cs" LogicalName="GenerateEnvironmentVariablesAttribute.cs" />
 		<EmbeddedResource Include="Attributes\GenerateEqualityAttribute.cs" LogicalName="GenerateEqualityAttribute.cs" />
 		<EmbeddedResource Include="Attributes\GenerateFactoryAttribute.cs" LogicalName="GenerateFactoryAttribute.cs" />
 		<EmbeddedResource Include="Attributes\GenerateFactoryKeyAttribute.cs" LogicalName="GenerateFactoryKeyAttribute.cs" />

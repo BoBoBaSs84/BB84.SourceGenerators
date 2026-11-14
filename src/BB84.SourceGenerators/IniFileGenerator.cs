@@ -84,7 +84,7 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 		CollectSections(new SectionWalkContext(sections, sectionDelimiter, serializeComments), classSymbol, null, null, 0);
 
 		List<DiagnosticInfo> diagnostics = [];
-		ValidateSectionPropertiesOnType(diagnostics, classSymbol, classDeclaration);
+		ValidateSectionPropertiesOnType(diagnostics, classSymbol);
 
 		if (diagnostics.Count > 0)
 			return GeneratorResult<IniFileRequest>.FromDiagnostics([.. diagnostics]);
@@ -495,28 +495,6 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 		return values;
 	}
 
-	private static bool HasInitializer(ClassDeclarationSyntax classDeclaration, string propertyName)
-	{
-		foreach (MemberDeclarationSyntax member in classDeclaration.Members)
-		{
-			if (member is PropertyDeclarationSyntax propSyntax && propSyntax.Identifier.Text == propertyName && propSyntax.Initializer is not null)
-				return true;
-		}
-
-		return false;
-	}
-
-	private static bool HasInitializer(INamedTypeSymbol typeSymbol, string propertyName)
-	{
-		foreach (SyntaxReference syntaxRef in typeSymbol.DeclaringSyntaxReferences)
-		{
-			if (syntaxRef.GetSyntax() is ClassDeclarationSyntax classDeclaration && HasInitializer(classDeclaration, propertyName))
-				return true;
-		}
-
-		return false;
-	}
-
 	private static string GetParseExpression(IniFileValue value, string variableName)
 	{
 		if (value.IsCollection && value.CollectionElementTypeName is not null)
@@ -619,7 +597,7 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 		return null;
 	}
 
-	private static void ValidateSectionPropertiesOnType(List<DiagnosticInfo> diagnostics, INamedTypeSymbol typeSymbol, ClassDeclarationSyntax? classDeclaration)
+	private static void ValidateSectionPropertiesOnType(List<DiagnosticInfo> diagnostics, INamedTypeSymbol typeSymbol)
 	{
 		foreach (ISymbol member in typeSymbol.GetMembers())
 		{
@@ -641,11 +619,7 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 			}
 
 			// Check initialized
-			bool hasInit = classDeclaration is not null
-				? HasInitializer(classDeclaration, propertySymbol.Name)
-				: HasInitializer(typeSymbol, propertySymbol.Name);
-
-			if (!hasInit)
+			if (GeneratorHelpers.GetPropertyInitializer(propertySymbol) is null)
 			{
 				diagnostics.Add(DiagnosticInfo.Create(DiagnosticDescriptors.IniFileSectionUninitializedPropertyDiagnostic, location, propertySymbol.Name, className));
 			}
@@ -658,7 +632,7 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 
 			// Recursively validate nested section types
 			if (propertySymbol.Type is INamedTypeSymbol nestedType)
-				ValidateSectionPropertiesOnType(diagnostics, nestedType, null);
+				ValidateSectionPropertiesOnType(diagnostics, nestedType);
 		}
 	}
 

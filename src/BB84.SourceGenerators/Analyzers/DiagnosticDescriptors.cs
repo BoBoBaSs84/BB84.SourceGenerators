@@ -241,6 +241,87 @@ internal static class DiagnosticDescriptors
 		messageFormat: "The base type '{1}' of '{0}' implements '{2}' but has no accessible '{3}(string)' method");
 
 	/// <summary>
+	/// Represents a diagnostic error indicating that the [GenerateEnvironmentVariables] attribute has been
+	/// applied to a type that is not partial.
+	/// </summary>
+	internal static readonly DiagnosticDescriptor EnvironmentVariablesTypeNotPartialDiagnostic = Error(
+		id: "BB84SG0026",
+		title: "GenerateEnvironmentVariables requires a partial class or record class",
+		messageFormat: "The type '{0}' has a [GenerateEnvironmentVariables] attribute, but it is not partial");
+
+	/// <summary>
+	/// Represents a diagnostic error indicating that the prefix or a resolved environment variable name of a
+	/// [GenerateEnvironmentVariables] type is empty or contains a character that is not allowed.
+	/// </summary>
+	internal static readonly DiagnosticDescriptor EnvironmentVariablesInvalidNameDiagnostic = Error(
+		id: "BB84SG0027",
+		title: "Invalid environment variable name",
+		messageFormat: "The environment variable name '{0}' of '{1}' is invalid; names and prefixes must not be empty and must not contain '=' or '\\0'");
+
+	/// <summary>
+	/// Represents a diagnostic error indicating that a property of a [GenerateEnvironmentVariables] type has a
+	/// type that cannot be converted from an environment variable value.
+	/// </summary>
+	internal static readonly DiagnosticDescriptor EnvironmentVariablesUnsupportedTypeDiagnostic = Error(
+		id: "BB84SG0028",
+		title: "Unsupported environment variable property type",
+		messageFormat: "The property '{0}' has the type '{1}', which cannot be read from an environment variable");
+
+	/// <summary>
+	/// Represents a diagnostic error indicating that a property of a [GenerateEnvironmentVariables] type cannot
+	/// be assigned in an object initializer because it has no accessible init or set accessor.
+	/// </summary>
+	internal static readonly DiagnosticDescriptor EnvironmentVariablesPropertyNotAssignableDiagnostic = Error(
+		id: "BB84SG0029",
+		title: "Environment variable property is not assignable",
+		messageFormat: "The property '{0}' has no init or set accessor that '{1}' can access; add one, make the property partial or exclude it");
+
+	/// <summary>
+	/// Represents a diagnostic error indicating that a non-abstract [GenerateEnvironmentVariables] type has no
+	/// parameterless constructor the generated object initializer can call.
+	/// </summary>
+	internal static readonly DiagnosticDescriptor EnvironmentVariablesNoParameterlessConstructorDiagnostic = Error(
+		id: "BB84SG0030",
+		title: "GenerateEnvironmentVariables requires a parameterless constructor",
+		messageFormat: "The type '{0}' has no parameterless constructor; positional records and types with only parameterized constructors are not supported");
+
+	/// <summary>
+	/// Represents a diagnostic error indicating that two properties of a [GenerateEnvironmentVariables] type map
+	/// to the same environment variable name.
+	/// </summary>
+	internal static readonly DiagnosticDescriptor EnvironmentVariablesDuplicateNameDiagnostic = Error(
+		id: "BB84SG0031",
+		title: "Duplicate environment variable name",
+		messageFormat: "The properties '{0}' and '{1}' map to the same environment variable name '{2}'");
+
+	/// <summary>
+	/// Represents a diagnostic error indicating that a partial property of a [GenerateEnvironmentVariables] type
+	/// declares a setter although the attribute does not allow writing environment variables.
+	/// </summary>
+	internal static readonly DiagnosticDescriptor EnvironmentVariablesSetterNotWritableDiagnostic = Error(
+		id: "BB84SG0032",
+		title: "Partial environment variable property setter requires Writable",
+		messageFormat: "The partial property '{0}' declares a setter, but the [GenerateEnvironmentVariables] attribute of '{1}' does not set 'Writable = true'");
+
+	/// <summary>
+	/// Represents a diagnostic error indicating that a required member of a [GenerateEnvironmentVariables] type is
+	/// not read from an environment variable, so the generated object initializer cannot set it.
+	/// </summary>
+	internal static readonly DiagnosticDescriptor EnvironmentVariablesRequiredMemberNotReadDiagnostic = Error(
+		id: "BB84SG0033",
+		title: "Required member is not read from an environment variable",
+		messageFormat: "The required member '{0}' of '{1}' is excluded, inherited without 'IncludeInherited = true' or not a public property");
+
+	/// <summary>
+	/// Represents a diagnostic error indicating that an init-only or required property of a
+	/// [GenerateEnvironmentVariables] type has an initializer that is not a constant.
+	/// </summary>
+	internal static readonly DiagnosticDescriptor EnvironmentVariablesNonConstantInitializerDiagnostic = Error(
+		id: "BB84SG0034",
+		title: "Init-only environment variable property requires a constant initializer",
+		messageFormat: "The property '{0}' is init-only or required, so its initializer must be a constant to serve as the fallback value; use a constant or a set accessor");
+
+	/// <summary>
 	/// Creates an enabled-by-default error descriptor in the <see cref="Category"/> category.
 	/// </summary>
 	/// <param name="id">The diagnostic identifier.</param>

@@ -1,0 +1,9 @@
+BB84SG0026|Error|7:15-7:25|The type 'NotPartial' has a [GenerateEnvironmentVariables] attribute, but it is not partial
+BB84SG0027|Error|10:23-10:34|The environment variable name '' of 'EmptyPrefix' is invalid; names and prefixes must not be empty and must not contain '=' or '\0'
+BB84SG0028|Error|13:51-13:56|The property 'Value' has the type 'object', which cannot be read from an environment variable
+BB84SG0029|Error|16:47-16:51|The property 'Name' has no init or set accessor that 'GetOnly' can access; add one, make the property partial or exclude it
+BB84SG0030|Error|19:24-19:34|The type 'Positional' has no parameterless constructor; positional records and types with only parameterized constructors are not supported
+BB84SG0031|Error|26:17-26:22|The properties 'Name' and 'Other' map to the same environment variable name 'APP_NAME'
+BB84SG0032|Error|30:59-30:63|The partial property 'Name' declares a setter, but the [GenerateEnvironmentVariables] attribute of 'NotWritable' does not set 'Writable = true'
+BB84SG0033|Error|36:26-36:32|The required member 'Secret' of 'ExcludedRequired' is excluded, inherited without 'IncludeInherited = true' or not a public property
+BB84SG0034|Error|40:53-40:60|The property 'Timeout' is init-only or required, so its initializer must be a constant to serve as the fallback value; use a constant or a set accessor

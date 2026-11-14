@@ -57,7 +57,7 @@ public sealed class SnapshotTests
 	{
 		GeneratorDriverRunResult result = GeneratorDriverHarness.Run("namespace TestNamespace { }");
 
-		Assert.HasCount(26, result.Results.Single().GeneratedSources);
+		Assert.HasCount(28, result.Results.Single().GeneratedSources);
 		SnapshotAssert.Match(result, nameof(AttributeSourceGenerator), "All", includeAttributeSources: true);
 	}
 
@@ -116,6 +116,16 @@ public sealed class SnapshotTests
 	[DataRow("Empty")]
 	public void EnumeratorExtensions(string caseName)
 		=> Verify(nameof(EnumeratorExtensionsGenerator), caseName, SnapshotCases.EnumeratorExtensions, new EnumeratorExtensionsGenerator());
+
+	[TestMethod]
+	[DataRow("Plain")]
+	[DataRow("AllTypes")]
+	[DataRow("Inheritance")]
+	[DataRow("PartialProperties")]
+	[DataRow("NestedAndAsIs")]
+	[DataRow("Diagnostics")]
+	public void EnvironmentVariables(string caseName)
+		=> Verify(nameof(EnvironmentVariablesGenerator), caseName, SnapshotCases.EnvironmentVariables, new EnvironmentVariablesGenerator());
 
 	[TestMethod]
 	[DataRow("Plain")]

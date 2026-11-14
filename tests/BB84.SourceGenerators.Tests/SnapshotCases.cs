@@ -1029,6 +1029,161 @@ internal static class SnapshotCases
 			"""),
 	};
 
+	internal static readonly Dictionary<string, SnapshotCase> EnvironmentVariables = new()
+	{
+		["Plain"] = new("""
+			using BB84.SourceGenerators.Attributes;
+
+			namespace TestNamespace
+			{
+				[GenerateEnvironmentVariables("MyApp", ExcludeProperties = new[] { nameof(Cache) })]
+				public sealed partial record AppSettings
+				{
+					public required string Server { get; init; }
+					public string? User { get; init; }
+					public int Port { get; init; } = 1433;
+					[EnvironmentVariableName("ENCRYPT")]
+					public bool Encrypt { get; set; } = true;
+					public int ConnectTimeoutMs { get; set; }
+					public object? Cache { get; set; }
+				}
+			}
+			""", NullableContextOptions.Enable),
+		["AllTypes"] = new("""
+			using System;
+			using BB84.SourceGenerators.Attributes;
+
+			namespace TestNamespace
+			{
+				public enum Level { Low, High }
+
+				[Flags]
+				public enum Features { None = 0, A = 1, B = 2 }
+
+				[GenerateEnvironmentVariables("App")]
+				public partial class AllTypes
+				{
+					public string? Text { get; set; }
+					public bool Flag { get; set; }
+					public char Letter { get; set; }
+					public byte Byte { get; set; }
+					public long Long { get; init; } = 2;
+					public ulong ULong { get; init; } = 3;
+					public float Float { get; init; } = 1.5f;
+					public double Double { get; init; } = 2.5;
+					public decimal Decimal { get; init; } = 3.5m;
+					public DateTime? DateTime { get; set; }
+					public DateTimeOffset? DateTimeOffset { get; set; }
+					public TimeSpan? TimeSpan { get; set; }
+					public Guid? Guid { get; set; }
+					public Level Level { get; init; } = Level.High;
+					public Features? Features { get; set; }
+				}
+			}
+			""", NullableContextOptions.Enable),
+		["Inheritance"] = new("""
+			using BB84.SourceGenerators.Attributes;
+
+			namespace TestNamespace
+			{
+				public abstract record BaseSettings
+				{
+					public string? Server { get; init; }
+					public virtual int? Port { get; init; }
+				}
+
+				[GenerateEnvironmentVariables("App", IncludeInherited = true)]
+				public sealed partial record DerivedSettings : BaseSettings
+				{
+					public override int? Port { get; init; }
+					public string? Database { get; init; }
+				}
+
+				[GenerateEnvironmentVariables("App")]
+				public abstract partial class AbstractSettings
+				{
+					public string? Ignored { get; set; }
+					public partial string? Token { get; }
+				}
+			}
+			""", NullableContextOptions.Enable),
+		["PartialProperties"] = new("""
+			using System;
+			using BB84.SourceGenerators.Attributes;
+
+			namespace TestNamespace
+			{
+				[GenerateEnvironmentVariables("App", Writable = true)]
+				public static partial class Live
+				{
+					public static partial string? Token { get; set; }
+					public static partial int Port { get; private set; }
+					public static partial bool? Verbose { get; set; }
+					internal static partial TimeSpan Timeout { get; }
+				}
+			}
+			""", NullableContextOptions.Enable),
+		["NestedAndAsIs"] = new("""
+			using BB84.SourceGenerators.Attributes;
+
+			namespace TestNamespace
+			{
+				public partial class Outer
+				{
+					[GenerateEnvironmentVariables("MyApp", NamingStyle = EnvironmentVariableNamingStyle.AsIs, Separator = "__")]
+					internal partial class Inner
+					{
+						public string Name { get; set; }
+						public int? Count { get; set; }
+					}
+				}
+			}
+			"""),
+		["Diagnostics"] = new("""
+			using System;
+			using BB84.SourceGenerators.Attributes;
+
+			namespace TestNamespace
+			{
+				[GenerateEnvironmentVariables("App")]
+				public class NotPartial { public string Name { get; set; } }
+
+				[GenerateEnvironmentVariables("")]
+				public partial class EmptyPrefix { public string Name { get; set; } }
+
+				[GenerateEnvironmentVariables("App")]
+				public partial class Unsupported { public object Value { get; set; } }
+
+				[GenerateEnvironmentVariables("App")]
+				public partial class GetOnly { public string Name { get; } }
+
+				[GenerateEnvironmentVariables("App")]
+				public partial record Positional(string Name);
+
+				[GenerateEnvironmentVariables("App")]
+				public partial class Duplicate
+				{
+					public string Name { get; set; }
+					[EnvironmentVariableName("APP_NAME")]
+					public string Other { get; set; }
+				}
+
+				[GenerateEnvironmentVariables("App")]
+				public partial class NotWritable { public partial string Name { get; set; } }
+
+				[GenerateEnvironmentVariables("App", ExcludeProperties = new[] { "Secret" })]
+				public partial class ExcludedRequired
+				{
+					public string Name { get; set; }
+					public required string Secret { get; set; }
+				}
+
+				[GenerateEnvironmentVariables("App")]
+				public partial class NonConstant { public TimeSpan Timeout { get; init; } = TimeSpan.FromSeconds(30); }
+			}
+			"""),
+	};
+
 	internal static readonly Dictionary<string, SnapshotCase> Equality = new()
 	{
 		["Plain"] = new("""
