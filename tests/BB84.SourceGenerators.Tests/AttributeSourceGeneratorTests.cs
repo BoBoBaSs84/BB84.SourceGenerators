@@ -44,6 +44,8 @@ public sealed class AttributeSourceGeneratorAttributeCoverageTests
 			nameof(GenerateCloneableAttribute),
 			nameof(GenerateDecoratorAttribute),
 			nameof(GenerateDisposableAttribute),
+			nameof(EnvironmentVariableNameAttribute),
+			nameof(GenerateEnvironmentVariablesAttribute),
 			nameof(GenerateEqualityAttribute),
 			nameof(GenerateFactoryAttribute),
 			nameof(GenerateFactoryKeyAttribute),

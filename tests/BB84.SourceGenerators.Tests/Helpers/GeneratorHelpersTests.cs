@@ -395,6 +395,95 @@ public class Target
 		Assert.AreSequenceEqual(expectedFull, full);
 	}
 
+	[TestMethod]
+	[DataRow("Token", "TOKEN")]
+	[DataRow("ConnectTimeoutMs", "CONNECT_TIMEOUT_MS")]
+	[DataRow("HTTPPort", "HTTP_PORT")]
+	[DataRow("MaxRetries2Count", "MAX_RETRIES2_COUNT")]
+	[DataRow("Already_Snake", "ALREADY_SNAKE")]
+	[DataRow("lowerCamel", "LOWER_CAMEL")]
+	public void ToUpperSnakeCaseShouldSplitWordsAndKeepAcronyms(string name, string expected)
+		=> Assert.AreEqual(expected, GeneratorHelpers.ToUpperSnakeCase(name));
+
+	[TestMethod]
+	public void GetPropertyInitializerShouldReturnInitializerOrNull()
+	{
+		CSharpCompilation compilation = Compile("public class C { public int A { get; set; } = 42; public int B { get; set; } }");
+		(INamedTypeSymbol symbol, _, _) = FindClass(compilation, "C");
+
+		EqualsValueClauseSyntax? initializer = GeneratorHelpers.GetPropertyInitializer((IPropertySymbol)symbol.GetMembers("A").Single());
+
+		Assert.AreEqual("42", initializer?.Value.ToString());
+		Assert.IsNull(GeneratorHelpers.GetPropertyInitializer((IPropertySymbol)symbol.GetMembers("B").Single()));
+	}
+
+	[TestMethod]
+	public void FormatLiteralShouldProduceTypedLiterals()
+	{
+		CSharpCompilation compilation = Compile("public enum E { A, B } public class C { public E Value { get; set; } }");
+		(INamedTypeSymbol symbol, _, _) = FindClass(compilation, "C");
+		ITypeSymbol enumType = ((IPropertySymbol)symbol.GetMembers("Value").Single()).Type;
+		ITypeSymbol intType = compilation.GetSpecialType(SpecialType.System_Int32);
+
+		Assert.AreEqual("null", GeneratorHelpers.FormatLiteral(null, intType));
+		Assert.AreEqual("\"a\\\"b\"", GeneratorHelpers.FormatLiteral("a\"b", intType));
+		Assert.AreEqual("'x'", GeneratorHelpers.FormatLiteral('x', intType));
+		Assert.AreEqual("true", GeneratorHelpers.FormatLiteral(true, intType));
+		Assert.AreEqual("1.5F", GeneratorHelpers.FormatLiteral(1.5f, intType));
+		Assert.AreEqual("0.5D", GeneratorHelpers.FormatLiteral(0.5, intType));
+		Assert.AreEqual("0.1M", GeneratorHelpers.FormatLiteral(0.1m, intType));
+		Assert.AreEqual("5L", GeneratorHelpers.FormatLiteral(5L, intType));
+		Assert.AreEqual("5UL", GeneratorHelpers.FormatLiteral(5UL, intType));
+		Assert.AreEqual("5U", GeneratorHelpers.FormatLiteral(5U, intType));
+		Assert.AreEqual("double.NaN", GeneratorHelpers.FormatLiteral(double.NaN, intType));
+		Assert.AreEqual("(global::E)(1)", GeneratorHelpers.FormatLiteral(1, enumType));
+	}
+
+	[TestMethod]
+	public void ValueConversionsShouldClassifySupportedTypes()
+	{
+		CSharpCompilation compilation = Compile(@"
+using System;
+[Flags] public enum F { A = 1 }
+public enum E { A }
+public class C
+{
+	public string S { get; set; }
+	public int? I { get; set; }
+	public double D { get; set; }
+	public decimal M { get; set; }
+	public TimeSpan T { get; set; }
+	public Guid G { get; set; }
+	public E Enum { get; set; }
+	public F Flags { get; set; }
+	public object O { get; set; }
+}");
+		(INamedTypeSymbol symbol, _, _) = FindClass(compilation, "C");
+
+		ValueConversionKind? Kind(string name)
+			=> ValueConversions.TryGetKind(((IPropertySymbol)symbol.GetMembers(name).Single()).Type, out ValueConversionKind kind) ? kind : null;
+
+		Assert.AreEqual(ValueConversionKind.String, Kind("S"));
+		Assert.AreEqual(ValueConversionKind.Integer, Kind("I"));
+		Assert.AreEqual(ValueConversionKind.FloatingPoint, Kind("D"));
+		Assert.AreEqual(ValueConversionKind.Decimal, Kind("M"));
+		Assert.AreEqual(ValueConversionKind.TimeSpan, Kind("T"));
+		Assert.AreEqual(ValueConversionKind.Guid, Kind("G"));
+		Assert.AreEqual(ValueConversionKind.Enum, Kind("Enum"));
+		Assert.AreEqual(ValueConversionKind.FlagsEnum, Kind("Flags"));
+		Assert.IsNull(Kind("O"));
+	}
+
+	[TestMethod]
+	public void ValueConversionsShouldBuildExpressions()
+	{
+		Assert.AreEqual("int.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out int parsed)", ValueConversions.GetTryParseExpression(ValueConversionKind.Integer, "int", "raw", "parsed"));
+		Assert.AreEqual("(global::System.Enum.TryParse<global::E>(raw, true, out global::E parsed) && global::System.Enum.IsDefined(typeof(global::E), parsed))", ValueConversions.GetTryParseExpression(ValueConversionKind.Enum, "global::E", "raw", "parsed"));
+		Assert.AreEqual("value.ToString(\"c\", CultureInfo.InvariantCulture)", ValueConversions.GetFormatExpression(ValueConversionKind.TimeSpan, "value"));
+		Assert.AreEqual("(value ? \"true\" : \"false\")", ValueConversions.GetFormatExpression(ValueConversionKind.Boolean, "value"));
+		Assert.AreEqual("value", ValueConversions.GetFormatExpression(ValueConversionKind.String, "value"));
+	}
+
 	#endregion
 
 	#region Helpers
