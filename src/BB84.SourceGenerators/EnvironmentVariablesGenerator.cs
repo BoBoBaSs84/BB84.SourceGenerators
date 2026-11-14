@@ -335,7 +335,7 @@ public sealed class EnvironmentVariablesGenerator : IIncrementalGenerator
 		=> $"\"Environment variable '{GeneratorHelpers.EscapeString(variableName)}' has an invalid {displayName} value.\"";
 
 	private static string GetLocalName(string propertyName, string suffix)
-		=> $"{char.ToLowerInvariant(propertyName[0])}{propertyName.Substring(1)}{suffix}";
+		=> $"{NamingHelpers.ToCamelCase(propertyName)}{suffix}";
 
 	private static NamingOptions GetNamingOptions(AttributeData attribute)
 	{
@@ -353,7 +353,7 @@ public sealed class EnvironmentVariablesGenerator : IIncrementalGenerator
 
 		return naming.Style == EnvironmentVariableNamingStyle.AsIs
 			? $"{naming.Prefix}{naming.Separator}{property.Name}"
-			: $"{naming.Prefix.ToUpperInvariant()}{naming.Separator}{GeneratorHelpers.ToUpperSnakeCase(property.Name)}";
+			: $"{naming.Prefix.ToUpperInvariant()}{naming.Separator}{NamingHelpers.ToUpperSnakeCase(property.Name)}";
 	}
 
 	private static bool IsValidName(string name)

@@ -143,7 +143,7 @@ public sealed class ActionCommandGenerator : IIncrementalGenerator
 
 		INamedTypeSymbol containingType = method.ContainingType;
 		string commandName = GetCommandName(method, attribute);
-		string fieldName = GeneratorHelpers.PropertyNameToFieldName(commandName);
+		string fieldName = NamingHelpers.PropertyNameToFieldName(commandName);
 
 		CommandOptions options = ReadOptions(attribute, isAsync, diagnostics, location, method.Name);
 		string? cancelCommandName = options.IncludeCancelCommand ? BuildCancelCommandName(commandName) : null;
@@ -384,7 +384,7 @@ public sealed class ActionCommandGenerator : IIncrementalGenerator
 		// which is not visible to this generator; resolve it through the backing field instead.
 		if (!isStatic && IsNotificationsType(containingType) && containingType.GetMembers()
 			.OfType<IFieldSymbol>()
-			.Any(field => !field.IsStatic && field.Type.SpecialType == SpecialType.System_Boolean && GeneratorHelpers.FieldNameToPropertyName(field.Name) == memberName))
+			.Any(field => !field.IsStatic && field.Type.SpecialType == SpecialType.System_Boolean && NamingHelpers.FieldNameToPropertyName(field.Name) == memberName))
 			return $"{lambdaParameter} => {memberName}";
 
 		return null;

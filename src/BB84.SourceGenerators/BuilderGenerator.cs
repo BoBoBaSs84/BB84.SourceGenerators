@@ -73,7 +73,7 @@ public sealed class BuilderGenerator : IIncrementalGenerator
 		[
 			.. properties.Select(static prop => (
 				prop,
-				GeneratorHelpers.PropertyNameToFieldName(prop.Name),
+				NamingHelpers.PropertyNameToFieldName(prop.Name),
 				prop.IsReferenceType && prop.IsNullable ? $"{prop.TypeName}?" : prop.TypeName))
 		];
 

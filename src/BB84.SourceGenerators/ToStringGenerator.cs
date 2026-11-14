@@ -34,6 +34,9 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 	private static readonly string ToStringFormatAttributeName = typeof(ToStringFormatAttribute).FullName;
 	private static readonly string ToStringOrderAttributeName = typeof(ToStringOrderAttribute).FullName;
 
+	// Names the generated ToString/PrintMembers bodies already use, which collection locals must avoid.
+	private static readonly string[] ReservedLocalNames = ["sb", "builder", "appended", "format", "formatProvider", "nameof"];
+
 	/// <inheritdoc/>
 	public void Initialize(IncrementalGeneratorInitializationContext context)
 	{
@@ -160,14 +163,26 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 		sb.CloseBrace();
 	}
 
-	private static void AppendCollectionLocals(SourceBuilder sb, ImmutableArray<PropertyDescriptor> properties, CollectionFormat collectionFormat)
+	private static Dictionary<string, string> AppendCollectionLocals(SourceBuilder sb, ImmutableArray<PropertyDescriptor> properties, CollectionFormat collectionFormat)
 	{
+		// Locals must not collide with keywords, the generated locals and parameters, each other,
+		// or the formatted properties they would otherwise shadow.
+		HashSet<string> reserved = new(ReservedLocalNames, StringComparer.Ordinal);
+		reserved.UnionWith(properties.Select(static p => p.Name));
+
+		Dictionary<string, string> localNames = new(StringComparer.Ordinal);
+
 		foreach (PropertyDescriptor prop in properties)
 		{
 			if (prop.CollectionKind == CollectionKind.None)
 				continue;
-			sb.AppendLine($"string {prop.Name.ToLowerInvariant()} = {BuildCollectionFormatExpression(prop, collectionFormat)};");
+
+			string localName = NamingHelpers.ToLocalName(prop.Name, reserved);
+			localNames[prop.Name] = localName;
+			sb.AppendLine($"string {localName} = {BuildCollectionFormatExpression(prop, collectionFormat)};");
 		}
+
+		return localNames;
 	}
 
 	private static void AppendToStringBody(SourceBuilder sb, string className, ImmutableArray<PropertyDescriptor> properties, CollectionFormat collectionFormat, string separator, string? nullPlaceholder, bool formattable)
@@ -178,7 +193,7 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 			return;
 		}
 
-		AppendCollectionLocals(sb, properties, collectionFormat);
+		Dictionary<string, string> localNames = AppendCollectionLocals(sb, properties, collectionFormat);
 
 		string escapedSeparator = GeneratorHelpers.EscapeString(separator);
 		sb.AppendLine($"{TypeNames.StringBuilder} sb = new();");
@@ -191,7 +206,7 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 
 			PropertyDescriptor prop = properties[i];
 			sb.AppendLine($"sb.Append($\"{{nameof({prop.Name})}} = \");");
-			sb.AppendLine($"sb.Append({GetValueExpression(prop, nullPlaceholder, formattable)});");
+			sb.AppendLine($"sb.Append({GetValueExpression(prop, localNames, nullPlaceholder, formattable)});");
 		}
 
 		sb.AppendLine("sb.Append(\" }\");");
@@ -200,7 +215,7 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 
 	private static void AppendPrintMembersBody(SourceBuilder sb, ImmutableArray<PropertyDescriptor> properties, CollectionFormat collectionFormat, string separator, string? nullPlaceholder, bool isOverride)
 	{
-		AppendCollectionLocals(sb, properties, collectionFormat);
+		Dictionary<string, string> localNames = AppendCollectionLocals(sb, properties, collectionFormat);
 
 		string escapedSeparator = GeneratorHelpers.EscapeString(separator);
 
@@ -213,17 +228,17 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 			sb.AppendLine($"builder.Append(\"{escapedSeparator}\");");
 			sb.Outdent();
 			sb.AppendLine($"builder.Append($\"{{nameof({prop.Name})}} = \");");
-			sb.AppendLine($"builder.Append({GetValueExpression(prop, nullPlaceholder, formattable: false)});");
+			sb.AppendLine($"builder.Append({GetValueExpression(prop, localNames, nullPlaceholder, formattable: false)});");
 			sb.AppendLine("appended = true;");
 		}
 
 		sb.AppendLine("return appended;");
 	}
 
-	private static string GetValueExpression(PropertyDescriptor prop, string? nullPlaceholder, bool formattable)
+	private static string GetValueExpression(PropertyDescriptor prop, Dictionary<string, string> localNames, string? nullPlaceholder, bool formattable)
 	{
 		if (prop.CollectionKind != CollectionKind.None)
-			return prop.Name.ToLowerInvariant();
+			return localNames[prop.Name];
 
 		if (formattable && prop.IsFormattable)
 		{

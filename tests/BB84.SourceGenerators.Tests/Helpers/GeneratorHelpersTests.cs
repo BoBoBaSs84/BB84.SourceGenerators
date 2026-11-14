@@ -337,18 +337,6 @@ namespace My.Space
 	#region Shared generator helpers
 
 	[TestMethod]
-	[DataRow("_name", "Name")]
-	[DataRow("name", "Name")]
-	[DataRow("m_count", "M_count")]
-	[DataRow("_", "")]
-	public void FieldNameToPropertyNameShouldStripUnderscoreAndCapitalize(string fieldName, string expected)
-		=> Assert.AreEqual(expected, GeneratorHelpers.FieldNameToPropertyName(fieldName));
-
-	[TestMethod]
-	public void PropertyNameToFieldNameShouldPrefixUnderscoreAndLowercase()
-		=> Assert.AreEqual("_firstName", GeneratorHelpers.PropertyNameToFieldName("FirstName"));
-
-	[TestMethod]
 	public void BuildHintNameWithoutOuterClassesShouldAppendOptionalFeature()
 	{
 		Assert.AreEqual("Point.g.cs", GeneratorHelpers.BuildHintName("Point"));
@@ -394,16 +382,6 @@ public class Target
 		Assert.AreSequenceEqual(expectedMinimal, minimal);
 		Assert.AreSequenceEqual(expectedFull, full);
 	}
-
-	[TestMethod]
-	[DataRow("Token", "TOKEN")]
-	[DataRow("ConnectTimeoutMs", "CONNECT_TIMEOUT_MS")]
-	[DataRow("HTTPPort", "HTTP_PORT")]
-	[DataRow("MaxRetries2Count", "MAX_RETRIES2_COUNT")]
-	[DataRow("Already_Snake", "ALREADY_SNAKE")]
-	[DataRow("lowerCamel", "LOWER_CAMEL")]
-	public void ToUpperSnakeCaseShouldSplitWordsAndKeepAcronyms(string name, string expected)
-		=> Assert.AreEqual(expected, GeneratorHelpers.ToUpperSnakeCase(name));
 
 	[TestMethod]
 	public void GetPropertyInitializerShouldReturnInitializerOrNull()
@@ -526,14 +504,6 @@ public class ExcludeAttribute : System.Attribute { public string[] Names { get; 
 		Assert.IsTrue(excluded.SetEquals(["A", "B"]));
 		Assert.IsEmpty(GeneratorHelpers.GetExcludedProperties(withoutNames.GetAttributes().Single(), "Names"));
 	}
-
-	[TestMethod]
-	[DataRow("FilePath", "filePath")]
-	[DataRow("X", "x")]
-	[DataRow("already", "already")]
-	[DataRow("", "")]
-	public void ToCamelCaseShouldLowercaseFirstLetter(string name, string expected)
-		=> Assert.AreEqual(expected, GeneratorHelpers.ToCamelCase(name));
 
 	[TestMethod]
 	public void GetXmlSummaryCommentShouldFlattenSummary()
