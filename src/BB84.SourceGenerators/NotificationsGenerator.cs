@@ -144,7 +144,7 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 			foreach (VariableDeclaratorSyntax variable in fieldDeclaration.Declaration.Variables)
 			{
 				string fieldName = variable.Identifier.Text;
-				fields.Add(new NotificationsField(fieldName, fieldType, GeneratorHelpers.FieldNameToPropertyName(fieldName), alsoNotifyFor, commands));
+				fields.Add(new NotificationsField(fieldName, fieldType, NamingHelpers.FieldNameToPropertyName(fieldName), alsoNotifyFor, commands));
 			}
 		}
 
@@ -527,7 +527,7 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 				continue;
 			}
 
-			string fieldName = GeneratorHelpers.PropertyNameToFieldName(propertyName);
+			string fieldName = NamingHelpers.PropertyNameToFieldName(propertyName);
 
 			if (!typeSymbol.GetMembers(fieldName).IsEmpty)
 			{

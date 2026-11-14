@@ -307,7 +307,7 @@ public sealed class CommandArgumentGenerator : IIncrementalGenerator
 	}
 
 	private static string GetLocalName(CommandArgumentOption option, string suffix)
-		=> $"{GeneratorHelpers.ToCamelCase(option.PropertyName)}{suffix}";
+		=> $"{NamingHelpers.ToCamelCase(option.PropertyName)}{suffix}";
 
 	private static List<CommandArgumentOption> CollectOptions(SemanticModel semanticModel, INamedTypeSymbol typeSymbol, TypeTargetInfo type, HashSet<string> excluded, List<DiagnosticInfo> diagnostics, CancellationToken cancellationToken)
 	{
@@ -320,7 +320,7 @@ public sealed class CommandArgumentGenerator : IIncrementalGenerator
 				continue;
 
 			LocationInfo? location = GetLocation(property, type);
-			string camelName = GeneratorHelpers.ToCamelCase(property.Name);
+			string camelName = NamingHelpers.ToCamelCase(property.Name);
 			string optionName = $"{OptionPrefix}{camelName}";
 			bool isValid = true;
 

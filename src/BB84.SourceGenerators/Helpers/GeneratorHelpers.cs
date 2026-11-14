@@ -315,27 +315,6 @@ internal static class GeneratorHelpers
 	}
 
 	/// <summary>
-	/// Converts a field name to a property name by removing a leading underscore and
-	/// capitalizing the first letter.
-	/// </summary>
-	/// <param name="fieldName">The field name to convert.</param>
-	/// <returns>The converted property name, or an empty string if nothing remains.</returns>
-	internal static string FieldNameToPropertyName(string fieldName)
-	{
-		string name = fieldName.StartsWith("_", StringComparison.OrdinalIgnoreCase) ? fieldName.Substring(1) : fieldName;
-		return name.Length == 0 ? name : $"{char.ToUpperInvariant(name[0])}{name.Substring(1)}";
-	}
-
-	/// <summary>
-	/// Converts a property name to a backing field name by prefixing an underscore
-	/// and lowercasing the first letter.
-	/// </summary>
-	/// <param name="propertyName">The property name to convert.</param>
-	/// <returns>The converted field name.</returns>
-	internal static string PropertyNameToFieldName(string propertyName)
-		=> $"_{char.ToLowerInvariant(propertyName[0])}{propertyName.Substring(1)}";
-
-	/// <summary>
 	/// Gets the value of a positional constructor argument from an attribute on a type symbol.
 	/// Searches the attributes of <paramref name="typeSymbol"/> for one whose class name matches
 	/// <paramref name="attributeFullName"/>, then returns the constructor argument at <paramref name="index"/>.
@@ -809,44 +788,6 @@ internal static class GeneratorHelpers
 			? $"({underlying.ToPropertyTypeDisplayString()})({literal})"
 			: literal;
 	}
-
-	/// <summary>
-	/// Converts a PascalCase or camelCase name to upper snake case, keeping acronyms together
-	/// (e.g. <c>ConnectTimeoutMs</c> to <c>CONNECT_TIMEOUT_MS</c>, <c>HTTPPort</c> to <c>HTTP_PORT</c>).
-	/// </summary>
-	/// <param name="name">The name to convert.</param>
-	/// <returns>The upper snake case name.</returns>
-	internal static string ToUpperSnakeCase(string name)
-	{
-		System.Text.StringBuilder builder = new(name.Length + 8);
-
-		for (int i = 0; i < name.Length; i++)
-		{
-			char current = name[i];
-
-			if (i > 0 && char.IsUpper(current) && name[i - 1] != '_')
-			{
-				char previous = name[i - 1];
-				bool nextIsLower = i + 1 < name.Length && char.IsLower(name[i + 1]);
-
-				if (char.IsLower(previous) || char.IsDigit(previous) || (char.IsUpper(previous) && nextIsLower))
-					_ = builder.Append('_');
-			}
-
-			_ = builder.Append(char.ToUpperInvariant(current));
-		}
-
-		return builder.ToString();
-	}
-
-	/// <summary>
-	/// Converts a PascalCase name to camel case by lowercasing the first letter
-	/// (e.g. <c>FilePath</c> to <c>filePath</c>).
-	/// </summary>
-	/// <param name="name">The name to convert.</param>
-	/// <returns>The camel case name.</returns>
-	internal static string ToCamelCase(string name)
-		=> name.Length == 0 ? name : $"{char.ToLowerInvariant(name[0])}{name.Substring(1)}";
 
 	/// <summary>
 	/// Determines whether the property is computed, that is, declared with an expression body or with

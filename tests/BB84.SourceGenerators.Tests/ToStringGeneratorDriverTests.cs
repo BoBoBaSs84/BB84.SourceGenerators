@@ -265,6 +265,58 @@ public sealed class ToStringGeneratorDriverTests
 		Assert.Contains("internal partial struct Inner", src);
 	}
 
+	[TestMethod]
+	[DataRow("[GenerateToString] public partial class KeywordModel { public List<int> Class { get; set; } }")]
+	[DataRow("[GenerateToString] public partial class LocalModel { public List<int> Sb { get; set; } }")]
+	[DataRow("[GenerateToString] public partial class CaseModel { public List<int> Items { get; set; } public List<int> ITEMS { get; set; } }")]
+	[DataRow("[GenerateToString] public partial class NameofModel { public List<int> Nameof { get; set; } }")]
+	[DataRow("[GenerateToString] public partial class ShadowModel { public List<int> Items { get; set; } public int items { get; set; } }")]
+	[DataRow("[GenerateToString(Formattable = true)] public partial class FormatModel { public List<int> Format { get; set; } public int Value { get; set; } }")]
+	[DataRow("[GenerateToString] public partial record BuilderModel { public List<int> Builder { get; set; } public List<int> Appended { get; set; } }")]
+	public void CollectionLocalsShouldCompileForConflictingPropertyNames(string declaration)
+	{
+		ImmutableArray<Diagnostic> errors = CompileGenerated($"using System.Collections.Generic;\n{declaration}");
+
+		Assert.IsEmpty(errors, string.Join(Environment.NewLine, errors));
+	}
+
+	[TestMethod]
+	public void CollectionLocalsShouldEscapeKeywordsAndAvoidCollisions()
+	{
+		string src = Generate(@"
+	[GenerateToString]
+	public partial class ConflictModel { public System.Collections.Generic.List<int> Class { get; set; } public System.Collections.Generic.List<int> Sb { get; set; } public System.Collections.Generic.List<int> MyItems { get; set; } }", "partial class ConflictModel");
+
+		Assert.Contains("string @class = ", src);
+		Assert.Contains("string sb1 = ", src);
+		Assert.Contains("string myItems = ", src);
+		Assert.Contains("sb.Append(@class);", src);
+		Assert.Contains("sb.Append(sb1);", src);
+	}
+
+	private static ImmutableArray<Diagnostic> CompileGenerated(string members)
+	{
+		string source = $@"
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{{{members}
+}}";
+		CSharpCompilation compilation = CSharpCompilation.Create(
+			assemblyName: "ToStringDriverTestAssembly",
+			syntaxTrees: [CSharpSyntaxTree.ParseText(source)],
+			references: References,
+			options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+
+		GeneratorDriver driver = CSharpGeneratorDriver.Create(new AttributeSourceGenerator(), new ToStringGenerator());
+		_ = driver.RunGeneratorsAndUpdateCompilation(compilation, out Compilation output, out _);
+
+		// Only the generated ToString sources matter; the injected attribute sources need references
+		// (e.g. ExcludeFromCodeCoverageAttribute) that are not available on every test target.
+		return [.. output.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error
+			&& d.Location.SourceTree?.FilePath.EndsWith(".ToString.g.cs", StringComparison.Ordinal) == true)];
+	}
+
 	private static string Generate(string members, string marker)
 	{
 		string source = $@"
