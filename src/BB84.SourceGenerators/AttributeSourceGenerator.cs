@@ -37,6 +37,7 @@ public sealed class AttributeSourceGenerator : IIncrementalGenerator
 		"GenerateAutoMapperAttribute",
 		"GenerateBuilderAttribute",
 		"GenerateCloneableAttribute",
+		"GenerateCommandArgumentAttribute",
 		"GenerateDecoratorAttribute",
 		"GenerateDisposableAttribute",
 		"GenerateEnumeratorExtensionsAttribute",

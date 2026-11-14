@@ -726,6 +726,133 @@ internal static class SnapshotCases
 			"""),
 	};
 
+	internal static readonly Dictionary<string, SnapshotCase> CommandArgument = new()
+	{
+		["Plain"] = new("""
+			using System.Text;
+			using BB84.SourceGenerators.Attributes;
+
+			namespace TestNamespace
+			{
+				/// <summary>
+				/// The command line options of the tool.
+				/// </summary>
+				[GenerateCommandArgument(ExcludeProperties = new[] { nameof(Cache) })]
+				public sealed partial class ToolOptions
+				{
+					/// <summary>
+					/// The file to process.
+					/// </summary>
+					public string FilePath { get; }
+
+					/// <summary>
+					/// The encoding of the file.
+					/// </summary>
+					public Encoding? Encoding { get; }
+
+					/// <summary>
+					/// The number of lines to read.
+					/// </summary>
+					public int? Lines { get; }
+
+					/// <summary>
+					/// The number of parts to read.
+					/// </summary>
+					public int PartCount { get; } = 10;
+
+					/// <summary>
+					/// Writes verbose output.
+					/// </summary>
+					public bool Verbose { get; }
+
+					public string Name => FilePath;
+
+					public object? Cache { get; set; }
+				}
+			}
+			""", NullableContextOptions.Enable),
+		["AllTypes"] = new("""
+			using System;
+			using BB84.SourceGenerators.Attributes;
+
+			namespace TestNamespace
+			{
+				public enum Level { Low, High }
+
+				[Flags]
+				public enum Features { None = 0, A = 1, B = 2 }
+
+				[GenerateCommandArgument]
+				public partial class AllTypes
+				{
+					public string? Text { get; }
+					public bool? Switch { get; }
+					public char Letter { get; } = 'x';
+					public byte Byte { get; }
+					public long Long { get; } = 2;
+					public double Double { get; } = 2.5;
+					public decimal Decimal { get; } = 3.5m;
+					public DateTime? DateTime { get; }
+					public DateTimeOffset? DateTimeOffset { get; }
+					public TimeSpan? TimeSpan { get; }
+					public Guid? Guid { get; }
+					public Level Level { get; } = Level.High;
+					public Features? Features { get; }
+				}
+			}
+			""", NullableContextOptions.Enable),
+		["RecordAndNested"] = new("""
+			using BB84.SourceGenerators.Attributes;
+
+			namespace TestNamespace
+			{
+				public partial class Outer
+				{
+					[GenerateCommandArgument]
+					internal sealed partial record Options
+					{
+						public required string Class { get; init; }
+						public int Count { get; init; }
+						private Options() { }
+					}
+				}
+			}
+			""", NullableContextOptions.Enable),
+		["Diagnostics"] = new("""
+			using System;
+			using BB84.SourceGenerators.Attributes;
+
+			namespace TestNamespace
+			{
+				[GenerateCommandArgument]
+				public class NotPartial { public string Name { get; } }
+
+				[GenerateCommandArgument]
+				public partial class PublicConstructor
+				{
+					public PublicConstructor() { }
+					public string Name { get; set; }
+				}
+
+				[GenerateCommandArgument]
+				public partial record Positional(string Name);
+
+				[GenerateCommandArgument]
+				public partial class Unsupported { public object Value { get; } }
+
+				[GenerateCommandArgument]
+				public partial class Duplicate
+				{
+					public string Name { get; }
+					public string name { get; }
+				}
+
+				[GenerateCommandArgument]
+				public partial class NonConstant { public string Name { get; } = Environment.MachineName; }
+			}
+			"""),
+	};
+
 	internal static readonly Dictionary<string, SnapshotCase> Decorator = new()
 	{
 		["Plain"] = new("""

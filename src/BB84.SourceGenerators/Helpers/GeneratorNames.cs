@@ -19,6 +19,7 @@ internal static class GeneratorNames
 	internal static readonly string AutoMapperGeneratorFullName = typeof(AutoMapperGenerator).FullName;
 	internal static readonly string BuilderGeneratorFullName = typeof(BuilderGenerator).FullName;
 	internal static readonly string CloneableGeneratorFullName = typeof(CloneableGenerator).FullName;
+	internal static readonly string CommandArgumentGeneratorFullName = typeof(CommandArgumentGenerator).FullName;
 	internal static readonly string DecoratorGeneratorFullName = typeof(DecoratorGenerator).FullName;
 	internal static readonly string DisposableGeneratorFullName = typeof(DisposableGenerator).FullName;
 	internal static readonly string EnumeratorExtensionsGeneratorFullName = typeof(EnumeratorExtensionsGenerator).FullName;

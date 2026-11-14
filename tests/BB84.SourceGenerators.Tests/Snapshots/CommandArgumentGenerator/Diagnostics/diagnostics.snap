@@ -1,0 +1,6 @@
+BB84SG0035|Error|7:15-7:25|The type 'NotPartial' has a [GenerateCommandArgument] attribute, but it is not partial
+BB84SG0036|Error|12:10-12:27|The type 'PublicConstructor' declares a constructor that is not private; instances must be created by the generated Parse method
+BB84SG0036|Error|17:24-17:34|The type 'Positional' declares a constructor that is not private; instances must be created by the generated Parse method
+BB84SG0037|Error|20:51-20:56|The property 'Value' has the type 'object', which cannot be read from a command line argument
+BB84SG0038|Error|26:17-26:21|The properties 'Name' and 'name' map to the same option name '--name'
+BB84SG0039|Error|30:51-30:55|The property 'Name' has an initializer that is not a constant; only constants can serve as the default value of an option

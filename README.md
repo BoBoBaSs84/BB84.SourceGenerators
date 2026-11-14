@@ -18,7 +18,7 @@ A collection of C# source generators that automatically generate boilerplate cod
 
 ## Features
 
-This package provides seventeen powerful source generators:
+This package provides eighteen powerful source generators:
 
 - **[Abstraction Generator](https://github.com/BoBoBaSs84/BB84.SourceGenerators/blob/main/docs/abstraction.md)** - Interface and implementation generation for static classes
 - **[ActionCommand Generator](https://github.com/BoBoBaSs84/BB84.SourceGenerators/blob/main/docs/action-command.md)** - Compile-time `ICommand` property generation (sync, async, parameterized, cancellable) for MVVM
@@ -26,6 +26,7 @@ This package provides seventeen powerful source generators:
 - **[Assembly Information Generator](https://github.com/BoBoBaSs84/BB84.SourceGenerators/blob/main/docs/assembly-information.md)** - Compile-time assembly metadata constants without reflection
 - **[Builder Generator](https://github.com/BoBoBaSs84/BB84.SourceGenerators/blob/main/docs/builder.md)** - Fluent builder pattern generation for classes and structs
 - **[Cloneable Generator](https://github.com/BoBoBaSs84/BB84.SourceGenerators/blob/main/docs/cloneable.md)** - Compile-time `Clone()` and `DeepClone()` method generation with collection and struct support
+- **[Command Argument Generator](https://github.com/BoBoBaSs84/BB84.SourceGenerators/blob/main/docs/command-argument.md)** - Compile-time command line argument parsing with usage text and error reporting
 - **[Decorator Generator](https://github.com/BoBoBaSs84/BB84.SourceGenerators/blob/main/docs/decorator.md)** - Compile-time decorator pattern generation with full interface delegation, generic methods, events, and partial method hooks
 - **[Disposable Generator](https://github.com/BoBoBaSs84/BB84.SourceGenerators/blob/main/docs/disposable.md)** - Compile-time `IDisposable` / `IAsyncDisposable` pattern generation with ordered resource cleanup
 - **[Enumerator Extensions Generator](https://github.com/BoBoBaSs84/BB84.SourceGenerators/blob/main/docs/enumerator-extensions.md)** - Fast, allocation-free extension methods for enums
