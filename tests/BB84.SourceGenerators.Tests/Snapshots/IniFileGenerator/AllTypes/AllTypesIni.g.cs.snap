@@ -58,25 +58,25 @@ namespace TestNamespace
           if (string.Equals(key, "StringValue", StringComparison.OrdinalIgnoreCase))
             result.AllTypes.StringValue = value;
           else if (string.Equals(key, "IntValue", StringComparison.OrdinalIgnoreCase))
-            result.AllTypes.IntValue = int.Parse(value, CultureInfo.InvariantCulture);
+            result.AllTypes.IntValue = int.Parse(value, NumberStyles.Integer, CultureInfo.InvariantCulture);
           else if (string.Equals(key, "LongValue", StringComparison.OrdinalIgnoreCase))
-            result.AllTypes.LongValue = long.Parse(value, CultureInfo.InvariantCulture);
+            result.AllTypes.LongValue = long.Parse(value, NumberStyles.Integer, CultureInfo.InvariantCulture);
           else if (string.Equals(key, "FloatValue", StringComparison.OrdinalIgnoreCase))
-            result.AllTypes.FloatValue = float.Parse(value, CultureInfo.InvariantCulture);
+            result.AllTypes.FloatValue = float.Parse(value, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture);
           else if (string.Equals(key, "DoubleValue", StringComparison.OrdinalIgnoreCase))
-            result.AllTypes.DoubleValue = double.Parse(value, CultureInfo.InvariantCulture);
+            result.AllTypes.DoubleValue = double.Parse(value, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture);
           else if (string.Equals(key, "BoolValue", StringComparison.OrdinalIgnoreCase))
-            result.AllTypes.BoolValue = bool.Parse(value);
+            result.AllTypes.BoolValue = bool.Parse(value.Trim() == "1" ? "true" : value.Trim() == "0" ? "false" : value);
           else if (string.Equals(key, "DecimalValue", StringComparison.OrdinalIgnoreCase))
-            result.AllTypes.DecimalValue = decimal.Parse(value, CultureInfo.InvariantCulture);
+            result.AllTypes.DecimalValue = decimal.Parse(value, NumberStyles.Number, CultureInfo.InvariantCulture);
           else if (string.Equals(key, "DateTimeValue", StringComparison.OrdinalIgnoreCase))
-            result.AllTypes.DateTimeValue = DateTime.Parse(value, CultureInfo.InvariantCulture);
+            result.AllTypes.DateTimeValue = DateTime.Parse(value, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind);
           else if (string.Equals(key, "GuidValue", StringComparison.OrdinalIgnoreCase))
             result.AllTypes.GuidValue = Guid.Parse(value);
           else if (string.Equals(key, "TimeSpanValue", StringComparison.OrdinalIgnoreCase))
             result.AllTypes.TimeSpanValue = TimeSpan.Parse(value, CultureInfo.InvariantCulture);
           else if (string.Equals(key, "DateTimeOffsetValue", StringComparison.OrdinalIgnoreCase))
-            result.AllTypes.DateTimeOffsetValue = DateTimeOffset.Parse(value, CultureInfo.InvariantCulture);
+            result.AllTypes.DateTimeOffsetValue = DateTimeOffset.Parse(value, CultureInfo.InvariantCulture, DateTimeStyles.None);
         }
 
       }
@@ -118,14 +118,14 @@ namespace TestNamespace
       sb.AppendLine("StringValue=" + instance.AllTypes.StringValue);
       sb.AppendLine("IntValue=" + instance.AllTypes.IntValue.ToString(CultureInfo.InvariantCulture));
       sb.AppendLine("LongValue=" + instance.AllTypes.LongValue.ToString(CultureInfo.InvariantCulture));
-      sb.AppendLine("FloatValue=" + instance.AllTypes.FloatValue.ToString(CultureInfo.InvariantCulture));
-      sb.AppendLine("DoubleValue=" + instance.AllTypes.DoubleValue.ToString(CultureInfo.InvariantCulture));
-      sb.AppendLine("BoolValue=" + instance.AllTypes.BoolValue.ToString());
+      sb.AppendLine("FloatValue=" + instance.AllTypes.FloatValue.ToString("R", CultureInfo.InvariantCulture));
+      sb.AppendLine("DoubleValue=" + instance.AllTypes.DoubleValue.ToString("R", CultureInfo.InvariantCulture));
+      sb.AppendLine("BoolValue=" + (instance.AllTypes.BoolValue ? "true" : "false"));
       sb.AppendLine("DecimalValue=" + instance.AllTypes.DecimalValue.ToString(CultureInfo.InvariantCulture));
-      sb.AppendLine("DateTimeValue=" + instance.AllTypes.DateTimeValue.ToString(CultureInfo.InvariantCulture));
+      sb.AppendLine("DateTimeValue=" + instance.AllTypes.DateTimeValue.ToString("O", CultureInfo.InvariantCulture));
       sb.AppendLine("GuidValue=" + instance.AllTypes.GuidValue.ToString());
       sb.AppendLine("TimeSpanValue=" + instance.AllTypes.TimeSpanValue.ToString("c", CultureInfo.InvariantCulture));
-      sb.AppendLine("DateTimeOffsetValue=" + instance.AllTypes.DateTimeOffsetValue.ToString(CultureInfo.InvariantCulture));
+      sb.AppendLine("DateTimeOffsetValue=" + instance.AllTypes.DateTimeOffsetValue.ToString("O", CultureInfo.InvariantCulture));
 
       return sb.ToString();
     }

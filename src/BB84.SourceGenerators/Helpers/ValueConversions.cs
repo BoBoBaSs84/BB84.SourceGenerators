@@ -11,8 +11,8 @@ using Microsoft.CodeAnalysis;
 namespace BB84.SourceGenerators.Helpers;
 
 /// <summary>
-/// Provides the expressions that convert text values (such as environment variables or command line
-/// arguments) to property types and back. Numbers and dates use the invariant culture.
+/// Provides the expressions that convert text values (such as environment variables, command line
+/// arguments or INI file values) to property types and back. Numbers and dates use the invariant culture.
 /// </summary>
 /// <remarks>
 /// The emitted expressions use the short names <c>CultureInfo</c>, <c>NumberStyles</c> and
@@ -122,6 +122,34 @@ internal static class ValueConversions
 			ValueConversionKind.Enum => $"(global::System.Enum.TryParse<{typeName}>({valueExpression}, true, {result}) && global::System.Enum.IsDefined(typeof({typeName}), {resultVariable}))",
 			ValueConversionKind.FlagsEnum => $"global::System.Enum.TryParse<{typeName}>({valueExpression}, true, {result})",
 			ValueConversionKind.Encoding => $"{EncodingHelperName}({valueExpression}, {result})",
+			_ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null),
+		};
+	}
+
+	/// <summary>
+	/// Builds an expression that converts <paramref name="valueExpression"/> to the underlying type and throws
+	/// if the value is not valid. It accepts the same input as <see cref="GetTryParseExpression"/>.
+	/// </summary>
+	/// <param name="kind">
+	/// The conversion kind. <see cref="ValueConversionKind.String"/> needs no conversion and
+	/// <see cref="ValueConversionKind.Encoding"/> has no throwing variant, so both are not supported.
+	/// </param>
+	/// <param name="typeName">The fully qualified name of the underlying (non-nullable) type.</param>
+	/// <param name="valueExpression">The non-null <see cref="string"/> expression to convert; it is evaluated more than once.</param>
+	/// <returns>The parse expression.</returns>
+	internal static string GetParseExpression(ValueConversionKind kind, string typeName, string valueExpression)
+	{
+		return kind switch
+		{
+			ValueConversionKind.Boolean => $"{typeName}.Parse({valueExpression}.Trim() == \"1\" ? \"true\" : {valueExpression}.Trim() == \"0\" ? \"false\" : {valueExpression})",
+			ValueConversionKind.Char or ValueConversionKind.Guid => $"{typeName}.Parse({valueExpression})",
+			ValueConversionKind.Integer => $"{typeName}.Parse({valueExpression}, NumberStyles.Integer, CultureInfo.InvariantCulture)",
+			ValueConversionKind.FloatingPoint => $"{typeName}.Parse({valueExpression}, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture)",
+			ValueConversionKind.Decimal => $"{typeName}.Parse({valueExpression}, NumberStyles.Number, CultureInfo.InvariantCulture)",
+			ValueConversionKind.DateTime => $"{typeName}.Parse({valueExpression}, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind)",
+			ValueConversionKind.DateTimeOffset => $"{typeName}.Parse({valueExpression}, CultureInfo.InvariantCulture, DateTimeStyles.None)",
+			ValueConversionKind.TimeSpan => $"{typeName}.Parse({valueExpression}, CultureInfo.InvariantCulture)",
+			ValueConversionKind.Enum or ValueConversionKind.FlagsEnum => $"({typeName})global::System.Enum.Parse(typeof({typeName}), {valueExpression}, true)",
 			_ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null),
 		};
 	}

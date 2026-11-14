@@ -60,7 +60,7 @@ namespace TestNamespace
             if (string.Equals(key, "app_name", StringComparison.Ordinal))
               result.General.AppName = value;
             else if (string.Equals(key, "Version", StringComparison.Ordinal))
-              result.General.Version = int.Parse(value, CultureInfo.InvariantCulture);
+              result.General.Version = int.Parse(value, NumberStyles.Integer, CultureInfo.InvariantCulture);
             else if (string.Equals(key, "Timeout", StringComparison.Ordinal))
               result.General.Timeout = TimeSpan.Parse(value, CultureInfo.InvariantCulture);
           }
