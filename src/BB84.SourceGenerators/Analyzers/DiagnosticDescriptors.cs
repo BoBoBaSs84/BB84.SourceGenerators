@@ -322,6 +322,51 @@ internal static class DiagnosticDescriptors
 		messageFormat: "The property '{0}' is init-only or required, so its initializer must be a constant to serve as the fallback value; use a constant or a set accessor");
 
 	/// <summary>
+	/// Represents a diagnostic error indicating that the [GenerateCommandArgument] attribute has been
+	/// applied to a type that is not partial.
+	/// </summary>
+	internal static readonly DiagnosticDescriptor CommandArgumentTypeNotPartialDiagnostic = Error(
+		id: "BB84SG0035",
+		title: "GenerateCommandArgument requires a partial class or record class",
+		messageFormat: "The type '{0}' has a [GenerateCommandArgument] attribute, but it is not partial");
+
+	/// <summary>
+	/// Represents a diagnostic error indicating that a [GenerateCommandArgument] type declares a constructor,
+	/// including the primary constructor of a positional record, that is not private.
+	/// </summary>
+	internal static readonly DiagnosticDescriptor CommandArgumentNonPrivateConstructorDiagnostic = Error(
+		id: "BB84SG0036",
+		title: "GenerateCommandArgument type declares a non-private constructor",
+		messageFormat: "The type '{0}' declares a constructor that is not private; instances must be created by the generated Parse method");
+
+	/// <summary>
+	/// Represents a diagnostic error indicating that a property of a [GenerateCommandArgument] type has a
+	/// type that cannot be converted from a command line argument.
+	/// </summary>
+	internal static readonly DiagnosticDescriptor CommandArgumentUnsupportedTypeDiagnostic = Error(
+		id: "BB84SG0037",
+		title: "Unsupported command line option property type",
+		messageFormat: "The property '{0}' has the type '{1}', which cannot be read from a command line argument");
+
+	/// <summary>
+	/// Represents a diagnostic error indicating that two properties of a [GenerateCommandArgument] type map
+	/// to the same option name.
+	/// </summary>
+	internal static readonly DiagnosticDescriptor CommandArgumentDuplicateOptionNameDiagnostic = Error(
+		id: "BB84SG0038",
+		title: "Duplicate command line option name",
+		messageFormat: "The properties '{0}' and '{1}' map to the same option name '{2}'");
+
+	/// <summary>
+	/// Represents a diagnostic error indicating that a property of a [GenerateCommandArgument] type has an
+	/// initializer that is not a constant.
+	/// </summary>
+	internal static readonly DiagnosticDescriptor CommandArgumentNonConstantInitializerDiagnostic = Error(
+		id: "BB84SG0039",
+		title: "Command line option property requires a constant initializer",
+		messageFormat: "The property '{0}' has an initializer that is not a constant; only constants can serve as the default value of an option");
+
+	/// <summary>
 	/// Creates an enabled-by-default error descriptor in the <see cref="Category"/> category.
 	/// </summary>
 	/// <param name="id">The diagnostic identifier.</param>

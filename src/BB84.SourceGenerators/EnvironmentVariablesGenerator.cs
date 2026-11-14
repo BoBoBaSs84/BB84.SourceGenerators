@@ -3,8 +3,6 @@
 //
 // This source code is licensed under the MIT license found in the
 // LICENSE file in the root directory of this source tree.
-using System.Collections.Immutable;
-
 using BB84.SourceGenerators.Analyzers;
 using BB84.SourceGenerators.Attributes;
 using BB84.SourceGenerators.Extensions;
@@ -65,7 +63,7 @@ public sealed class EnvironmentVariablesGenerator : IIncrementalGenerator
 
 		bool includeInherited = GeneratorHelpers.GetNamedArgument(attribute, nameof(GenerateEnvironmentVariablesAttribute.IncludeInherited), false);
 		bool writable = GeneratorHelpers.GetNamedArgument(attribute, nameof(GenerateEnvironmentVariablesAttribute.Writable), false);
-		HashSet<string> excluded = GetExcludedProperties(attribute);
+		HashSet<string> excluded = GeneratorHelpers.GetExcludedProperties(attribute, nameof(GenerateEnvironmentVariablesAttribute.ExcludeProperties));
 
 		// Names are compared case-insensitively because environment variables are case-insensitive on Windows.
 		CollectContext collect = new(type, typeSymbol, context.SemanticModel, naming, new(StringComparer.OrdinalIgnoreCase), [], cancellationToken);
@@ -211,7 +209,7 @@ public sealed class EnvironmentVariablesGenerator : IIncrementalGenerator
 		string value = GetLocalName(property.Name, "Value");
 		string parsed = GetLocalName(property.Name, "Parsed");
 		string found = GetLocalName(property.Name, "Found");
-		EnvironmentVariablesConversion conversion = property.Conversion;
+		ValueConversion conversion = property.Conversion;
 		bool isString = conversion.Kind == ValueConversionKind.String;
 
 		sb.AppendLine();
@@ -281,7 +279,7 @@ public sealed class EnvironmentVariablesGenerator : IIncrementalGenerator
 	private static void AppendPartialProperty(SourceBuilder sb, EnvironmentVariablesPartialProperty property)
 	{
 		string variableName = $"\"{GeneratorHelpers.EscapeString(property.VariableName)}\"";
-		EnvironmentVariablesConversion conversion = property.Conversion;
+		ValueConversion conversion = property.Conversion;
 
 		sb.AppendLine($"{property.Modifiers} {property.TypeName} {property.Name}");
 		sb.OpenBrace();
@@ -348,22 +346,6 @@ public sealed class EnvironmentVariablesGenerator : IIncrementalGenerator
 		return new NamingOptions(prefix, separator, style);
 	}
 
-	private static HashSet<string> GetExcludedProperties(AttributeData attribute)
-	{
-		HashSet<string> excluded = new(StringComparer.Ordinal);
-
-		if (GeneratorHelpers.GetNamedArrayArgument(attribute, nameof(GenerateEnvironmentVariablesAttribute.ExcludeProperties)) is ImmutableArray<TypedConstant> values)
-		{
-			foreach (TypedConstant value in values)
-			{
-				if (value.Value is string name)
-					_ = excluded.Add(name);
-			}
-		}
-
-		return excluded;
-	}
-
 	private static string GetVariableName(IPropertySymbol property, NamingOptions naming)
 	{
 		if (GeneratorHelpers.TryGetSingleCtorArg(property, NameAttributeName, out string name))
@@ -390,7 +372,7 @@ public sealed class EnvironmentVariablesGenerator : IIncrementalGenerator
 	/// Resolves the variable name and the conversion of the property, adding diagnostics for an
 	/// invalid name or an unsupported type.
 	/// </summary>
-	private static (string VariableName, EnvironmentVariablesConversion Conversion)? ResolveProperty(CollectContext collect, IPropertySymbol property)
+	private static (string VariableName, ValueConversion Conversion)? ResolveProperty(CollectContext collect, IPropertySymbol property)
 	{
 		string variableName = GetVariableName(property, collect.Naming);
 		LocationInfo? location = GetLocation(property, collect.Type);
@@ -420,14 +402,7 @@ public sealed class EnvironmentVariablesGenerator : IIncrementalGenerator
 		if (!isValid)
 			return null;
 
-		ITypeSymbol underlying = ValueConversions.GetUnderlyingType(property.Type);
-		EnvironmentVariablesConversion conversion = new(
-			kind,
-			underlying.WithNullableAnnotation(NullableAnnotation.NotAnnotated).ToPropertyTypeDisplayString(),
-			underlying.Name,
-			!SymbolEqualityComparer.Default.Equals(underlying, property.Type));
-
-		return (variableName, conversion);
+		return (variableName, ValueConversions.Create(property.Type, kind));
 	}
 
 	private static List<EnvironmentVariablesPartialProperty> CollectPartialProperties(CollectContext collect, HashSet<string> excluded, bool writable)
@@ -442,7 +417,7 @@ public sealed class EnvironmentVariablesGenerator : IIncrementalGenerator
 			if (property.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax(collect.CancellationToken) is not PropertyDeclarationSyntax { AccessorList: { } accessors } syntax)
 				continue;
 
-			if (ResolveProperty(collect, property) is not (string variableName, EnvironmentVariablesConversion conversion))
+			if (ResolveProperty(collect, property) is not (string variableName, ValueConversion conversion))
 				continue;
 
 			AccessorDeclarationSyntax? getter = accessors.Accessors.FirstOrDefault(static a => a.IsKind(SyntaxKind.GetAccessorDeclaration));
@@ -486,7 +461,7 @@ public sealed class EnvironmentVariablesGenerator : IIncrementalGenerator
 				continue;
 
 			// Computed properties (expression or accessor bodies without a setter) are not settings.
-			if (property.SetMethod is null && IsComputed(property, collect.CancellationToken))
+			if (property.SetMethod is null && GeneratorHelpers.IsComputedProperty(property, collect.CancellationToken))
 				continue;
 
 			LocationInfo? location = GetLocation(property, collect.Type);
@@ -497,7 +472,7 @@ public sealed class EnvironmentVariablesGenerator : IIncrementalGenerator
 				continue;
 			}
 
-			if (ResolveProperty(collect, property) is not (string variableName, EnvironmentVariablesConversion conversion))
+			if (ResolveProperty(collect, property) is not (string variableName, ValueConversion conversion))
 				continue;
 
 			bool isNullable = IsNullable(property);
@@ -534,10 +509,6 @@ public sealed class EnvironmentVariablesGenerator : IIncrementalGenerator
 
 		return properties;
 	}
-
-	private static bool IsComputed(IPropertySymbol property, CancellationToken cancellationToken)
-		=> property.DeclaringSyntaxReferences.Any(reference => reference.GetSyntax(cancellationToken) is PropertyDeclarationSyntax syntax
-			&& (syntax.ExpressionBody is not null || syntax.AccessorList?.Accessors.Any(static a => a.Body is not null || a.ExpressionBody is not null) == true));
 
 	private static Optional<object?> GetConstantValue(Compilation compilation, ExpressionSyntax expression, CollectContext collect)
 	{

@@ -57,7 +57,7 @@ public sealed class SnapshotTests
 	{
 		GeneratorDriverRunResult result = GeneratorDriverHarness.Run("namespace TestNamespace { }");
 
-		Assert.HasCount(28, result.Results.Single().GeneratedSources);
+		Assert.HasCount(29, result.Results.Single().GeneratedSources);
 		SnapshotAssert.Match(result, nameof(AttributeSourceGenerator), "All", includeAttributeSources: true);
 	}
 
@@ -88,6 +88,14 @@ public sealed class SnapshotTests
 	[DataRow("NestedStruct")]
 	public void Cloneable(string caseName)
 		=> Verify(nameof(CloneableGenerator), caseName, SnapshotCases.Cloneable, new CloneableGenerator());
+
+	[TestMethod]
+	[DataRow("Plain")]
+	[DataRow("AllTypes")]
+	[DataRow("RecordAndNested")]
+	[DataRow("Diagnostics")]
+	public void CommandArgument(string caseName)
+		=> Verify(nameof(CommandArgumentGenerator), caseName, SnapshotCases.CommandArgument, new CommandArgumentGenerator());
 
 	[TestMethod]
 	[DataRow("Plain")]

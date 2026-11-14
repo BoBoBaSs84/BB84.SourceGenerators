@@ -20,6 +20,8 @@ namespace BB84.SourceGenerators.Helpers;
 /// </remarks>
 internal static class ValueConversions
 {
+	private const string EncodingHelperName = "TryGetEncoding";
+
 	/// <summary>
 	/// Gets the underlying type of a <see cref="Nullable{T}"/> type, or the type itself.
 	/// </summary>
@@ -35,8 +37,12 @@ internal static class ValueConversions
 	/// </summary>
 	/// <param name="type">The property type.</param>
 	/// <param name="kind">When this method returns <see langword="true"/>, contains the conversion kind.</param>
+	/// <param name="allowEncoding">
+	/// Indicates whether <c>System.Text.Encoding</c> is supported. Its try-parse expression calls the
+	/// helper emitted by <see cref="AppendEncodingHelper(SourceBuilder)"/>, which the caller must emit.
+	/// </param>
 	/// <returns><see langword="true"/> if the type is supported; otherwise, <see langword="false"/>.</returns>
-	internal static bool TryGetKind(ITypeSymbol type, out ValueConversionKind kind)
+	internal static bool TryGetKind(ITypeSymbol type, out ValueConversionKind kind, bool allowEncoding = false)
 	{
 		ITypeSymbol underlying = GetUnderlyingType(type);
 
@@ -63,12 +69,30 @@ internal static class ValueConversions
 				"System.DateTimeOffset" => ValueConversionKind.DateTimeOffset,
 				"System.TimeSpan" => ValueConversionKind.TimeSpan,
 				"System.Guid" => ValueConversionKind.Guid,
+				"System.Text.Encoding" when allowEncoding => ValueConversionKind.Encoding,
 				_ => null,
 			},
 		};
 
 		kind = result.GetValueOrDefault();
 		return result.HasValue;
+	}
+
+	/// <summary>
+	/// Creates the conversion of the given type for the given conversion kind.
+	/// </summary>
+	/// <param name="type">The property type.</param>
+	/// <param name="kind">The conversion kind returned by <see cref="TryGetKind(ITypeSymbol, out ValueConversionKind, bool)"/>.</param>
+	/// <returns>The conversion.</returns>
+	internal static ValueConversion Create(ITypeSymbol type, ValueConversionKind kind)
+	{
+		ITypeSymbol underlying = GetUnderlyingType(type);
+
+		return new ValueConversion(
+			kind,
+			underlying.WithNullableAnnotation(NullableAnnotation.NotAnnotated).ToPropertyTypeDisplayString(),
+			underlying.Name,
+			!SymbolEqualityComparer.Default.Equals(underlying, type));
 	}
 
 	/// <summary>
@@ -97,6 +121,7 @@ internal static class ValueConversions
 			ValueConversionKind.Guid => $"{typeName}.TryParse({valueExpression}, {result})",
 			ValueConversionKind.Enum => $"(global::System.Enum.TryParse<{typeName}>({valueExpression}, true, {result}) && global::System.Enum.IsDefined(typeof({typeName}), {resultVariable}))",
 			ValueConversionKind.FlagsEnum => $"global::System.Enum.TryParse<{typeName}>({valueExpression}, true, {result})",
+			ValueConversionKind.Encoding => $"{EncodingHelperName}({valueExpression}, {result})",
 			_ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null),
 		};
 	}
@@ -118,7 +143,42 @@ internal static class ValueConversions
 			ValueConversionKind.FloatingPoint => $"{expression}.ToString(\"R\", CultureInfo.InvariantCulture)",
 			ValueConversionKind.DateTime or ValueConversionKind.DateTimeOffset => $"{expression}.ToString(\"O\", CultureInfo.InvariantCulture)",
 			ValueConversionKind.TimeSpan => $"{expression}.ToString(\"c\", CultureInfo.InvariantCulture)",
+			ValueConversionKind.Encoding => $"{expression}.WebName",
 			_ => $"{expression}.ToString()",
 		};
+	}
+
+	/// <summary>
+	/// Appends the private static helper method called by the try-parse expression of
+	/// <see cref="ValueConversionKind.Encoding"/>. It accepts an encoding name or a numeric code page.
+	/// </summary>
+	/// <param name="sb">The source builder to append to.</param>
+	internal static void AppendEncodingHelper(SourceBuilder sb)
+	{
+		sb.AppendSummary("Tries to get the encoding with the specified name or numeric code page.");
+		sb.AppendLine("/// <param name=\"value\">The encoding name or code page.</param>");
+		sb.AppendLine("/// <param name=\"result\">The encoding, or <see langword=\"null\"/> if it is unknown.</param>");
+		sb.AppendLine("/// <returns><see langword=\"true\"/> if the encoding is known; otherwise, <see langword=\"false\"/>.</returns>");
+		sb.AppendLine($"private static bool {EncodingHelperName}(string value, out global::System.Text.Encoding result)");
+		sb.OpenBrace();
+		sb.AppendLine("try");
+		sb.OpenBrace();
+		sb.AppendLine("result = int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int codePage)");
+		sb.Indent();
+		sb.AppendLine("? global::System.Text.Encoding.GetEncoding(codePage)");
+		sb.AppendLine(": global::System.Text.Encoding.GetEncoding(value.Trim());");
+		sb.Outdent();
+		sb.AppendLine("return true;");
+		sb.CloseBrace();
+		sb.AppendLine("catch (global::System.ArgumentException)");
+		sb.OpenBrace();
+		sb.CloseBrace();
+		sb.AppendLine("catch (global::System.NotSupportedException)");
+		sb.OpenBrace();
+		sb.CloseBrace();
+		sb.AppendLine();
+		sb.AppendLine("result = null!;");
+		sb.AppendLine("return false;");
+		sb.CloseBrace();
 	}
 }

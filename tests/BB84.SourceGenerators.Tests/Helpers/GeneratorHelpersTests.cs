@@ -484,6 +484,92 @@ public class C
 		Assert.AreEqual("value", ValueConversions.GetFormatExpression(ValueConversionKind.String, "value"));
 	}
 
+	[TestMethod]
+	public void ValueConversionsShouldSupportEncodingOnlyWhenAllowed()
+	{
+		CSharpCompilation compilation = Compile("public class C { public System.Text.Encoding E { get; set; } }");
+		(INamedTypeSymbol symbol, _, _) = FindClass(compilation, "C");
+		ITypeSymbol type = ((IPropertySymbol)symbol.GetMembers("E").Single()).Type;
+
+		Assert.IsFalse(ValueConversions.TryGetKind(type, out _));
+		Assert.IsTrue(ValueConversions.TryGetKind(type, out ValueConversionKind kind, allowEncoding: true));
+		Assert.AreEqual(ValueConversionKind.Encoding, kind);
+		Assert.AreEqual("TryGetEncoding(raw, out global::System.Text.Encoding parsed)", ValueConversions.GetTryParseExpression(kind, "global::System.Text.Encoding", "raw", "parsed"));
+		Assert.AreEqual("value.WebName", ValueConversions.GetFormatExpression(kind, "value"));
+	}
+
+	[TestMethod]
+	public void ValueConversionsCreateShouldUnwrapNullableValueTypes()
+	{
+		CSharpCompilation compilation = Compile("public class C { public int? I { get; set; } public string S { get; set; } }");
+		(INamedTypeSymbol symbol, _, _) = FindClass(compilation, "C");
+
+		ValueConversion nullableInt = ValueConversions.Create(((IPropertySymbol)symbol.GetMembers("I").Single()).Type, ValueConversionKind.Integer);
+		ValueConversion text = ValueConversions.Create(((IPropertySymbol)symbol.GetMembers("S").Single()).Type, ValueConversionKind.String);
+
+		Assert.AreEqual(new ValueConversion(ValueConversionKind.Integer, "int", "Int32", true), nullableInt);
+		Assert.AreEqual(new ValueConversion(ValueConversionKind.String, "string", "String", false), text);
+	}
+
+	[TestMethod]
+	public void GetExcludedPropertiesShouldReadNamedArrayArgument()
+	{
+		CSharpCompilation compilation = Compile(@"
+public class ExcludeAttribute : System.Attribute { public string[] Names { get; set; } }
+[Exclude(Names = new[] { ""A"", ""B"" })] public class C { }
+[Exclude] public class D { }");
+		(INamedTypeSymbol withNames, _, _) = FindClass(compilation, "C");
+		(INamedTypeSymbol withoutNames, _, _) = FindClass(compilation, "D");
+
+		HashSet<string> excluded = GeneratorHelpers.GetExcludedProperties(withNames.GetAttributes().Single(), "Names");
+
+		Assert.IsTrue(excluded.SetEquals(["A", "B"]));
+		Assert.IsEmpty(GeneratorHelpers.GetExcludedProperties(withoutNames.GetAttributes().Single(), "Names"));
+	}
+
+	[TestMethod]
+	[DataRow("FilePath", "filePath")]
+	[DataRow("X", "x")]
+	[DataRow("already", "already")]
+	[DataRow("", "")]
+	public void ToCamelCaseShouldLowercaseFirstLetter(string name, string expected)
+		=> Assert.AreEqual(expected, GeneratorHelpers.ToCamelCase(name));
+
+	[TestMethod]
+	public void GetXmlSummaryCommentShouldFlattenSummary()
+	{
+		CSharpCompilation compilation = Compile(@"
+public class C
+{
+	/// <summary>
+	/// First line.
+	/// Second line.
+	/// </summary>
+	public int A { get; set; }
+
+	/// <remarks>No summary.</remarks>
+	public int B { get; set; }
+
+	public int C2 { get; set; }
+}");
+		(INamedTypeSymbol symbol, _, _) = FindClass(compilation, "C");
+
+		Assert.AreEqual("First line. Second line.", GeneratorHelpers.GetXmlSummaryComment(symbol.GetMembers("A").Single()));
+		Assert.IsNull(GeneratorHelpers.GetXmlSummaryComment(symbol.GetMembers("B").Single()));
+		Assert.IsNull(GeneratorHelpers.GetXmlSummaryComment(symbol.GetMembers("C2").Single()));
+	}
+
+	[TestMethod]
+	public void IsComputedPropertyShouldDetectBodies()
+	{
+		CSharpCompilation compilation = Compile("public class C { public int A { get; } public int B => 1; public int D { get { return 1; } } }");
+		(INamedTypeSymbol symbol, _, _) = FindClass(compilation, "C");
+
+		Assert.IsFalse(GeneratorHelpers.IsComputedProperty((IPropertySymbol)symbol.GetMembers("A").Single()));
+		Assert.IsTrue(GeneratorHelpers.IsComputedProperty((IPropertySymbol)symbol.GetMembers("B").Single()));
+		Assert.IsTrue(GeneratorHelpers.IsComputedProperty((IPropertySymbol)symbol.GetMembers("D").Single()));
+	}
+
 	#endregion
 
 	#region Helpers

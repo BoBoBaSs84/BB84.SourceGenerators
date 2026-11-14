@@ -42,6 +42,7 @@ public sealed class AttributeSourceGeneratorAttributeCoverageTests
 			nameof(GenerateAssemblyInformationAttribute),
 			nameof(GenerateBuilderAttribute),
 			nameof(GenerateCloneableAttribute),
+			nameof(GenerateCommandArgumentAttribute),
 			nameof(GenerateDecoratorAttribute),
 			nameof(GenerateDisposableAttribute),
 			nameof(EnvironmentVariableNameAttribute),

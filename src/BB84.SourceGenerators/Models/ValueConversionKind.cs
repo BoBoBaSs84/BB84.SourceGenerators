@@ -34,4 +34,6 @@ internal enum ValueConversionKind
 	Enum,
 	/// <summary>The value is a comma-separated list of <c>[Flags]</c> enum member names or a numeric value (case-insensitive).</summary>
 	FlagsEnum,
+	/// <summary>The value is a <c>System.Text.Encoding</c> name or numeric code page.</summary>
+	Encoding,
 }

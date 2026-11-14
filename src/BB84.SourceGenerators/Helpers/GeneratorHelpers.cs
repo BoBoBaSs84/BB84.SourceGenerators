@@ -20,6 +20,7 @@ namespace BB84.SourceGenerators.Helpers;
 internal static class GeneratorHelpers
 {
 	private const string AttributeKeyword = "Attribute";
+	private static readonly string[] LineBreakSeparators = ["\r\n", "\n"];
 
 	/// <summary>
 	/// Gets the accessibility keyword for a type declaration.
@@ -105,6 +106,29 @@ internal static class GeneratorHelpers
 
 				if (constantValue.HasValue && constantValue.Value is string value)
 					_ = excluded.Add(value);
+			}
+		}
+
+		return excluded;
+	}
+
+	/// <summary>
+	/// Gets the set of excluded property names from a named <see cref="string"/> array argument of an attribute,
+	/// such as <c>ExcludeProperties = [nameof(Cache)]</c>.
+	/// </summary>
+	/// <param name="attribute">The attribute data.</param>
+	/// <param name="argumentName">The name of the named argument.</param>
+	/// <returns>A set of excluded property names; empty if the argument is not set.</returns>
+	internal static HashSet<string> GetExcludedProperties(AttributeData attribute, string argumentName)
+	{
+		HashSet<string> excluded = new(StringComparer.Ordinal);
+
+		if (GetNamedArrayArgument(attribute, argumentName) is ImmutableArray<TypedConstant> values)
+		{
+			foreach (TypedConstant value in values)
+			{
+				if (value.Value is string name)
+					_ = excluded.Add(name);
 			}
 		}
 
@@ -813,5 +837,77 @@ internal static class GeneratorHelpers
 		}
 
 		return builder.ToString();
+	}
+
+	/// <summary>
+	/// Converts a PascalCase name to camel case by lowercasing the first letter
+	/// (e.g. <c>FilePath</c> to <c>filePath</c>).
+	/// </summary>
+	/// <param name="name">The name to convert.</param>
+	/// <returns>The camel case name.</returns>
+	internal static string ToCamelCase(string name)
+		=> name.Length == 0 ? name : $"{char.ToLowerInvariant(name[0])}{name.Substring(1)}";
+
+	/// <summary>
+	/// Determines whether the property is computed, that is, declared with an expression body or with
+	/// accessor bodies instead of auto-implemented accessors.
+	/// </summary>
+	/// <param name="property">The property to inspect.</param>
+	/// <param name="cancellationToken">The cancellation token.</param>
+	/// <returns><see langword="true"/> if any declaration of the property has a body; otherwise, <see langword="false"/>.</returns>
+	internal static bool IsComputedProperty(IPropertySymbol property, CancellationToken cancellationToken = default)
+		=> property.DeclaringSyntaxReferences.Any(reference => reference.GetSyntax(cancellationToken) is PropertyDeclarationSyntax syntax
+			&& (syntax.ExpressionBody is not null || syntax.AccessorList?.Accessors.Any(static a => a.Body is not null || a.ExpressionBody is not null) == true));
+
+	/// <summary>
+	/// Gets the text of the XML <c>&lt;summary&gt;</c> documentation comment of the symbol, with the
+	/// lines trimmed and joined by a single space.
+	/// </summary>
+	/// <param name="symbol">The symbol whose declaration is inspected.</param>
+	/// <returns>The flattened summary text, or <see langword="null"/> if the symbol has no non-empty summary.</returns>
+	internal static string? GetXmlSummaryComment(ISymbol symbol)
+	{
+		foreach (SyntaxReference syntaxRef in symbol.DeclaringSyntaxReferences)
+		{
+			SyntaxNode node = syntaxRef.GetSyntax();
+
+			if (!node.HasLeadingTrivia)
+				continue;
+
+			foreach (SyntaxTrivia trivia in node.GetLeadingTrivia())
+			{
+				if (trivia.IsKind(SyntaxKind.SingleLineDocumentationCommentTrivia) || trivia.IsKind(SyntaxKind.MultiLineDocumentationCommentTrivia))
+				{
+					SyntaxNode? structure = trivia.GetStructure();
+					if (structure is null)
+						continue;
+
+					foreach (SyntaxNode child in structure.ChildNodes())
+					{
+						if (child is not XmlElementSyntax xmlElement)
+							continue;
+
+						if (xmlElement.StartTag.Name.ToString() != "summary")
+							continue;
+
+						string content = xmlElement.Content.ToString();
+						string[] lines = content.Split(LineBreakSeparators, StringSplitOptions.RemoveEmptyEntries);
+
+						List<string> cleanLines = [];
+						foreach (string line in lines)
+						{
+							string trimmed = line.Trim().TrimStart('/').Trim();
+							if (trimmed.Length > 0)
+								cleanLines.Add(trimmed);
+						}
+
+						if (cleanLines.Count > 0)
+							return string.Join(" ", cleanLines);
+					}
+				}
+			}
+		}
+
+		return null;
 	}
 }

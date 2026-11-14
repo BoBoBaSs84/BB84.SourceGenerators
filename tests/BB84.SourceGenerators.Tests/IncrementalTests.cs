@@ -76,6 +76,13 @@ public sealed class IncrementalTests
 
 	[TestMethod]
 	[DataRow("Plain")]
+	[DataRow("AllTypes")]
+	[DataRow("RecordAndNested")]
+	public void CommandArgument(string caseName)
+		=> Verify(SnapshotCases.CommandArgument[caseName], new CommandArgumentGenerator(), TrackingNames.CommandArgument);
+
+	[TestMethod]
+	[DataRow("Plain")]
 	[DataRow("MultipleInterfacesAndGenerics")]
 	[DataRow("Modifiers")]
 	[DataRow("Nested")]

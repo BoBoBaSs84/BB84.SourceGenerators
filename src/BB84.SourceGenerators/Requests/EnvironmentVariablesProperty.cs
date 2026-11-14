@@ -3,6 +3,8 @@
 //
 // This source code is licensed under the MIT license found in the
 // LICENSE file in the root directory of this source tree.
+using BB84.SourceGenerators.Models;
+
 namespace BB84.SourceGenerators.Requests;
 
 /// <summary>
@@ -22,7 +24,7 @@ internal sealed record EnvironmentVariablesProperty(
 	string Name,
 	string VariableName,
 	string TypeName,
-	EnvironmentVariablesConversion Conversion,
+	ValueConversion Conversion,
 	bool IsMandatory,
 	string InitialValue,
 	bool AssignAfterConstruction

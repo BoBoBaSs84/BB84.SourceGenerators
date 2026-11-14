@@ -12,6 +12,7 @@
 | [AutoMapper Generator](auto-mapper.md)                          | Compile-time property-to-property mapping method generation                                                                 |
 | [Builder Generator](builder.md)                                 | Fluent builder pattern generation for classes and structs                                                                   |
 | [Cloneable Generator](cloneable.md)                             | Compile-time `Clone()` and `DeepClone()` method generation with collection and struct support                               |
+| [Command Argument Generator](command-argument.md)               | Compile-time command line argument parsing with usage text and error reporting                                              |
 | [Decorator Generator](decorator.md)                             | Compile-time decorator pattern generation with full interface delegation, generic methods, events, and partial method hooks |
 | [Disposable Generator](disposable.md)                           | Compile-time `IDisposable` / `IAsyncDisposable` pattern generation with ordered resource cleanup                            |
 | [Enumerator Extensions Generator](enumerator-extensions.md)     | Fast, allocation-free extension methods for enums                                                                           |

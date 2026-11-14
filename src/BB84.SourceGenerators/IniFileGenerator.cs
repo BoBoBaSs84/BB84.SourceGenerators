@@ -413,7 +413,7 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 			string sectionName = GetExplicitNameOrDefault(sectionAttribute, propertySymbol.Name);
 			string fullSectionName = parentSectionName is null ? sectionName : $"{parentSectionName}{walk.SectionDelimiter}{sectionName}";
 			string propertyPath = parentPropertyPath is null ? propertySymbol.Name : $"{parentPropertyPath}.{propertySymbol.Name}";
-			string? comment = walk.SerializeComments ? GetXmlSummaryComment(propertySymbol) : null;
+			string? comment = walk.SerializeComments ? GeneratorHelpers.GetXmlSummaryComment(propertySymbol) : null;
 
 			List<IniFileValue> values = GetValues(sectionType, walk.SerializeComments);
 
@@ -476,7 +476,7 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 				isFlagsEnum = propertySymbol.Type.GetAttributes().Any(a => a.AttributeClass?.ToMinimalDisplayString() == TypeNames.FlagsAttributeShortName);
 			}
 
-			string? comment = serializeComments ? GetXmlSummaryComment(propertySymbol) : null;
+			string? comment = serializeComments ? GeneratorHelpers.GetXmlSummaryComment(propertySymbol) : null;
 
 			values.Add(new IniFileValue(
 				PropertyName: propertySymbol.Name,
@@ -550,52 +550,6 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 
 	private static bool GetSerializeComments(ClassDeclarationSyntax classDeclaration, SemanticModel semanticModel)
 		=> GeneratorHelpers.GetNamedArgumentValue(classDeclaration, semanticModel, AttributeNames.ShortName, AttributeNames.TypeName, nameof(GenerateIniFileAttribute.SerializeComments), false);
-
-	private static string? GetXmlSummaryComment(ISymbol symbol)
-	{
-		foreach (SyntaxReference syntaxRef in symbol.DeclaringSyntaxReferences)
-		{
-			SyntaxNode node = syntaxRef.GetSyntax();
-
-			if (!node.HasLeadingTrivia)
-				continue;
-
-			foreach (SyntaxTrivia trivia in node.GetLeadingTrivia())
-			{
-				if (trivia.IsKind(SyntaxKind.SingleLineDocumentationCommentTrivia) || trivia.IsKind(SyntaxKind.MultiLineDocumentationCommentTrivia))
-				{
-					SyntaxNode? structure = trivia.GetStructure();
-					if (structure is null)
-						continue;
-
-					foreach (SyntaxNode child in structure.ChildNodes())
-					{
-						if (child is not XmlElementSyntax xmlElement)
-							continue;
-
-						if (xmlElement.StartTag.Name.ToString() != "summary")
-							continue;
-
-						string content = xmlElement.Content.ToString();
-						string[] lines = content.Split(LineBreakSeparators, StringSplitOptions.RemoveEmptyEntries);
-
-						List<string> cleanLines = [];
-						foreach (string line in lines)
-						{
-							string trimmed = line.Trim().TrimStart('/').Trim();
-							if (trimmed.Length > 0)
-								cleanLines.Add(trimmed);
-						}
-
-						if (cleanLines.Count > 0)
-							return string.Join(" ", cleanLines);
-					}
-				}
-			}
-		}
-
-		return null;
-	}
 
 	private static void ValidateSectionPropertiesOnType(List<DiagnosticInfo> diagnostics, INamedTypeSymbol typeSymbol)
 	{

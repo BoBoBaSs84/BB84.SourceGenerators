@@ -19,6 +19,7 @@ internal static class TrackingNames
 	internal const string BuilderStruct = nameof(BuilderStruct);
 	internal const string CloneableClass = nameof(CloneableClass);
 	internal const string CloneableStruct = nameof(CloneableStruct);
+	internal const string CommandArgument = nameof(CommandArgument);
 	internal const string Decorator = nameof(Decorator);
 	internal const string Disposable = nameof(Disposable);
 	internal const string EnumeratorExtensions = nameof(EnumeratorExtensions);

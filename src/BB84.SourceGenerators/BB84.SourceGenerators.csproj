@@ -34,6 +34,7 @@
 		<EmbeddedResource Include="Attributes\GenerateAutoMapperAttribute.cs" LogicalName="GenerateAutoMapperAttribute.cs" />
 		<EmbeddedResource Include="Attributes\GenerateBuilderAttribute.cs" LogicalName="GenerateBuilderAttribute.cs" />
 		<EmbeddedResource Include="Attributes\GenerateCloneableAttribute.cs" LogicalName="GenerateCloneableAttribute.cs" />
+		<EmbeddedResource Include="Attributes\GenerateCommandArgumentAttribute.cs" LogicalName="GenerateCommandArgumentAttribute.cs" />
 		<EmbeddedResource Include="Attributes\GenerateDecoratorAttribute.cs" LogicalName="GenerateDecoratorAttribute.cs" />
 		<EmbeddedResource Include="Attributes\GenerateDisposableAttribute.cs" LogicalName="GenerateDisposableAttribute.cs" />
 		<EmbeddedResource Include="Attributes\GenerateEnumeratorExtensionsAttribute.cs" LogicalName="GenerateEnumeratorExtensionsAttribute.cs" />
