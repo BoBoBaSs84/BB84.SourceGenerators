@@ -45,22 +45,21 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 	private const int MaxSectionDepth = 8;
 	private static readonly string[] LineBreakSeparators = ["\r\n", "\n"];
 
-	private static readonly IniTypeFormat FallbackTypeFormat = new(SpecialType.None, v => v, x => $"{x}?.ToString() ?? string.Empty", x => $"{x}?.ToString() ?? string.Empty");
+	private static readonly IniTypeFormat FallbackTypeFormat = new(SpecialType.None, v => v, x => $"{x}?.ToString() ?? string.Empty");
 
 	private static readonly Dictionary<string, IniTypeFormat> TypeFormats = new(StringComparer.Ordinal)
 	{
-		["string"] = new(SpecialType.System_String, v => v, x => x, x => x),
-		["int"] = InvariantFormat(SpecialType.System_Int32, "int"),
-		["long"] = InvariantFormat(SpecialType.System_Int64, "long"),
-		["float"] = InvariantFormat(SpecialType.System_Single, "float"),
-		["double"] = InvariantFormat(SpecialType.System_Double, "double"),
-		["decimal"] = InvariantFormat(SpecialType.System_Decimal, "decimal"),
-		["bool"] = new(SpecialType.System_Boolean, v => $"bool.Parse({v})", x => $"{x}.ToString()", x => $"{x}.ToString()"),
-		["DateTime"] = InvariantFormat(SpecialType.System_DateTime, "DateTime"),
-		["DateTimeOffset"] = InvariantFormat(SpecialType.None, "DateTimeOffset"),
-		["Guid"] = new(SpecialType.None, v => $"Guid.Parse({v})", x => $"{x}.ToString()", x => $"{x}.ToString()"),
-		// The "c" format applies to scalar values only; collection elements use the invariant culture.
-		["TimeSpan"] = InvariantFormat(SpecialType.None, "TimeSpan") with { ScalarToString = x => $"{x}.ToString(\"c\", CultureInfo.InvariantCulture)" },
+		["string"] = new(SpecialType.System_String, v => v, x => x),
+		["int"] = ConversionFormat(SpecialType.System_Int32, "int", ValueConversionKind.Integer),
+		["long"] = ConversionFormat(SpecialType.System_Int64, "long", ValueConversionKind.Integer),
+		["float"] = ConversionFormat(SpecialType.System_Single, "float", ValueConversionKind.FloatingPoint),
+		["double"] = ConversionFormat(SpecialType.System_Double, "double", ValueConversionKind.FloatingPoint),
+		["decimal"] = ConversionFormat(SpecialType.System_Decimal, "decimal", ValueConversionKind.Decimal),
+		["bool"] = ConversionFormat(SpecialType.System_Boolean, "bool", ValueConversionKind.Boolean),
+		["DateTime"] = ConversionFormat(SpecialType.System_DateTime, "DateTime", ValueConversionKind.DateTime),
+		["DateTimeOffset"] = ConversionFormat(SpecialType.None, "DateTimeOffset", ValueConversionKind.DateTimeOffset),
+		["Guid"] = ConversionFormat(SpecialType.None, "Guid", ValueConversionKind.Guid),
+		["TimeSpan"] = ConversionFormat(SpecialType.None, "TimeSpan", ValueConversionKind.TimeSpan),
 	};
 
 	private static readonly Dictionary<SpecialType, string> SimpleTypeNames = TypeFormats
@@ -527,7 +526,7 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 	{
 		if (value.IsCollection)
 		{
-			string elementToString = GetTypeFormat(value.CollectionElementTypeName).ElementToString("e");
+			string elementToString = GetTypeFormat(value.CollectionElementTypeName).Format("e");
 
 			string emptyFallback = value.IsArray
 				? $"Array.Empty<{value.CollectionElementTypeName}>()"
@@ -540,7 +539,7 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 			? value.IsFlagsEnum
 				? $"string.Join(\" \", Enum.GetValues(typeof({value.EnumFullName})).Cast<{value.EnumFullName}>().Where(flag => flag != 0 && {expression}.HasFlag(flag)).Select(flag => flag.ToString()))"
 				: $"{expression}.ToString()"
-			: GetTypeFormat(value.TypeName).ScalarToString(expression);
+			: GetTypeFormat(value.TypeName).Format(expression);
 	}
 
 	private static StringComparison GetStringComparison(AttributeData attribute)
@@ -597,24 +596,21 @@ public sealed class IniFileGenerator : IIncrementalGenerator
 		return string.IsNullOrEmpty(explicitName) ? defaultName : explicitName!;
 	}
 
-	private static IniTypeFormat InvariantFormat(SpecialType specialType, string typeName)
+	private static IniTypeFormat ConversionFormat(SpecialType specialType, string typeName, ValueConversionKind kind)
 		=> new(specialType,
-			v => $"{typeName}.Parse({v}, CultureInfo.InvariantCulture)",
-			x => $"{x}.ToString(CultureInfo.InvariantCulture)",
-			x => $"{x}.ToString(CultureInfo.InvariantCulture)");
+			v => ValueConversions.GetParseExpression(kind, typeName, v),
+			x => ValueConversions.GetFormatExpression(kind, x));
 
 	/// <summary>
 	/// Describes how values of a special type are parsed from and formatted to INI text.
 	/// </summary>
 	/// <param name="SpecialType">The special type the format applies to.</param>
 	/// <param name="Parse">Builds the parse expression for the given value expression.</param>
-	/// <param name="ScalarToString">Builds the format expression for a scalar value expression.</param>
-	/// <param name="ElementToString">Builds the format expression for a collection element expression.</param>
+	/// <param name="Format">Builds the format expression for the given scalar or collection element expression.</param>
 	private sealed record IniTypeFormat(
 		SpecialType SpecialType,
 		Func<string, string> Parse,
-		Func<string, string> ScalarToString,
-		Func<string, string> ElementToString
+		Func<string, string> Format
 	);
 
 

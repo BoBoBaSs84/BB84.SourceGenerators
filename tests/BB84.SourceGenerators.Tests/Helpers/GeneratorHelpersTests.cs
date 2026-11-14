@@ -363,6 +363,27 @@ public class C
 	}
 
 	[TestMethod]
+	[DataRow((int)ValueConversionKind.Boolean, "bool", "bool.Parse(raw.Trim() == \"1\" ? \"true\" : raw.Trim() == \"0\" ? \"false\" : raw)")]
+	[DataRow((int)ValueConversionKind.Char, "char", "char.Parse(raw)")]
+	[DataRow((int)ValueConversionKind.Integer, "int", "int.Parse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture)")]
+	[DataRow((int)ValueConversionKind.FloatingPoint, "double", "double.Parse(raw, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture)")]
+	[DataRow((int)ValueConversionKind.Decimal, "decimal", "decimal.Parse(raw, NumberStyles.Number, CultureInfo.InvariantCulture)")]
+	[DataRow((int)ValueConversionKind.DateTime, "DateTime", "DateTime.Parse(raw, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind)")]
+	[DataRow((int)ValueConversionKind.DateTimeOffset, "DateTimeOffset", "DateTimeOffset.Parse(raw, CultureInfo.InvariantCulture, DateTimeStyles.None)")]
+	[DataRow((int)ValueConversionKind.TimeSpan, "TimeSpan", "TimeSpan.Parse(raw, CultureInfo.InvariantCulture)")]
+	[DataRow((int)ValueConversionKind.Guid, "Guid", "Guid.Parse(raw)")]
+	[DataRow((int)ValueConversionKind.Enum, "global::E", "(global::E)global::System.Enum.Parse(typeof(global::E), raw, true)")]
+	[DataRow((int)ValueConversionKind.FlagsEnum, "global::E", "(global::E)global::System.Enum.Parse(typeof(global::E), raw, true)")]
+	public void ValueConversionsShouldBuildParseExpressions(int kind, string typeName, string expected)
+		=> Assert.AreEqual(expected, ValueConversions.GetParseExpression((ValueConversionKind)kind, typeName, "raw"));
+
+	[TestMethod]
+	[DataRow((int)ValueConversionKind.String)]
+	[DataRow((int)ValueConversionKind.Encoding)]
+	public void ValueConversionsParseExpressionShouldRejectUnsupportedKinds(int kind)
+		=> Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => ValueConversions.GetParseExpression((ValueConversionKind)kind, "string", "raw"));
+
+	[TestMethod]
 	public void ValueConversionsShouldSupportEncodingOnlyWhenAllowed()
 	{
 		CSharpCompilation compilation = Compile("public class C { public System.Text.Encoding E { get; set; } }");

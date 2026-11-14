@@ -168,6 +168,53 @@ namespace TestNamespace
 		Assert.Contains("sb.AppendLine(\"DisplayName=\"", generated);
 	}
 
+	[TestMethod]
+	public void ShouldUseSharedValueConversions()
+	{
+		string source = @"
+using System;
+using System.Collections.Generic;
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+	public class MySection
+	{
+		[GenerateIniFileValue]
+		public double Ratio { get; set; }
+
+		[GenerateIniFileValue]
+		public DateTime LastRun { get; set; }
+
+		[GenerateIniFileValue]
+		public bool Enabled { get; set; }
+
+		[GenerateIniFileValue]
+		public List<TimeSpan> Durations { get; set; }
+	}
+
+	[GenerateIniFile]
+	internal sealed partial class MyConfig
+	{
+		[GenerateIniFileSection]
+		public MySection Section { get; set; } = new();
+	}
+}";
+
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources) = RunGenerator(source);
+
+		Assert.IsEmpty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+		string generated = generatedSources.First(s => s.Contains("partial class MyConfig"));
+		Assert.Contains("double.Parse(value, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture)", generated);
+		Assert.Contains("DateTime.Parse(value, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind)", generated);
+		Assert.Contains("bool.Parse(value.Trim() == \"1\" ? \"true\" : value.Trim() == \"0\" ? \"false\" : value)", generated);
+		Assert.Contains("TimeSpan.Parse(e.Trim(), CultureInfo.InvariantCulture)", generated);
+		Assert.Contains("instance.Section.Ratio.ToString(\"R\", CultureInfo.InvariantCulture)", generated);
+		Assert.Contains("instance.Section.LastRun.ToString(\"O\", CultureInfo.InvariantCulture)", generated);
+		Assert.Contains("(instance.Section.Enabled ? \"true\" : \"false\")", generated);
+		Assert.Contains("Select(e => e.ToString(\"c\", CultureInfo.InvariantCulture))", generated);
+	}
+
 	private static (ImmutableArray<Diagnostic> Diagnostics, string[] GeneratedSources) RunGenerator(string source)
 	{
 		SyntaxTree syntaxTree = CSharpSyntaxTree.ParseText(source);

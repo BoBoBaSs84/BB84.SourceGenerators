@@ -46,7 +46,7 @@ public sealed class IniFileGeneratorTests
 		Assert.Contains("[General]", result);
 		Assert.Contains("AppName=TestApp", result);
 		Assert.Contains("Version=42", result);
-		Assert.Contains("Enabled=True", result);
+		Assert.Contains("Enabled=true", result);
 	}
 
 	[TestMethod]
@@ -316,9 +316,9 @@ public sealed class IniFileGeneratorTests
 		Assert.Contains("LongValue=9999999999", result);
 		Assert.Contains("FloatValue=3.14", result);
 		Assert.Contains("DoubleValue=2.718281828", result);
-		Assert.Contains("BoolValue=True", result);
+		Assert.Contains("BoolValue=true", result);
 		Assert.Contains("DecimalValue=123.456", result);
-		Assert.Contains("DateTimeValue=" + testDate.ToString(CultureInfo.InvariantCulture), result);
+		Assert.Contains("DateTimeValue=" + testDate.ToString("O", CultureInfo.InvariantCulture), result);
 	}
 
 	[TestMethod]
@@ -766,7 +766,7 @@ public sealed class IniFileGeneratorTests
 
 		string result = TestIniFileExtendedTypes.Write(instance);
 
-		Assert.Contains("Timestamp=" + ts.ToString(CultureInfo.InvariantCulture), result);
+		Assert.Contains("Timestamp=" + ts.ToString("O", CultureInfo.InvariantCulture), result);
 	}
 
 	[TestMethod]
@@ -822,6 +822,102 @@ public sealed class IniFileGeneratorTests
 		string result = TestIniFileArrays.Write(instance);
 
 		Assert.Contains("Values=4.4,5.5", result);
+	}
+
+	[TestMethod]
+	public void WriteThenReadShouldRoundTripValueFormats()
+	{
+		TestIniFileValueFormats original = new()
+		{
+			Formats = new TestValueFormatsSection
+			{
+				DoubleValue = 0.1 + 0.2,
+				MaxDoubleValue = double.MaxValue,
+				FloatValue = 1f / 3f,
+				UtcDateTime = new DateTime(2026, 11, 14, 10, 30, 15, DateTimeKind.Utc).AddTicks(1234567),
+				LocalDateTime = new DateTime(2026, 11, 14, 10, 30, 15, DateTimeKind.Local).AddTicks(7654321),
+				Timestamp = new DateTimeOffset(2026, 11, 14, 10, 30, 15, TimeSpan.FromHours(2)).AddTicks(1234567),
+				Duration = new TimeSpan(1, 2, 3, 4).Add(TimeSpan.FromTicks(5678)),
+				Durations = [TimeSpan.FromMinutes(90), new TimeSpan(2, 0, 0, 1)],
+				Doubles = [0.1 + 0.2, 1d / 3d],
+				Dates = [new DateTime(2026, 1, 2, 3, 4, 5, DateTimeKind.Utc).AddTicks(1)],
+			}
+		};
+
+		string serialized = TestIniFileValueFormats.Write(original);
+		TestIniFileValueFormats deserialized = TestIniFileValueFormats.Read(serialized);
+
+		TestValueFormatsSection expected = original.Formats;
+		TestValueFormatsSection actual = deserialized.Formats;
+		Assert.AreEqual(BitConverter.DoubleToInt64Bits(expected.DoubleValue), BitConverter.DoubleToInt64Bits(actual.DoubleValue));
+		Assert.AreEqual(BitConverter.DoubleToInt64Bits(expected.MaxDoubleValue), BitConverter.DoubleToInt64Bits(actual.MaxDoubleValue));
+		Assert.AreEqual(expected.FloatValue, actual.FloatValue);
+		Assert.AreEqual(expected.UtcDateTime, actual.UtcDateTime);
+		Assert.AreEqual(DateTimeKind.Utc, actual.UtcDateTime.Kind);
+		Assert.AreEqual(expected.LocalDateTime, actual.LocalDateTime);
+		Assert.AreEqual(DateTimeKind.Local, actual.LocalDateTime.Kind);
+		Assert.AreEqual(expected.Timestamp, actual.Timestamp);
+		Assert.AreEqual(expected.Timestamp.Offset, actual.Timestamp.Offset);
+		Assert.AreEqual(expected.Duration, actual.Duration);
+		CollectionAssert.AreEqual(expected.Durations, actual.Durations);
+		CollectionAssert.AreEqual(expected.Doubles, actual.Doubles);
+		CollectionAssert.AreEqual(expected.Dates, actual.Dates);
+		Assert.AreEqual(DateTimeKind.Utc, actual.Dates![0].Kind);
+	}
+
+	[TestMethod]
+	public void WriteShouldUseRoundTripFormats()
+	{
+		TestIniFileValueFormats instance = new()
+		{
+			Formats = new TestValueFormatsSection
+			{
+				UtcDateTime = new DateTime(2026, 11, 14, 10, 30, 15, DateTimeKind.Utc),
+				Duration = new TimeSpan(1, 2, 3, 4),
+				Durations = [TimeSpan.FromMinutes(90)],
+			}
+		};
+
+		string result = TestIniFileValueFormats.Write(instance);
+
+		Assert.Contains("UtcDateTime=2026-11-14T10:30:15.0000000Z", result);
+		Assert.Contains("Duration=1.02:03:04", result);
+		Assert.Contains("Durations=01:30:00", result);
+	}
+
+	[TestMethod]
+	public void ReadShouldAcceptLegacyValueFormats()
+	{
+		string content =
+			"[Formats]\r\n" +
+			"UtcDateTime=11/14/2026 10:30:00\r\n" +
+			"Timestamp=11/14/2026 10:30:00 +01:00\r\n" +
+			"Duration=01:02:03\r\n" +
+			"Durations=01:02:03,1.00:00:00\r\n" +
+			"DoubleValue=0.30000000000000004\r\n" +
+			"Dates=11/14/2026 10:30:00\r\n";
+
+		TestIniFileValueFormats result = TestIniFileValueFormats.Read(content);
+
+		Assert.AreEqual(new DateTime(2026, 11, 14, 10, 30, 0), result.Formats.UtcDateTime);
+		Assert.AreEqual(new DateTimeOffset(2026, 11, 14, 10, 30, 0, TimeSpan.FromHours(1)), result.Formats.Timestamp);
+		Assert.AreEqual(new TimeSpan(1, 2, 3), result.Formats.Duration);
+		CollectionAssert.AreEqual(new List<TimeSpan> { new(1, 2, 3), TimeSpan.FromDays(1) }, result.Formats.Durations);
+		Assert.AreEqual(0.1 + 0.2, result.Formats.DoubleValue);
+		CollectionAssert.AreEqual(new[] { new DateTime(2026, 11, 14, 10, 30, 0) }, result.Formats.Dates);
+	}
+
+	[TestMethod]
+	[DataRow("True", true)]
+	[DataRow("False", false)]
+	[DataRow("true", true)]
+	[DataRow("1", true)]
+	[DataRow("0", false)]
+	public void ReadShouldAcceptBooleanValues(string text, bool expected)
+	{
+		TestIniFile result = TestIniFile.Read($"[General]\r\nEnabled={text}\r\n");
+
+		Assert.AreEqual(expected, result.General.Enabled);
 	}
 
 	[TestMethod]
@@ -1215,6 +1311,46 @@ public class TestArraysSection
 {
 	[GenerateIniFileValue]
 	public double[]? Values { get; set; }
+}
+
+[GenerateIniFile]
+internal sealed partial class TestIniFileValueFormats
+{
+	[GenerateIniFileSection]
+	public TestValueFormatsSection Formats { get; set; } = new();
+}
+
+public class TestValueFormatsSection
+{
+	[GenerateIniFileValue]
+	public double DoubleValue { get; set; }
+
+	[GenerateIniFileValue]
+	public double MaxDoubleValue { get; set; }
+
+	[GenerateIniFileValue]
+	public float FloatValue { get; set; }
+
+	[GenerateIniFileValue]
+	public DateTime UtcDateTime { get; set; }
+
+	[GenerateIniFileValue]
+	public DateTime LocalDateTime { get; set; }
+
+	[GenerateIniFileValue]
+	public DateTimeOffset Timestamp { get; set; }
+
+	[GenerateIniFileValue]
+	public TimeSpan Duration { get; set; }
+
+	[GenerateIniFileValue]
+	public List<TimeSpan>? Durations { get; set; }
+
+	[GenerateIniFileValue]
+	public double[]? Doubles { get; set; }
+
+	[GenerateIniFileValue]
+	public DateTime[]? Dates { get; set; }
 }
 
 #endregion

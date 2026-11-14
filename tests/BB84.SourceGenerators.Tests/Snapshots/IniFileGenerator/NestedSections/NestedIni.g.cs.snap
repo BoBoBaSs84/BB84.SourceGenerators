@@ -66,7 +66,7 @@ namespace TestNamespace
         else if (string.Equals(currentSection, "Section.SubSection.Leaf", StringComparison.OrdinalIgnoreCase))
         {
           if (string.Equals(key, "Depth", StringComparison.OrdinalIgnoreCase))
-            result.Section.SubSection.Leaf.Depth = int.Parse(value, CultureInfo.InvariantCulture);
+            result.Section.SubSection.Leaf.Depth = int.Parse(value, NumberStyles.Integer, CultureInfo.InvariantCulture);
         }
         else if (string.Equals(currentSection, "Section.Other", StringComparison.OrdinalIgnoreCase))
         {
@@ -76,7 +76,7 @@ namespace TestNamespace
         else if (string.Equals(currentSection, "Section.Other.Leaf", StringComparison.OrdinalIgnoreCase))
         {
           if (string.Equals(key, "Depth", StringComparison.OrdinalIgnoreCase))
-            result.Section.OtherSubSection.Leaf.Depth = int.Parse(value, CultureInfo.InvariantCulture);
+            result.Section.OtherSubSection.Leaf.Depth = int.Parse(value, NumberStyles.Integer, CultureInfo.InvariantCulture);
         }
 
       }

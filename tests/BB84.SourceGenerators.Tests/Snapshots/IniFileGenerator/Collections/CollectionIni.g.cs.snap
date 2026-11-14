@@ -56,17 +56,17 @@ namespace TestNamespace
         if (string.Equals(currentSection, "Collections", StringComparison.OrdinalIgnoreCase))
         {
           if (string.Equals(key, "Numbers", StringComparison.OrdinalIgnoreCase))
-            result.Collections.Numbers = value.Split(',').Select(e => int.Parse(e.Trim(), CultureInfo.InvariantCulture)).ToList();
+            result.Collections.Numbers = value.Split(',').Select(e => int.Parse(e.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture)).ToList();
           else if (string.Equals(key, "Names", StringComparison.OrdinalIgnoreCase))
             result.Collections.Names = value.Split(',').Select(e => e.Trim()).ToList();
           else if (string.Equals(key, "Tags", StringComparison.OrdinalIgnoreCase))
             result.Collections.Tags = value.Split(',').Select(e => e.Trim()).ToArray();
           else if (string.Equals(key, "Ratios", StringComparison.OrdinalIgnoreCase))
-            result.Collections.Ratios = value.Split(',').Select(e => double.Parse(e.Trim(), CultureInfo.InvariantCulture)).ToArray();
+            result.Collections.Ratios = value.Split(',').Select(e => double.Parse(e.Trim(), NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture)).ToArray();
           else if (string.Equals(key, "Durations", StringComparison.OrdinalIgnoreCase))
             result.Collections.Durations = value.Split(',').Select(e => TimeSpan.Parse(e.Trim(), CultureInfo.InvariantCulture)).ToList();
           else if (string.Equals(key, "Flags", StringComparison.OrdinalIgnoreCase))
-            result.Collections.Flags = value.Split(',').Select(e => bool.Parse(e.Trim())).ToList();
+            result.Collections.Flags = value.Split(',').Select(e => bool.Parse(e.Trim().Trim() == "1" ? "true" : e.Trim().Trim() == "0" ? "false" : e.Trim())).ToList();
         }
 
       }
@@ -108,9 +108,9 @@ namespace TestNamespace
       sb.AppendLine("Numbers=" + string.Join(",", (instance.Collections.Numbers ?? Enumerable.Empty<int>()).Select(e => e.ToString(CultureInfo.InvariantCulture))));
       sb.AppendLine("Names=" + string.Join(",", (instance.Collections.Names ?? Enumerable.Empty<string>()).Select(e => e)));
       sb.AppendLine("Tags=" + string.Join(",", (instance.Collections.Tags ?? Array.Empty<string>()).Select(e => e)));
-      sb.AppendLine("Ratios=" + string.Join(",", (instance.Collections.Ratios ?? Array.Empty<double>()).Select(e => e.ToString(CultureInfo.InvariantCulture))));
-      sb.AppendLine("Durations=" + string.Join(",", (instance.Collections.Durations ?? Enumerable.Empty<TimeSpan>()).Select(e => e.ToString(CultureInfo.InvariantCulture))));
-      sb.AppendLine("Flags=" + string.Join(",", (instance.Collections.Flags ?? Enumerable.Empty<bool>()).Select(e => e.ToString())));
+      sb.AppendLine("Ratios=" + string.Join(",", (instance.Collections.Ratios ?? Array.Empty<double>()).Select(e => e.ToString("R", CultureInfo.InvariantCulture))));
+      sb.AppendLine("Durations=" + string.Join(",", (instance.Collections.Durations ?? Enumerable.Empty<TimeSpan>()).Select(e => e.ToString("c", CultureInfo.InvariantCulture))));
+      sb.AppendLine("Flags=" + string.Join(",", (instance.Collections.Flags ?? Enumerable.Empty<bool>()).Select(e => (e ? "true" : "false"))));
 
       return sb.ToString();
     }
