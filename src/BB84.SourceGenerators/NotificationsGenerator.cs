@@ -3,6 +3,8 @@
 //
 // This source code is licensed under the MIT license found in the
 // LICENSE file in the root directory of this source tree.
+using System.Collections.Immutable;
+
 using BB84.SourceGenerators.Analyzers;
 using BB84.SourceGenerators.Attributes;
 using BB84.SourceGenerators.Extensions;
@@ -37,6 +39,10 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 	private const string RaisePropertyChangedMethodName = "RaisePropertyChanged";
 	private const string RaisePropertyChangingMethodName = "RaisePropertyChanging";
 	private const string HasChangedPropertyName = "HasChanged";
+
+	private static readonly string ExcludeFromNotificationAttributeName = typeof(ExcludeFromNotificationAttribute).FullName;
+	private static readonly string AlsoNotifyAttributeName = typeof(AlsoNotifyAttribute).FullName;
+	private static readonly string NotifyCanExecuteChangedAttributeName = typeof(NotifyCanExecuteChangedAttribute).FullName;
 
 	/// <inheritdoc/>
 	public void Initialize(IncrementalGeneratorInitializationContext context)
@@ -125,19 +131,19 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 	{
 		List<FieldDeclarationSyntax> fieldDeclarations = [.. typeDeclaration.Members
 			.OfType<FieldDeclarationSyntax>()
-			.Where(field => IsAssignable(field) && !HasAttribute(field, nameof(ExcludeFromNotificationAttribute)))];
+			.Where(field => IsAssignable(field) && !HasAttribute(field, semanticModel, ExcludeFromNotificationAttributeName))];
 
 		List<PartialPropertyInfo> partialProperties = GetPartialProperties(diagnostics, typeDeclaration, typeSymbol, semanticModel);
 
 		HashSet<string> knownCommands = GetKnownCommandNames(typeSymbol);
 		Dictionary<MemberDeclarationSyntax, List<string>> notifyCommands = [];
 		foreach (MemberDeclarationSyntax member in fieldDeclarations.Cast<MemberDeclarationSyntax>().Concat(partialProperties.Select(static p => p.Syntax)))
-			notifyCommands[member] = GetNotifyCanExecuteChangedCommands(diagnostics, member, knownCommands);
+			notifyCommands[member] = GetNotifyCanExecuteChangedCommands(diagnostics, member, semanticModel, knownCommands);
 
 		List<NotificationsField> fields = [];
 		foreach (FieldDeclarationSyntax fieldDeclaration in fieldDeclarations)
 		{
-			EquatableArray<string> alsoNotifyFor = GetAlsoNotifyForProperties(fieldDeclaration).ToEquatableArray();
+			EquatableArray<string> alsoNotifyFor = GetAlsoNotifyForProperties(fieldDeclaration, semanticModel).ToEquatableArray();
 			EquatableArray<string> commands = notifyCommands[fieldDeclaration].ToEquatableArray();
 			string fieldType = $"{fieldDeclaration.Declaration.Type}";
 
@@ -158,7 +164,7 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 				GetAccessorPrefix(property.Getter),
 				GetAccessorPrefix(property.Setter),
 				property.IsExcluded,
-				property.IsExcluded ? EquatableArray<string>.Empty : GetAlsoNotifyForProperties(property.Syntax).ToEquatableArray(),
+				property.IsExcluded ? EquatableArray<string>.Empty : GetAlsoNotifyForProperties(property.Syntax, semanticModel).ToEquatableArray(),
 				notifyCommands[property.Syntax].ToEquatableArray()))
 			.ToEquatableArray();
 
@@ -186,16 +192,16 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 	}
 
 	private static bool GetPropertyChanged(INamedTypeSymbol namedTypeSymbol)
-		=> GeneratorHelpers.GetConstructorArgumentValue(namedTypeSymbol, AttributeNames.TypeName, 0, true);
+		=> AttributeHelpers.GetConstructorArgument(namedTypeSymbol, AttributeNames.MetadataName, 0, true);
 
 	private static bool GetPropertyChanging(INamedTypeSymbol namedTypeSymbol)
-		=> GeneratorHelpers.GetConstructorArgumentValue(namedTypeSymbol, AttributeNames.TypeName, 1, true);
+		=> AttributeHelpers.GetConstructorArgument(namedTypeSymbol, AttributeNames.MetadataName, 1, true);
 
 	private static bool GetHasChanged(INamedTypeSymbol namedTypeSymbol)
-		=> GeneratorHelpers.GetConstructorArgumentValue(namedTypeSymbol, AttributeNames.TypeName, 2, false);
+		=> AttributeHelpers.GetConstructorArgument(namedTypeSymbol, AttributeNames.MetadataName, 2, false);
 
 	private static bool GetPartialMethods(INamedTypeSymbol namedTypeSymbol)
-		=> GeneratorHelpers.GetConstructorArgumentValue(namedTypeSymbol, AttributeNames.TypeName, 3, false);
+		=> AttributeHelpers.GetConstructorArgument(namedTypeSymbol, AttributeNames.MetadataName, 3, false);
 
 	/// <summary>
 	/// Determines whether the base type chain of the given type already provides the change notification
@@ -295,7 +301,7 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 	}
 
 	private static bool HasGenerateNotificationsAttribute(INamedTypeSymbol typeSymbol)
-		=> typeSymbol.GetAttributes().Any(static a => a.AttributeClass?.Name == AttributeNames.TypeName);
+		=> AttributeHelpers.HasAttribute(typeSymbol, AttributeNames.MetadataName);
 
 	private static void AppendClassStart(SourceBuilder sb, string className, string accessibility, NotificationsOptions options, bool isRecord)
 	{
@@ -536,7 +542,7 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 			}
 
 			string typeName = symbol.Type.ToPropertyTypeDisplayString();
-			bool isExcluded = HasAttribute(property, nameof(ExcludeFromNotificationAttribute));
+			bool isExcluded = AttributeHelpers.HasAttribute(symbol, ExcludeFromNotificationAttributeName);
 
 			properties.Add(new PartialPropertyInfo(property, symbol, getter, setter, typeName, fieldName, isExcluded));
 		}
@@ -617,21 +623,35 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 		=> !field.Modifiers.Any(SyntaxKind.ReadOnlyKeyword) && !field.Modifiers.Any(SyntaxKind.ConstKeyword);
 
 	/// <summary>
+	/// Gets the symbol declared by the given field or property declaration. For a field declaration
+	/// with several variables, the first variable is returned; its attributes apply to all of them.
+	/// </summary>
+	/// <param name="member">The field or property declaration syntax.</param>
+	/// <param name="semanticModel">The semantic model of the declaration.</param>
+	/// <returns>The declared symbol, or <see langword="null"/> if it cannot be resolved.</returns>
+	private static ISymbol? GetDeclaredSymbol(MemberDeclarationSyntax member, SemanticModel semanticModel)
+		=> member is FieldDeclarationSyntax field
+			? semanticModel.GetDeclaredSymbol(field.Declaration.Variables[0])
+			: semanticModel.GetDeclaredSymbol(member);
+
+	/// <summary>
 	/// Determines whether the given member has the specified attribute.
 	/// </summary>
 	/// <param name="member">The member declaration syntax.</param>
-	/// <param name="attributeName">The name of the attribute.</param>
+	/// <param name="semanticModel">The semantic model of the declaration.</param>
+	/// <param name="attributeName">The fully qualified name of the attribute.</param>
 	/// <returns><see langword="true"/> if the member has the attribute; otherwise, <see langword="false"/>.</returns>
-	private static bool HasAttribute(MemberDeclarationSyntax member, string attributeName)
-		=> GeneratorHelpers.FindAttributes(member.AttributeLists, attributeName, GeneratorHelpers.StripAttributeSuffix(attributeName)).Any();
+	private static bool HasAttribute(MemberDeclarationSyntax member, SemanticModel semanticModel, string attributeName)
+		=> GetDeclaredSymbol(member, semanticModel) is ISymbol symbol && AttributeHelpers.HasAttribute(symbol, attributeName);
 
 	/// <summary>
 	/// Gets the names of the properties that should raise notifications when the given member changes.
 	/// </summary>
 	/// <param name="member">The member declaration syntax.</param>
+	/// <param name="semanticModel">The semantic model of the declaration.</param>
 	/// <returns>The list of property names.</returns>
-	private static List<string> GetAlsoNotifyForProperties(MemberDeclarationSyntax member)
-		=> [.. GetNameArguments(member, nameof(AlsoNotifyAttribute)).Select(static argument => argument.Name)];
+	private static List<string> GetAlsoNotifyForProperties(MemberDeclarationSyntax member, SemanticModel semanticModel)
+		=> [.. GetNameArguments(member, semanticModel, AlsoNotifyAttributeName).Select(static argument => argument.Name)];
 
 	/// <summary>
 	/// Gets the commands referenced by the <see cref="NotifyCanExecuteChangedAttribute"/> of the given member,
@@ -639,13 +659,14 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 	/// </summary>
 	/// <param name="diagnostics">The list the diagnostics are added to.</param>
 	/// <param name="member">The field or partial property declaration.</param>
+	/// <param name="semanticModel">The semantic model of the declaration.</param>
 	/// <param name="knownCommands">The names of the members and generated commands of the type.</param>
 	/// <returns>The names of the known commands to notify.</returns>
-	private static List<string> GetNotifyCanExecuteChangedCommands(List<DiagnosticInfo> diagnostics, MemberDeclarationSyntax member, HashSet<string> knownCommands)
+	private static List<string> GetNotifyCanExecuteChangedCommands(List<DiagnosticInfo> diagnostics, MemberDeclarationSyntax member, SemanticModel semanticModel, HashSet<string> knownCommands)
 	{
 		List<string> commands = [];
 
-		foreach ((string name, Location location) in GetNameArguments(member, nameof(NotifyCanExecuteChangedAttribute)))
+		foreach ((string name, Location location) in GetNameArguments(member, semanticModel, NotifyCanExecuteChangedAttributeName))
 		{
 			if (knownCommands.Contains(name))
 			{
@@ -688,30 +709,31 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 	/// Gets the name arguments (<c>nameof(...)</c> expressions or string literals) of the given attribute on a member.
 	/// </summary>
 	/// <param name="member">The member declaration syntax.</param>
-	/// <param name="attributeName">The full name of the attribute.</param>
+	/// <param name="semanticModel">The semantic model of the declaration.</param>
+	/// <param name="attributeName">The fully qualified name of the attribute.</param>
 	/// <returns>The names and their source locations.</returns>
-	private static List<(string Name, Location Location)> GetNameArguments(MemberDeclarationSyntax member, string attributeName)
+	private static List<(string Name, Location Location)> GetNameArguments(MemberDeclarationSyntax member, SemanticModel semanticModel, string attributeName)
 	{
 		List<(string Name, Location Location)> names = [];
-		string shortName = GeneratorHelpers.StripAttributeSuffix(attributeName);
 
-		foreach (AttributeSyntax attribute in GeneratorHelpers.FindAttributes(member.AttributeLists, attributeName, shortName))
+		if (GetDeclaredSymbol(member, semanticModel) is not ISymbol symbol
+			|| AttributeHelpers.GetAttribute(symbol, attributeName) is not AttributeData attribute
+			|| AttributeHelpers.GetConstructorArrayArgument(attribute, 0) is not ImmutableArray<TypedConstant> values)
+			return names;
+
+		// The params arguments are bound to a single array; map each value back to its source argument
+		// for diagnostics, falling back to the attribute when an explicit array was passed.
+		AttributeSyntax? attributeSyntax = attribute.ApplicationSyntaxReference?.GetSyntax() as AttributeSyntax;
+		SeparatedSyntaxList<AttributeArgumentSyntax>? arguments = attributeSyntax?.ArgumentList?.Arguments;
+		Location attributeLocation = attributeSyntax?.GetLocation() ?? Location.None;
+
+		for (int i = 0; i < values.Length; i++)
 		{
-			if (attribute.ArgumentList is null)
+			if (values[i].Value is not string name || string.IsNullOrWhiteSpace(name))
 				continue;
 
-			foreach (AttributeArgumentSyntax argument in attribute.ArgumentList.Arguments)
-			{
-				string argText = argument.Expression.ToString();
-
-				if (argText.StartsWith("nameof(", StringComparison.Ordinal))
-					argText = argText.Substring(7, argText.Length - 8);
-				else if (argText.StartsWith("\"", StringComparison.Ordinal))
-					argText = argText.Trim('"');
-
-				if (!string.IsNullOrWhiteSpace(argText))
-					names.Add((argText, argument.GetLocation()));
-			}
+			Location location = arguments is { } list && list.Count == values.Length ? list[i].GetLocation() : attributeLocation;
+			names.Add((name, location));
 		}
 
 		return names;

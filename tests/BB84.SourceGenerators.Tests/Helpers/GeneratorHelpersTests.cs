@@ -124,86 +124,6 @@ public class Outer
 
 	#endregion
 
-	#region Attribute argument extraction
-
-	[TestMethod]
-	public void GetExcludedPropertiesShouldCollectStringConstructorArguments()
-	{
-		const string source = @"
-using System;
-
-internal sealed class ExcludeSampleAttribute : Attribute
-{
-	public ExcludeSampleAttribute(params string[] names) { }
-}
-
-[ExcludeSample(""Secret"", ""Internal"")]
-public class Target { }";
-		CSharpCompilation compilation = Compile(source);
-		(_, ClassDeclarationSyntax syntax, SemanticModel model) = FindClass(compilation, "Target");
-
-		HashSet<string> excluded = GeneratorHelpers.GetExcludedProperties(syntax, model, "ExcludeSampleAttribute");
-
-		Assert.HasCount(2, excluded);
-		Assert.Contains("Secret", excluded);
-		Assert.Contains("Internal", excluded);
-	}
-
-	[TestMethod]
-	public void GetNamedArgumentValueShouldReadNamedPropertyArgument()
-	{
-		const string source = @"
-using System;
-
-internal sealed class ConfigAttribute : Attribute
-{
-	public ConfigAttribute(string mode = """") { }
-	public string? Level { get; set; }
-}
-
-[Config(""fast"", Level = ""High"")]
-public class Target { }";
-		CSharpCompilation compilation = Compile(source);
-		(_, ClassDeclarationSyntax syntax, SemanticModel model) = FindClass(compilation, "Target");
-
-		string value = GeneratorHelpers.GetNamedArgumentValue(syntax, model, "Config", "ConfigAttribute", "Level", "default");
-
-		Assert.AreEqual("High", value);
-	}
-
-	[TestMethod]
-	public void GetNamedArgumentValueShouldReturnDefaultWhenAttributeMissing()
-	{
-		CSharpCompilation compilation = Compile("public class Target { }");
-		(_, ClassDeclarationSyntax syntax, SemanticModel model) = FindClass(compilation, "Target");
-
-		string value = GeneratorHelpers.GetNamedArgumentValue(syntax, model, "Config", "ConfigAttribute", "Level", "fallback");
-
-		Assert.AreEqual("fallback", value);
-	}
-
-	[TestMethod]
-	public void GetConstructorArgumentValueShouldReadPositionalArgumentBySymbol()
-	{
-		const string source = @"
-using System;
-
-internal sealed class ConfigAttribute : Attribute
-{
-	public ConfigAttribute(bool enabled) { }
-}
-
-[Config(true)]
-public class Target { }";
-		CSharpCompilation compilation = Compile(source);
-		INamedTypeSymbol symbol = FindClass(compilation, "Target").Symbol;
-
-		Assert.IsTrue(GeneratorHelpers.GetConstructorArgumentValue(symbol, "ConfigAttribute", 0, false));
-		Assert.IsFalse(GeneratorHelpers.GetConstructorArgumentValue(symbol, "ConfigAttribute", 5, false));
-	}
-
-	#endregion
-
 	#region Context creation
 
 #if !NETFRAMEWORK // See the ValueTuple/Mono note above.
@@ -344,26 +264,6 @@ namespace My.Space
 	}
 
 	[TestMethod]
-	public void FindAttributesShouldMatchFullAndShortNamesInDeclarationOrder()
-	{
-		const string source = @"
-[Widget(1), Other, WidgetAttribute(2)]
-[Widget(3)]
-public class Target { }";
-		ClassDeclarationSyntax syntax = CSharpSyntaxTree.ParseText(source, cancellationToken: TestContext.CancellationToken)
-			.GetRoot(TestContext.CancellationToken)
-			.DescendantNodes()
-			.OfType<ClassDeclarationSyntax>()
-			.Single();
-
-		string[] matches = [.. GeneratorHelpers.FindAttributes(syntax.AttributeLists, "WidgetAttribute", "Widget")
-			.Select(static attribute => attribute.ArgumentList!.Arguments[0].ToString())];
-
-		string[] expected = ["1", "2", "3"];
-		Assert.AreSequenceEqual(expected, matches);
-	}
-
-	[TestMethod]
 	public void GetRefKindModifierShouldOnlyEmitRequestedModifiers()
 	{
 		const string source = @"
@@ -490,22 +390,6 @@ public class C
 	}
 
 	[TestMethod]
-	public void GetExcludedPropertiesShouldReadNamedArrayArgument()
-	{
-		CSharpCompilation compilation = Compile(@"
-public class ExcludeAttribute : System.Attribute { public string[] Names { get; set; } }
-[Exclude(Names = new[] { ""A"", ""B"" })] public class C { }
-[Exclude] public class D { }");
-		(INamedTypeSymbol withNames, _, _) = FindClass(compilation, "C");
-		(INamedTypeSymbol withoutNames, _, _) = FindClass(compilation, "D");
-
-		HashSet<string> excluded = GeneratorHelpers.GetExcludedProperties(withNames.GetAttributes().Single(), "Names");
-
-		Assert.IsTrue(excluded.SetEquals(["A", "B"]));
-		Assert.IsEmpty(GeneratorHelpers.GetExcludedProperties(withoutNames.GetAttributes().Single(), "Names"));
-	}
-
-	[TestMethod]
 	public void GetXmlSummaryCommentShouldFlattenSummary()
 	{
 		CSharpCompilation compilation = Compile(@"
@@ -596,8 +480,6 @@ public sealed class CollectionModel
 		INamedTypeSymbol symbol = model.GetDeclaredSymbol(syntax)!;
 		return (symbol, syntax, model);
 	}
-
-	public TestContext TestContext { get; set; }
 
 	#endregion
 }

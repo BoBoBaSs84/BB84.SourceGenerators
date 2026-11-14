@@ -47,7 +47,7 @@ public sealed class CloneableGenerator : IIncrementalGenerator
 		if (context.TargetNode is not TypeDeclarationSyntax typeDeclaration || context.TargetSymbol is not INamedTypeSymbol typeSymbol)
 			return null;
 
-		HashSet<string> excludedProperties = GeneratorHelpers.GetExcludedProperties(typeDeclaration, context.SemanticModel, nameof(GenerateCloneableAttribute));
+		HashSet<string> excludedProperties = AttributeHelpers.GetExcludedProperties(context.Attributes[0]);
 		ImmutableArray<PropertyDescriptor> properties = GeneratorHelpers.GetPropertyDescriptors(typeSymbol, excludedProperties, requireSetter: true, cloneableAttributeName: AttributeNames.MetadataName);
 
 		return GeneratorResult<CloneableRequest>.FromRequest(new CloneableRequest(TypeTargetInfo.Create(typeDeclaration, typeSymbol), properties.ToEquatableArray()));

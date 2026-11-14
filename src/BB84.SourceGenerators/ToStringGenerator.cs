@@ -52,15 +52,15 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 		if (context.TargetNode is not TypeDeclarationSyntax typeDeclaration || context.TargetSymbol is not INamedTypeSymbol typeSymbol)
 			return null;
 
-		SemanticModel semanticModel = context.SemanticModel;
+		AttributeData attribute = context.Attributes[0];
 		bool isRecord = typeDeclaration is RecordDeclarationSyntax;
 
-		CollectionFormat collectionFormat = GetCollectionFormat(typeDeclaration, semanticModel);
-		string separator = GetSeparator(typeDeclaration, semanticModel);
-		bool formattable = GetFormattable(typeDeclaration, semanticModel);
-		string? nullPlaceholder = GetNullPlaceholder(typeDeclaration, semanticModel);
-		bool includeInherited = GetIncludeInherited(typeDeclaration, semanticModel);
-		HashSet<string> excludedProperties = GeneratorHelpers.GetExcludedProperties(typeDeclaration, semanticModel, nameof(GenerateToStringAttribute));
+		CollectionFormat collectionFormat = GetCollectionFormat(attribute);
+		string separator = GetSeparator(attribute);
+		bool formattable = GetFormattable(attribute);
+		string? nullPlaceholder = GetNullPlaceholder(attribute);
+		bool includeInherited = GetIncludeInherited(attribute);
+		HashSet<string> excludedProperties = AttributeHelpers.GetExcludedProperties(attribute);
 		ImmutableArray<PropertyDescriptor> properties = GeneratorHelpers.GetPropertyDescriptors(typeSymbol, excludedProperties, detectCollections: true, toStringFormatAttributeName: ToStringFormatAttributeName, toStringOrderAttributeName: ToStringOrderAttributeName, includeInherited: includeInherited);
 		bool printMembersIsOverride = isRecord
 			&& typeSymbol.BaseType is { IsRecord: true, SpecialType: not SpecialType.System_Object };
@@ -321,18 +321,18 @@ public sealed class ToStringGenerator : IIncrementalGenerator
 		sb.CloseBrace();
 	}
 
-	private static bool GetFormattable(TypeDeclarationSyntax classDeclaration, SemanticModel semanticModel)
-		=> GeneratorHelpers.GetNamedArgumentValue(classDeclaration, semanticModel, AttributeNames.ShortName, AttributeNames.TypeName, nameof(GenerateToStringAttribute.Formattable), false);
+	private static bool GetFormattable(AttributeData attribute)
+		=> AttributeHelpers.GetNamedArgument(attribute, nameof(GenerateToStringAttribute.Formattable), false);
 
-	private static string GetSeparator(TypeDeclarationSyntax classDeclaration, SemanticModel semanticModel)
-		=> GeneratorHelpers.GetNamedArgumentValue(classDeclaration, semanticModel, AttributeNames.ShortName, AttributeNames.TypeName, nameof(GenerateToStringAttribute.Separator), ", ");
+	private static string GetSeparator(AttributeData attribute)
+		=> AttributeHelpers.GetNamedArgument(attribute, nameof(GenerateToStringAttribute.Separator), ", ");
 
-	private static CollectionFormat GetCollectionFormat(TypeDeclarationSyntax classDeclaration, SemanticModel semanticModel)
-		=> (CollectionFormat)GeneratorHelpers.GetNamedArgumentValue(classDeclaration, semanticModel, AttributeNames.ShortName, AttributeNames.TypeName, nameof(GenerateToStringAttribute.CollectionFormat), (int)CollectionFormat.Count);
+	private static CollectionFormat GetCollectionFormat(AttributeData attribute)
+		=> (CollectionFormat)AttributeHelpers.GetNamedArgument(attribute, nameof(GenerateToStringAttribute.CollectionFormat), (int)CollectionFormat.Count);
 
-	private static string? GetNullPlaceholder(TypeDeclarationSyntax classDeclaration, SemanticModel semanticModel)
-		=> GeneratorHelpers.GetNamedArgumentValue<string?>(classDeclaration, semanticModel, AttributeNames.ShortName, AttributeNames.TypeName, nameof(GenerateToStringAttribute.NullPlaceholder), null);
+	private static string? GetNullPlaceholder(AttributeData attribute)
+		=> AttributeHelpers.GetNamedArgument<string?>(attribute, nameof(GenerateToStringAttribute.NullPlaceholder), null);
 
-	private static bool GetIncludeInherited(TypeDeclarationSyntax classDeclaration, SemanticModel semanticModel)
-		=> GeneratorHelpers.GetNamedArgumentValue(classDeclaration, semanticModel, AttributeNames.ShortName, AttributeNames.TypeName, nameof(GenerateToStringAttribute.IncludeInherited), false);
+	private static bool GetIncludeInherited(AttributeData attribute)
+		=> AttributeHelpers.GetNamedArgument(attribute, nameof(GenerateToStringAttribute.IncludeInherited), false);
 }

@@ -397,7 +397,7 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 
 	private static ValidatorRule ParseRequiredAttribute(AttributeData attribute)
 	{
-		string? errorMessage = GeneratorHelpers.GetNamedArgument<string?>(attribute, ErrorMessageArgumentName, null);
+		string? errorMessage = AttributeHelpers.GetNamedArgument<string?>(attribute, ErrorMessageArgumentName, null);
 
 		return new ValidatorRule(ValidatorRuleKind.Required) { ErrorMessage = errorMessage };
 	}
@@ -415,7 +415,7 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 		if (minValue is null || maxValue is null)
 			return null;
 
-		string? errorMessage = GeneratorHelpers.GetNamedArgument<string?>(attribute, ErrorMessageArgumentName, null);
+		string? errorMessage = AttributeHelpers.GetNamedArgument<string?>(attribute, ErrorMessageArgumentName, null);
 
 		return new ValidatorRule(ValidatorRuleKind.Range) { MinValue = minValue, MaxValue = maxValue, ErrorMessage = errorMessage };
 	}
@@ -425,9 +425,9 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 		if (!TryGetFirstArgString(attribute, out string maxValue))
 			return null;
 
-		string? errorMessage = GeneratorHelpers.GetNamedArgument<string?>(attribute, ErrorMessageArgumentName, null);
+		string? errorMessage = AttributeHelpers.GetNamedArgument<string?>(attribute, ErrorMessageArgumentName, null);
 
-		int? minLengthValue = GeneratorHelpers.GetNamedArgument<int>(attribute, "MinimumLength", default);
+		int? minLengthValue = AttributeHelpers.GetNamedArgument<int>(attribute, "MinimumLength", default);
 		string? minValue = minLengthValue?.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
 		return new ValidatorRule(ValidatorRuleKind.StringLength) { MaxValue = maxValue, MinValue = minValue, ErrorMessage = errorMessage };
@@ -438,7 +438,7 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 		if (!TryGetFirstArgString(attribute, out string minValue))
 			return null;
 
-		string? errorMessage = GeneratorHelpers.GetNamedArgument<string?>(attribute, ErrorMessageArgumentName, null);
+		string? errorMessage = AttributeHelpers.GetNamedArgument<string?>(attribute, ErrorMessageArgumentName, null);
 
 		return new ValidatorRule(ValidatorRuleKind.MinLength) { MinValue = minValue, ErrorMessage = errorMessage };
 	}
@@ -448,7 +448,7 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 		if (!TryGetFirstArgString(attribute, out string maxValue))
 			return null;
 
-		string? errorMessage = GeneratorHelpers.GetNamedArgument<string?>(attribute, ErrorMessageArgumentName, null);
+		string? errorMessage = AttributeHelpers.GetNamedArgument<string?>(attribute, ErrorMessageArgumentName, null);
 
 		return new ValidatorRule(ValidatorRuleKind.MaxLength) { MaxValue = maxValue, ErrorMessage = errorMessage };
 	}
@@ -458,14 +458,14 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 		if (!TryGetFirstArgString(attribute, out string pattern))
 			return null;
 
-		string? errorMessage = GeneratorHelpers.GetNamedArgument<string?>(attribute, ErrorMessageArgumentName, null);
+		string? errorMessage = AttributeHelpers.GetNamedArgument<string?>(attribute, ErrorMessageArgumentName, null);
 
 		return new ValidatorRule(ValidatorRuleKind.RegularExpression) { Pattern = pattern, ErrorMessage = errorMessage };
 	}
 
 	private static ValidatorRule ParseSimpleAttribute(AttributeData attribute, ValidatorRuleKind kind)
 	{
-		string? errorMessage = GeneratorHelpers.GetNamedArgument<string?>(attribute, ErrorMessageArgumentName, null);
+		string? errorMessage = AttributeHelpers.GetNamedArgument<string?>(attribute, ErrorMessageArgumentName, null);
 		return new ValidatorRule(kind) { ErrorMessage = errorMessage };
 	}
 
@@ -474,7 +474,7 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 		if (!TryGetFirstArgString(attribute, out string otherProperty))
 			return null;
 
-		string? errorMessage = GeneratorHelpers.GetNamedArgument<string?>(attribute, ErrorMessageArgumentName, null);
+		string? errorMessage = AttributeHelpers.GetNamedArgument<string?>(attribute, ErrorMessageArgumentName, null);
 
 		return new ValidatorRule(ValidatorRuleKind.Compare) { CompareProperty = otherProperty, ErrorMessage = errorMessage };
 	}
@@ -494,7 +494,7 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 		if (values.IsEmpty)
 			return null;
 
-		string? errorMessage = GeneratorHelpers.GetNamedArgument<string?>(attribute, ErrorMessageArgumentName, null);
+		string? errorMessage = AttributeHelpers.GetNamedArgument<string?>(attribute, ErrorMessageArgumentName, null);
 
 		return new ValidatorRule(kind) { Values = values.ToEquatableArray(), ErrorMessage = errorMessage };
 	}
@@ -545,7 +545,7 @@ public sealed class ValidatorGenerator : IIncrementalGenerator
 		if (!isValidationAttribute)
 			return null;
 
-		string? errorMessage = GeneratorHelpers.GetNamedArgument<string?>(attribute, ErrorMessageArgumentName, null);
+		string? errorMessage = AttributeHelpers.GetNamedArgument<string?>(attribute, ErrorMessageArgumentName, null);
 		string attributeTypeName = attribute.AttributeClass.ToDisplayString();
 
 		return new ValidatorRule(ValidatorRuleKind.CustomValidation) { CustomAttributeTypeName = attributeTypeName, ErrorMessage = errorMessage };

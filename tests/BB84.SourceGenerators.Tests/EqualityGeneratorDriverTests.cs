@@ -127,6 +127,34 @@ namespace TestNamespace
 	}
 
 	[TestMethod]
+	public void ShouldReadOptionsOfQualifiedAttribute()
+	{
+		string source = @"
+namespace TestNamespace
+{
+  public class BaseModel
+  {
+    public int BaseId { get; set; }
+  }
+
+  [BB84.SourceGenerators.Attributes.GenerateEquality(""Secret"", IncludeInherited = true)]
+  public partial class DerivedModel : BaseModel
+  {
+    public string Name { get; set; }
+    public string Secret { get; set; }
+  }
+}";
+
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources) = RunGenerator(source);
+
+		Assert.IsEmpty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+		string generated = generatedSources.First(s => s.Contains("partial class DerivedModel"));
+		Assert.Contains("BaseId", generated);
+		Assert.Contains("Name", generated);
+		Assert.DoesNotContain("Secret", generated);
+	}
+
+	[TestMethod]
 	public void ShouldNotIncludeInheritedPropertiesByDefault()
 	{
 		string source = @"

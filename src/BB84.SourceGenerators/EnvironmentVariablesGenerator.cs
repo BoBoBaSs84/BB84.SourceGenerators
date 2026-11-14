@@ -61,9 +61,9 @@ public sealed class EnvironmentVariablesGenerator : IIncrementalGenerator
 		if (!IsValidName(naming.Prefix) || string.IsNullOrWhiteSpace(naming.Prefix))
 			return GeneratorResult<EnvironmentVariablesRequest>.FromDiagnostics(type.CreateDiagnostic(DiagnosticDescriptors.EnvironmentVariablesInvalidNameDiagnostic, naming.Prefix, type.Name));
 
-		bool includeInherited = GeneratorHelpers.GetNamedArgument(attribute, nameof(GenerateEnvironmentVariablesAttribute.IncludeInherited), false);
-		bool writable = GeneratorHelpers.GetNamedArgument(attribute, nameof(GenerateEnvironmentVariablesAttribute.Writable), false);
-		HashSet<string> excluded = GeneratorHelpers.GetExcludedProperties(attribute, nameof(GenerateEnvironmentVariablesAttribute.ExcludeProperties));
+		bool includeInherited = AttributeHelpers.GetNamedArgument(attribute, nameof(GenerateEnvironmentVariablesAttribute.IncludeInherited), false);
+		bool writable = AttributeHelpers.GetNamedArgument(attribute, nameof(GenerateEnvironmentVariablesAttribute.Writable), false);
+		HashSet<string> excluded = AttributeHelpers.GetExcludedProperties(attribute, nameof(GenerateEnvironmentVariablesAttribute.ExcludeProperties));
 
 		// Names are compared case-insensitively because environment variables are case-insensitive on Windows.
 		CollectContext collect = new(type, typeSymbol, context.SemanticModel, naming, new(StringComparer.OrdinalIgnoreCase), [], cancellationToken);
@@ -339,16 +339,16 @@ public sealed class EnvironmentVariablesGenerator : IIncrementalGenerator
 
 	private static NamingOptions GetNamingOptions(AttributeData attribute)
 	{
-		string prefix = attribute.ConstructorArguments.Length > 0 && attribute.ConstructorArguments[0].Value is string value ? value : string.Empty;
-		string separator = GeneratorHelpers.GetNamedArgument(attribute, nameof(GenerateEnvironmentVariablesAttribute.Separator), "_");
-		EnvironmentVariableNamingStyle style = (EnvironmentVariableNamingStyle)GeneratorHelpers.GetNamedArgument(attribute, nameof(GenerateEnvironmentVariablesAttribute.NamingStyle), (int)EnvironmentVariableNamingStyle.UpperSnakeCase);
+		string prefix = AttributeHelpers.GetConstructorArgument(attribute, 0, string.Empty);
+		string separator = AttributeHelpers.GetNamedArgument(attribute, nameof(GenerateEnvironmentVariablesAttribute.Separator), "_");
+		EnvironmentVariableNamingStyle style = (EnvironmentVariableNamingStyle)AttributeHelpers.GetNamedArgument(attribute, nameof(GenerateEnvironmentVariablesAttribute.NamingStyle), (int)EnvironmentVariableNamingStyle.UpperSnakeCase);
 
 		return new NamingOptions(prefix, separator, style);
 	}
 
 	private static string GetVariableName(IPropertySymbol property, NamingOptions naming)
 	{
-		if (GeneratorHelpers.TryGetSingleCtorArg(property, NameAttributeName, out string name))
+		if (AttributeHelpers.TryGetSingleCtorArg(property, NameAttributeName, out string name))
 			return name;
 
 		return naming.Style == EnvironmentVariableNamingStyle.AsIs

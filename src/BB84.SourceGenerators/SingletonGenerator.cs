@@ -91,7 +91,7 @@ public sealed class SingletonGenerator : IIncrementalGenerator
 		=> member is IPropertySymbol { IsRequired: true } or IFieldSymbol { IsRequired: true };
 
 	private static bool GetUseLazy(INamedTypeSymbol namedTypeSymbol)
-		=> GeneratorHelpers.GetConstructorArgumentValue(namedTypeSymbol, AttributeNames.TypeName, 0, true);
+		=> AttributeHelpers.GetConstructorArgument(namedTypeSymbol, AttributeNames.MetadataName, 0, true);
 	
 	private static string? GetFirstInterfaceName(INamedTypeSymbol classSymbol)
 		=> classSymbol.Interfaces.FirstOrDefault()?.Name;

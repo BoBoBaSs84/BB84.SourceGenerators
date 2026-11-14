@@ -136,6 +136,38 @@ namespace TestNamespace
 		Assert.IsNotEmpty(generatedSources);
 	}
 
+	[TestMethod]
+	public void ShouldReadOptionsOfQualifiedAttribute()
+	{
+		string source = @"
+namespace TestNamespace
+{
+	public class MySection
+	{
+		/// <summary>
+		/// The display name.
+		/// </summary>
+		[BB84.SourceGenerators.Attributes.GenerateIniFileValue(""DisplayName"")]
+		public string Name { get; set; }
+	}
+
+	[BB84.SourceGenerators.Attributes.GenerateIniFile(System.StringComparison.Ordinal, "":"", SerializeComments = true)]
+	internal sealed partial class MyConfig
+	{
+		[BB84.SourceGenerators.Attributes.GenerateIniFileSection]
+		public MySection Section { get; set; } = new();
+	}
+}";
+
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources) = RunGenerator(source);
+
+		Assert.IsEmpty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+		string generated = generatedSources.First(s => s.Contains("partial class MyConfig"));
+		Assert.Contains("StringComparison.Ordinal))", generated);
+		Assert.Contains("sb.AppendLine(\"; The display name.\");", generated);
+		Assert.Contains("sb.AppendLine(\"DisplayName=\"", generated);
+	}
+
 	private static (ImmutableArray<Diagnostic> Diagnostics, string[] GeneratedSources) RunGenerator(string source)
 	{
 		SyntaxTree syntaxTree = CSharpSyntaxTree.ParseText(source);

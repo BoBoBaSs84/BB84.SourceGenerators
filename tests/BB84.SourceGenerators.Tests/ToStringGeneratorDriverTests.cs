@@ -294,6 +294,33 @@ public sealed class ToStringGeneratorDriverTests
 		Assert.Contains("sb.Append(sb1);", src);
 	}
 
+	[TestMethod]
+	[DataRow("[BB84.SourceGenerators.Attributes.GenerateToString(\"Secret\", Formattable = true, Separator = \" | \")]")]
+	[DataRow("[global::BB84.SourceGenerators.Attributes.GenerateToStringAttribute(\"Secret\", Formattable = true, Separator = \" | \")]")]
+	[DataRow("[ToStringAlias(\"Secret\", Formattable = true, Separator = \" | \")]")]
+	public void OptionsShouldBeReadForQualifiedAndAliasedAttributes(string attribute)
+	{
+		string src = Generate($@"
+	using ToStringAlias = BB84.SourceGenerators.Attributes.GenerateToStringAttribute;
+	{attribute}
+	public partial class QualifiedModel {{ public int Id {{ get; set; }} public int Name {{ get; set; }} public int Secret {{ get; set; }} }}", "partial class QualifiedModel");
+
+		Assert.Contains("partial class QualifiedModel : IFormattable", src);
+		Assert.Contains("sb.Append(\" | \");", src);
+		Assert.DoesNotContain("nameof(Secret)", src);
+	}
+
+	[TestMethod]
+	public void NamedStringArgumentsShouldNotExcludeProperties()
+	{
+		string src = Generate(@"
+	[GenerateToString(Separator = ""Name"", NullPlaceholder = ""Id"")]
+	public partial class NamedArgumentModel { public int Id { get; set; } public string Name { get; set; } }", "partial class NamedArgumentModel");
+
+		Assert.Contains("nameof(Id)", src);
+		Assert.Contains("nameof(Name)", src);
+	}
+
 	private static ImmutableArray<Diagnostic> CompileGenerated(string members)
 	{
 		string source = $@"
