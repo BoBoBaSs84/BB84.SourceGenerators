@@ -40,14 +40,14 @@ INI files are still common for application and tool configuration, but .NET has 
 **Value Formats:**
 Values use the same conversions as the environment variables and command argument generators. Numbers and dates use `CultureInfo.InvariantCulture`; collection elements use the same format as scalar values.
 
-| Type | Written as | Example |
-|---|---|---|
-| `int`, `long`, `decimal` | Invariant culture | `123.456` |
-| `float`, `double` | Round-trip format `"R"` | `0.30000000000000004` |
-| `bool` | `true` / `false` (`1` / `0` and any casing are also read) | `true` |
-| `DateTime`, `DateTimeOffset` | Round-trip format `"O"` (keeps `DateTimeKind`, offset and full precision) | `2026-11-14T10:30:15.1234567Z` |
-| `TimeSpan` | Constant format `"c"` | `1.02:03:04` |
-| `Guid` | Default format `"D"` | `d3b07384-d9a0-4e9b-8c12-f7a8b2c1d3e5` |
+| Type                         | Written as                                                                | Example                                |
+| ---------------------------- | ------------------------------------------------------------------------- | -------------------------------------- |
+| `int`, `long`, `decimal`     | Invariant culture                                                         | `123.456`                              |
+| `float`, `double`            | Round-trip format `"R"`                                                   | `0.30000000000000004`                  |
+| `bool`                       | `true` / `false` (`1` / `0` and any casing are also read)                 | `true`                                 |
+| `DateTime`, `DateTimeOffset` | Round-trip format `"O"` (keeps `DateTimeKind`, offset and full precision) | `2026-11-14T10:30:15.1234567Z`         |
+| `TimeSpan`                   | Constant format `"c"`                                                     | `1.02:03:04`                           |
+| `Guid`                       | Default format `"D"`                                                      | `d3b07384-d9a0-4e9b-8c12-f7a8b2c1d3e5` |
 
 Invalid values make `Read` throw; `TryRead` returns `false` instead.
 
