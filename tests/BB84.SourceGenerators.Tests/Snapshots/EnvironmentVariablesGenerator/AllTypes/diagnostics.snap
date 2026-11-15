@@ -1,0 +1,2 @@
+BB84SG0040|Info|34:16-34:21|Enum 'TestNamespace.Level' used by property 'Level' could use [GenerateEnumeratorExtensions] for reflection-free parsing
+BB84SG0040|Info|35:20-35:28|Enum 'TestNamespace.Features' used by property 'Features' could use [GenerateEnumeratorExtensions] for reflection-free parsing

@@ -59,6 +59,8 @@ Apps running in containers, CI pipelines or as services are often configured thr
 
 **Supported types:** `string`, `bool` (`true`/`false` in any casing, `1`/`0`), `char`, `byte`, `sbyte`, `short`, `ushort`, `int`, `uint`, `long`, `ulong`, `float`, `double`, `decimal`, `DateTime`, `DateTimeOffset`, `TimeSpan`, `Guid`, enums (member names in any casing or defined numeric values; `[Flags]` enums accept `A, B`) and the nullable versions of these types.
 
+**Enums:** by default, enums are converted with `Enum.TryParse` and `Enum.IsDefined`, which use reflection. If the enum is declared in the same project, is public, is not nested and has [`[GenerateEnumeratorExtensions]`](enumerator-extensions.md), the generated code calls its reflection-free `TryParseFast(value, true, true, out result)` (`[Flags]`: separator `","`) and `ToStringFast()` (`[Flags]`: `ToStringFast(", ")`) instead. The accepted input is the same, except that a `[Flags]` numeric value may only contain bits of defined members. For such enums without the attribute, the generator reports the info diagnostic `BB84SG0040`.
+
 ## Usage
 
 ### Reading settings
@@ -186,3 +188,4 @@ A non-nullable partial property throws an `InvalidOperationException` when the v
 | `BB84SG0032` | Error    | A partial property declares a setter, but `Writable` is not `true`         |
 | `BB84SG0033` | Error    | A required member is excluded or not read                                  |
 | `BB84SG0034` | Error    | An init-only or required property has a non-constant initializer           |
+| `BB84SG0040` | Info     | The enum of a property could use `[GenerateEnumeratorExtensions]`          |

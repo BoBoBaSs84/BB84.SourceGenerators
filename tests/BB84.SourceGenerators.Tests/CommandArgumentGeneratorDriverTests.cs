@@ -77,7 +77,8 @@ namespace TestNamespace
 
 		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources, ImmutableArray<Diagnostic> compilationDiagnostics) = RunGenerator(source);
 
-		Assert.IsEmpty(diagnostics);
+		Assert.HasCount(2, diagnostics);
+		Assert.IsTrue(diagnostics.All(d => d.Id == "BB84SG0040" && d.Severity == DiagnosticSeverity.Info));
 		AssertCompiles(compilationDiagnostics, allowWarnings: false);
 		string generated = GetGeneratedSource(generatedSources, "AllTypes");
 		Assert.Contains("public static AllTypes? Parse(string[] args)", generated);
@@ -85,6 +86,45 @@ namespace TestNamespace
 		Assert.Contains("private AllTypes(", generated);
 		Assert.Contains("private static bool TryGetEncoding(string value, out global::System.Text.Encoding result)", generated);
 		Assert.Contains($"\"Usage: {AssemblyName} [options]\\n\" +", generated);
+	}
+
+	[TestMethod]
+	public void ShouldUseEnumeratorExtensionsForAttributedEnums()
+	{
+		string source = @"
+using System;
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+	[GenerateEnumeratorExtensions]
+	public enum Level { Low, High }
+
+	[Flags]
+	[GenerateEnumeratorExtensions]
+	public enum Features { None = 0, A = 1, B = 2 }
+
+	public enum Plain { A }
+
+	[GenerateCommandArgument]
+	public partial class Options
+	{
+		public Level Level { get; }
+		public Features Features { get; }
+		public Plain Plain { get; }
+	}
+}";
+
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources, ImmutableArray<Diagnostic> compilationDiagnostics) = RunGenerator(source);
+
+		Diagnostic diagnostic = Assert.ContainsSingle(diagnostics);
+		Assert.AreEqual("BB84SG0040", diagnostic.Id);
+		Assert.AreEqual(DiagnosticSeverity.Info, diagnostic.Severity);
+		AssertCompiles(compilationDiagnostics, allowWarnings: false);
+		string generated = GetGeneratedSource(generatedSources, "Options");
+		Assert.Contains("global::TestNamespace.LevelExtensions.TryParseFast(levelRaw, true, true, out global::TestNamespace.Level levelParsed)", generated);
+		Assert.Contains("global::TestNamespace.FeaturesExtensions.TryParseFast(featuresRaw, true, true, out global::TestNamespace.Features featuresParsed, \",\")", generated);
+		Assert.Contains("global::System.Enum.TryParse<global::TestNamespace.Plain>", generated);
 	}
 
 	[TestMethod]
@@ -420,7 +460,7 @@ public abstract partial class Options { public string Name { get; set; } }";
 			references: References,
 			options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
-		IIncrementalGenerator[] generators = [new AttributeSourceGenerator(), new CommandArgumentGenerator()];
+		IIncrementalGenerator[] generators = [new AttributeSourceGenerator(), new EnumeratorExtensionsGenerator(), new CommandArgumentGenerator()];
 
 		GeneratorDriver driver = CSharpGeneratorDriver.Create(generators.Select(GeneratorExtensions.AsSourceGenerator), parseOptions: (CSharpParseOptions)syntaxTree.Options);
 		driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out Compilation outputCompilation, out ImmutableArray<Diagnostic> diagnostics);

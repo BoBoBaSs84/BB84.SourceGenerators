@@ -205,6 +205,26 @@ namespace TestNamespace
           featuresValue = featuresParsed;
       }
 
+      string? fastLevelRaw = lookup("APP_FAST_LEVEL");
+      global::TestNamespace.FastLevel fastLevelValue = (global::TestNamespace.FastLevel)(1);
+      if (!string.IsNullOrWhiteSpace(fastLevelRaw))
+      {
+        if (!global::TestNamespace.FastLevelExtensions.TryParseFast(fastLevelRaw!, true, true, out global::TestNamespace.FastLevel fastLevelParsed))
+          errorList.Add("Environment variable 'APP_FAST_LEVEL' has an invalid FastLevel value.");
+        else
+          fastLevelValue = fastLevelParsed;
+      }
+
+      string? fastFeaturesRaw = lookup("APP_FAST_FEATURES");
+      global::TestNamespace.FastFeatures? fastFeaturesValue = null;
+      if (!string.IsNullOrWhiteSpace(fastFeaturesRaw))
+      {
+        if (!global::TestNamespace.FastFeaturesExtensions.TryParseFast(fastFeaturesRaw!, true, true, out global::TestNamespace.FastFeatures fastFeaturesParsed, ","))
+          errorList.Add("Environment variable 'APP_FAST_FEATURES' has an invalid FastFeatures value.");
+        else
+          fastFeaturesValue = fastFeaturesParsed;
+      }
+
       if (errorList.Count > 0)
       {
         result = null;
@@ -229,6 +249,8 @@ namespace TestNamespace
         Guid = guidValue,
         Level = levelValue,
         Features = featuresValue,
+        FastLevel = fastLevelValue,
+        FastFeatures = fastFeaturesValue,
       };
 
       errors = Array.Empty<string>();

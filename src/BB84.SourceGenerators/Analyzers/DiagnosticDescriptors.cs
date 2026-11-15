@@ -367,6 +367,15 @@ internal static class DiagnosticDescriptors
 		messageFormat: "The property '{0}' has an initializer that is not a constant; only constants can serve as the default value of an option");
 
 	/// <summary>
+	/// Represents a diagnostic info indicating that a property is converted with the reflection-based
+	/// <c>Enum</c> APIs, but its enum could use [GenerateEnumeratorExtensions] for reflection-free parsing.
+	/// </summary>
+	internal static readonly DiagnosticDescriptor EnumCouldUseEnumeratorExtensionsDiagnostic = Info(
+		id: "BB84SG0040",
+		title: "Enum could use GenerateEnumeratorExtensions",
+		messageFormat: "Enum '{0}' used by property '{1}' could use [GenerateEnumeratorExtensions] for reflection-free parsing");
+
+	/// <summary>
 	/// Creates an enabled-by-default error descriptor in the <see cref="Category"/> category.
 	/// </summary>
 	/// <param name="id">The diagnostic identifier.</param>
@@ -385,4 +394,14 @@ internal static class DiagnosticDescriptors
 	/// <returns>The created <see cref="DiagnosticDescriptor"/>.</returns>
 	private static DiagnosticDescriptor Warning(string id, string title, string messageFormat)
 		=> new(id, title, messageFormat, Category, DiagnosticSeverity.Warning, isEnabledByDefault: true);
+
+	/// <summary>
+	/// Creates an enabled-by-default info descriptor in the <see cref="Category"/> category.
+	/// </summary>
+	/// <param name="id">The diagnostic identifier.</param>
+	/// <param name="title">The diagnostic title.</param>
+	/// <param name="messageFormat">The diagnostic message format.</param>
+	/// <returns>The created <see cref="DiagnosticDescriptor"/>.</returns>
+	private static DiagnosticDescriptor Info(string id, string title, string messageFormat)
+		=> new(id, title, messageFormat, Category, DiagnosticSeverity.Info, isEnabledByDefault: true);
 }

@@ -11,6 +11,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Globalization;
 
 namespace TestNamespace
 {
@@ -93,6 +94,58 @@ namespace TestNamespace
           result = default;
           return false;
       }
+    }
+
+    /// <summary>
+    /// Tries to convert the specified <paramref name="value"/> to its
+    /// <see cref="MyEnum"/> equivalent. Surrounding white space is ignored.
+    /// </summary>
+    /// <param name="value">The name or numeric value of the enumeration value to parse.</param>
+    /// <param name="ignoreCase">Whether member names are matched case-insensitively.</param>
+    /// <param name="allowNumeric">Whether a numeric value (e.g. <c>"1"</c>) is accepted; it must be a defined value.</param>
+    /// <param name="result">The parsed enumeration value, or the default value if parsing failed.</param>
+    /// <returns>True if <paramref name="value"/> was parsed successfully; otherwise, false.</returns>
+    public static bool TryParseFast(string? value, bool ignoreCase, bool allowNumeric, out MyEnum result)
+    {
+      if (value is null)
+      {
+        result = default;
+        return false;
+      }
+
+      string trimmed = value.Trim();
+      if (ignoreCase)
+      {
+        if (string.Equals(trimmed, nameof(MyEnum.None), StringComparison.OrdinalIgnoreCase))
+        {
+          result = MyEnum.None;
+          return true;
+        }
+        if (string.Equals(trimmed, nameof(MyEnum.One), StringComparison.OrdinalIgnoreCase))
+        {
+          result = MyEnum.One;
+          return true;
+        }
+        if (string.Equals(trimmed, nameof(MyEnum.Two), StringComparison.OrdinalIgnoreCase))
+        {
+          result = MyEnum.Two;
+          return true;
+        }
+      }
+      else if (TryParseFast(trimmed, out result))
+      {
+        return true;
+      }
+
+      if (allowNumeric && int.TryParse(trimmed, NumberStyles.Integer, CultureInfo.InvariantCulture, out int number))
+      {
+        result = (MyEnum)number;
+        if (result.IsDefinedFast())
+          return true;
+      }
+
+      result = default;
+      return false;
     }
 
     /// <summary>

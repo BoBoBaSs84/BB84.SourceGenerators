@@ -353,6 +353,69 @@ public class C
 	}
 
 	[TestMethod]
+	public void ValueConversionsShouldClassifyEnumsWithEnumeratorExtensions()
+	{
+		CSharpCompilation compilation = Compile(@"
+using System;
+using BB84.SourceGenerators.Attributes;
+namespace BB84.SourceGenerators.Attributes { public sealed class GenerateEnumeratorExtensionsAttribute : Attribute { } }
+namespace N
+{
+	[GenerateEnumeratorExtensions] public enum Fast { A }
+	[Flags, GenerateEnumeratorExtensions] public enum FastFlags { A = 1 }
+	[GenerateEnumeratorExtensions] internal enum InternalEnum { A }
+	[GenerateEnumeratorExtensions] public enum EmptyEnum { }
+	public enum Plain { A }
+	public class C
+	{
+		[GenerateEnumeratorExtensions] public enum Nested { A }
+		public Fast? Fast { get; set; }
+		public FastFlags Flags { get; set; }
+		internal InternalEnum Internal { get; set; }
+		public EmptyEnum Empty { get; set; }
+		public Nested NestedEnum { get; set; }
+		public Plain Plain { get; set; }
+		public StringComparison External { get; set; }
+		public int Number { get; set; }
+	}
+}
+[GenerateEnumeratorExtensions] public enum GlobalEnum { A }
+public class G { public GlobalEnum Global { get; set; } }");
+		(INamedTypeSymbol symbol, _, _) = FindClass(compilation, "C");
+		(INamedTypeSymbol global, _, _) = FindClass(compilation, "G");
+
+		ITypeSymbol Type(INamedTypeSymbol owner, string name)
+			=> ((IPropertySymbol)owner.GetMembers(name).Single()).Type;
+
+		ValueConversionKind? Kind(ITypeSymbol type)
+			=> ValueConversions.TryGetKind(type, out ValueConversionKind kind) ? kind : null;
+
+		Assert.AreEqual(ValueConversionKind.FastEnum, Kind(Type(symbol, "Fast")));
+		Assert.AreEqual(ValueConversionKind.FastFlagsEnum, Kind(Type(symbol, "Flags")));
+		Assert.AreEqual(ValueConversionKind.Enum, Kind(Type(symbol, "Internal")));
+		Assert.AreEqual(ValueConversionKind.Enum, Kind(Type(symbol, "Empty")));
+		Assert.AreEqual(ValueConversionKind.Enum, Kind(Type(symbol, "NestedEnum")));
+		Assert.AreEqual(ValueConversionKind.Enum, Kind(Type(symbol, "Plain")));
+		Assert.AreEqual(ValueConversionKind.Enum, Kind(Type(global, "Global")));
+
+		Assert.IsFalse(ValueConversions.CouldUseEnumeratorExtensions(Type(symbol, "Fast")));
+		Assert.IsFalse(ValueConversions.CouldUseEnumeratorExtensions(Type(symbol, "Internal")));
+		Assert.IsFalse(ValueConversions.CouldUseEnumeratorExtensions(Type(symbol, "External")));
+		Assert.IsFalse(ValueConversions.CouldUseEnumeratorExtensions(Type(symbol, "Number")));
+		Assert.IsTrue(ValueConversions.CouldUseEnumeratorExtensions(Type(symbol, "Plain")));
+	}
+
+	[TestMethod]
+	public void ValueConversionsShouldBuildEnumeratorExtensionsExpressions()
+	{
+		Assert.AreEqual("global::N.EExtensions.TryParseFast(raw, true, true, out global::N.E parsed)", ValueConversions.GetTryParseExpression(ValueConversionKind.FastEnum, "global::N.E", "raw", "parsed"));
+		Assert.AreEqual("global::N.EExtensions.TryParseFast(raw, true, true, out global::N.E parsed, \",\")", ValueConversions.GetTryParseExpression(ValueConversionKind.FastFlagsEnum, "global::N.E", "raw", "parsed"));
+		Assert.AreEqual("global::N.EExtensions.ToStringFast(value)", ValueConversions.GetFormatExpression(ValueConversionKind.FastEnum, "value", "global::N.E"));
+		Assert.AreEqual("global::N.EExtensions.ToStringFast(value, \", \")", ValueConversions.GetFormatExpression(ValueConversionKind.FastFlagsEnum, "value", "global::N.E"));
+		Assert.ThrowsExactly<ArgumentNullException>(() => ValueConversions.GetFormatExpression(ValueConversionKind.FastEnum, "value"));
+	}
+
+	[TestMethod]
 	public void ValueConversionsShouldBuildExpressions()
 	{
 		Assert.AreEqual("int.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out int parsed)", ValueConversions.GetTryParseExpression(ValueConversionKind.Integer, "int", "raw", "parsed"));
@@ -374,6 +437,8 @@ public class C
 	[DataRow((int)ValueConversionKind.Guid, "Guid", "Guid.Parse(raw)")]
 	[DataRow((int)ValueConversionKind.Enum, "global::E", "(global::E)global::System.Enum.Parse(typeof(global::E), raw, true)")]
 	[DataRow((int)ValueConversionKind.FlagsEnum, "global::E", "(global::E)global::System.Enum.Parse(typeof(global::E), raw, true)")]
+	[DataRow((int)ValueConversionKind.FastEnum, "global::E", "(global::E)global::System.Enum.Parse(typeof(global::E), raw, true)")]
+	[DataRow((int)ValueConversionKind.FastFlagsEnum, "global::E", "(global::E)global::System.Enum.Parse(typeof(global::E), raw, true)")]
 	public void ValueConversionsShouldBuildParseExpressions(int kind, string typeName, string expected)
 		=> Assert.AreEqual(expected, ValueConversions.GetParseExpression((ValueConversionKind)kind, typeName, "raw"));
 

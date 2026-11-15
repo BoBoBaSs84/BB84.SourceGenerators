@@ -13,6 +13,7 @@ namespace BB84.SourceGenerators.Requests;
 /// </summary>
 /// <param name="EnumName">The name of the enumeration.</param>
 /// <param name="NamespaceName">The namespace of the enumeration.</param>
+/// <param name="UnderlyingTypeName">The keyword of the underlying integral type of the enumeration (e.g. <c>int</c>).</param>
 /// <param name="Members">
 /// The enumeration members in declaration order, with their <c>[Description]</c> text, if any, and whether
 /// the member is an alias, i.e. its value was already declared by an earlier member.
@@ -24,6 +25,7 @@ namespace BB84.SourceGenerators.Requests;
 internal sealed record EnumeratorExtensionsRequest(
 	string EnumName,
 	string NamespaceName,
+	string UnderlyingTypeName,
 	EquatableArray<(string Name, string? Description, bool IsAlias)> Members,
 	bool IsFlags,
 	EquatableArray<string> FlagMembers

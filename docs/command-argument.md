@@ -51,6 +51,8 @@ The attribute applies to `partial` classes and `partial` record classes.
 
 **Supported types:** `string`, `bool` (`true`/`false` in any casing, `1`/`0`), `char`, `byte`, `sbyte`, `short`, `ushort`, `int`, `uint`, `long`, `ulong`, `float`, `double`, `decimal`, `DateTime`, `DateTimeOffset`, `TimeSpan`, `Guid`, enums (member names in any casing or defined numeric values; `[Flags]` enums accept `A, B`), `System.Text.Encoding` (a name such as `utf-8` or a code page such as `65001`) and the nullable versions of these types.
 
+**Enums:** by default, enums are converted with `Enum.TryParse` and `Enum.IsDefined`, which use reflection. If the enum is declared in the same project, is public, is not nested and has [`[GenerateEnumeratorExtensions]`](enumerator-extensions.md), the generated code calls its reflection-free `TryParseFast(value, true, true, out result)` (`[Flags]`: separator `","`) instead. The accepted input is the same, except that a `[Flags]` numeric value may only contain bits of defined members. For such enums without the attribute, the generator reports the info diagnostic `BB84SG0040`.
+
 ## Usage
 
 ```csharp
@@ -203,3 +205,4 @@ public sealed partial class ToolOptions
 | `BB84SG0037` | Error    | The property type cannot be read from a command line argument                       |
 | `BB84SG0038` | Error    | Two properties map to the same option name                                          |
 | `BB84SG0039` | Error    | A property has an initializer that is not a constant                                |
+| `BB84SG0040` | Info     | The enum of a property could use `[GenerateEnumeratorExtensions]`                   |

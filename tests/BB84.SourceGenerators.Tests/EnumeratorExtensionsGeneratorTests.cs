@@ -178,6 +178,112 @@ public sealed class EnumeratorExtensionsGeneratorTests
 	}
 
 	[TestMethod]
+	[DataRow("One", false, false, GeneratorTestType.One)]
+	[DataRow(" Two ", false, false, GeneratorTestType.Two)]
+	[DataRow("one", true, false, GeneratorTestType.One)]
+	[DataRow(" tHREE ", true, false, GeneratorTestType.Three)]
+	[DataRow("1", false, true, GeneratorTestType.One)]
+	[DataRow(" 3 ", true, true, GeneratorTestType.Three)]
+	[DataRow("0", true, true, GeneratorTestType.None)]
+	public void TryParseFastWithOptionsShouldReturnTrueForValidValues(string value, bool ignoreCase, bool allowNumeric, GeneratorTestType expected)
+	{
+		bool success = GeneratorTestTypeExtensions.TryParseFast(value, ignoreCase, allowNumeric, out GeneratorTestType result);
+
+		Assert.IsTrue(success);
+		Assert.AreEqual(expected, result);
+	}
+
+	[TestMethod]
+	[DataRow(null, true, true)]
+	[DataRow("", true, true)]
+	[DataRow("   ", true, true)]
+	[DataRow("one", false, true)]
+	[DataRow("1", true, false)]
+	[DataRow("42", true, true)]
+	[DataRow("-1", true, true)]
+	[DataRow("1.0", true, true)]
+	[DataRow("Undefined", true, true)]
+	[DataRow("One, Two", true, true)]
+	public void TryParseFastWithOptionsShouldReturnFalseForInvalidValues(string? value, bool ignoreCase, bool allowNumeric)
+	{
+		bool success = GeneratorTestTypeExtensions.TryParseFast(value, ignoreCase, allowNumeric, out GeneratorTestType result);
+
+		Assert.IsFalse(success);
+		Assert.AreEqual(default, result);
+	}
+
+	[TestMethod]
+	[DataRow("3", GeneratorTestFlags.Read | GeneratorTestFlags.Write)]
+	[DataRow("7", GeneratorTestFlags.All)]
+	[DataRow("0", GeneratorTestFlags.None)]
+	[DataRow("all", GeneratorTestFlags.All)]
+	public void TryParseFastWithOptionsShouldAcceptDefinedBitsForFlags(string value, GeneratorTestFlags expected)
+	{
+		bool success = GeneratorTestFlagsExtensions.TryParseFast(value, true, true, out GeneratorTestFlags result);
+
+		Assert.IsTrue(success);
+		Assert.AreEqual(expected, result);
+	}
+
+	[TestMethod]
+	[DataRow("8")]
+	[DataRow("15")]
+	[DataRow("read, write")]
+	public void TryParseFastWithOptionsShouldRejectUndefinedBitsAndListsForFlags(string value)
+	{
+		bool success = GeneratorTestFlagsExtensions.TryParseFast(value, true, true, out GeneratorTestFlags result);
+
+		Assert.IsFalse(success);
+		Assert.AreEqual(GeneratorTestFlags.None, result);
+	}
+
+	[TestMethod]
+	[DataRow("read, write", true, false, GeneratorTestFlags.Read | GeneratorTestFlags.Write)]
+	[DataRow(" Read ,Execute ", false, false, GeneratorTestFlags.Read | GeneratorTestFlags.Execute)]
+	[DataRow("1, 2", false, true, GeneratorTestFlags.Read | GeneratorTestFlags.Write)]
+	[DataRow("3, execute", true, true, GeneratorTestFlags.All)]
+	[DataRow("6", false, true, GeneratorTestFlags.Write | GeneratorTestFlags.Execute)]
+	public void TryParseFastWithOptionsShouldCombineFlagsForSeparator(string value, bool ignoreCase, bool allowNumeric, GeneratorTestFlags expected)
+	{
+		bool success = GeneratorTestFlagsExtensions.TryParseFast(value, ignoreCase, allowNumeric, out GeneratorTestFlags result, ",");
+
+		Assert.IsTrue(success);
+		Assert.AreEqual(expected, result);
+	}
+
+	[TestMethod]
+	[DataRow(null, true, true)]
+	[DataRow(" , ", true, true)]
+	[DataRow("read, write", false, true)]
+	[DataRow("Read, 2", true, false)]
+	[DataRow("Read, 8", true, true)]
+	[DataRow("Read, Unknown", true, true)]
+	public void TryParseFastWithOptionsShouldReturnFalseForInvalidFlags(string? value, bool ignoreCase, bool allowNumeric)
+	{
+		bool success = GeneratorTestFlagsExtensions.TryParseFast(value, ignoreCase, allowNumeric, out GeneratorTestFlags result, ",");
+
+		Assert.IsFalse(success);
+		Assert.AreEqual(GeneratorTestFlags.None, result);
+	}
+
+	[TestMethod]
+	public void TryParseFastWithOptionsShouldFallBackToSingleValueWithoutSeparators()
+	{
+		Assert.IsTrue(GeneratorTestFlagsExtensions.TryParseFast(" write ", true, true, out GeneratorTestFlags single, []));
+		Assert.AreEqual(GeneratorTestFlags.Write, single);
+
+		Assert.IsFalse(GeneratorTestFlagsExtensions.TryParseFast("Read,Write", true, true, out GeneratorTestFlags combined, null!));
+		Assert.AreEqual(GeneratorTestFlags.None, combined);
+	}
+
+	[TestMethod]
+	public void TryParseFastWithOptionsShouldParseAliasNames()
+	{
+		Assert.IsTrue(GeneratorTestAliasTypeExtensions.TryParseFast("enabled", true, false, out GeneratorTestAliasType result));
+		Assert.AreEqual(GeneratorTestAliasType.Active, result);
+	}
+
+	[TestMethod]
 	[DataRow(GeneratorTestFlags.None, nameof(GeneratorTestFlags.None))]
 	[DataRow(GeneratorTestFlags.Read, nameof(GeneratorTestFlags.Read))]
 	[DataRow(GeneratorTestFlags.All, nameof(GeneratorTestFlags.All))]
