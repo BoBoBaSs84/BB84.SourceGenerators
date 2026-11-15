@@ -14,7 +14,7 @@ The generated enum extension methods provide significant performance improvement
 
 - **ToStringFast()** - Avoids boxing and uses switch expressions
 - **IsDefinedFast()** - Compile-time switch instead of runtime reflection
-- **TryParseFast()** - Compile-time switch over member names; rejects numeric strings and unintended flag combinations
+- **TryParseFast()** - Compile-time switch over member names; rejects numeric strings and unintended flag combinations, or opts in to case-insensitive and numeric input without reflection
 - **GetNamesFast()/GetValuesFast()** - Returns pre-allocated arrays instead of reflection
 
 ## Attributes
@@ -52,6 +52,8 @@ The generator creates the following extension methods:
 - `IsDefinedFast(string name)` - Checks if an enum name is defined
 - `TryParseFast(string? value, out TEnum result)` - Parses an exact member name (ordinal, case-sensitive) into the enum value (static method)
 - `TryParseFast(string? value, out TEnum result, params string[] separators)` - Parses delimited member names into a combined value; only generated for `[Flags]` enums (static method)
+- `TryParseFast(string? value, bool ignoreCase, bool allowNumeric, out TEnum result)` - Parses a trimmed member name, optionally case-insensitive, or a numeric value (static method)
+- `TryParseFast(string? value, bool ignoreCase, bool allowNumeric, out TEnum result, params string[] separators)` - Parses delimited member names or numeric values into a combined value; only generated for `[Flags]` enums (static method)
 - `GetNamesFast()` - Returns all enum names as an `IEnumerable<string>` (static method)
 - `GetValuesFast()` - Returns all enum values as an `IEnumerable<TEnum>` (static method)
 - `GetDescriptionFast()` - Returns the description from `[Description]` attribute, or the name if not present
@@ -101,6 +103,24 @@ StateExtensions.TryParseFast("Enabled", out State s);    // true, State.Active
 StateExtensions.GetValuesFast();                         // Active, Active, Inactive
 ```
 
+### Case-insensitive and Numeric Parsing
+
+`TryParseFast(string? value, bool ignoreCase, bool allowNumeric, out TEnum result)` accepts the input that `Enum.TryParse(value, true, out result)` combined with `Enum.IsDefined` accepts, without reflection or boxing:
+
+- Surrounding white space is ignored; `null`, empty and white-space values fail.
+- With `ignoreCase: false`, the name must match exactly, like `TryParseFast(value, out result)`. With `ignoreCase: true`, names are compared with `StringComparison.OrdinalIgnoreCase` (culture-independent, no allocation). If two members only differ in casing, the first declared member wins.
+- With `allowNumeric: true`, a value that is not a member name is parsed as the underlying integral type of the enum (`NumberStyles.Integer`, invariant culture). It is accepted only if it is a defined value (`IsDefinedFast()`). For `[Flags]` enums it is accepted if it only contains bits of defined members, so `"3"` parses as `Read | Write`.
+
+The overloads are used by the [Environment Variables](environment-variables.md) and [Command Argument](command-argument.md) generators for enums that have `[GenerateEnumeratorExtensions]`.
+
+```csharp
+StatusExtensions.TryParseFast(" active ", true, false, out Status a);  // true, Status.Active
+StatusExtensions.TryParseFast("active", false, false, out Status b);   // false, exact names only
+StatusExtensions.TryParseFast("1", true, true, out Status c);          // true, Status.Active
+StatusExtensions.TryParseFast("42", true, true, out Status d);         // false, not a defined value
+StatusExtensions.TryParseFast("1", true, false, out Status e);         // false, numeric values not allowed
+```
+
 ### Flags Enums
 
 For enumerations decorated with `[Flags]`, the generator emits two additional overloads that convert combined values to and from separator-delimited member names.
@@ -130,4 +150,13 @@ PermissionsExtensions.TryParseFast("Read, Execute", out Permissions b, ",");    
 PermissionsExtensions.TryParseFast("Read | Write; Execute", out Permissions c, "|", ";"); // true, All
 PermissionsExtensions.TryParseFast("Read|Unknown", out Permissions d, "|");           // false, None
 PermissionsExtensions.TryParseFast("Read, Write", out Permissions e);                 // false, combinations need separators
+```
+
+The `TryParseFast(string? value, bool ignoreCase, bool allowNumeric, out TEnum result, params string[] separators)` overload splits the value the same way and parses each token with the case-insensitive and numeric rules above.
+
+```csharp
+PermissionsExtensions.TryParseFast("read, write", true, false, out Permissions f, ","); // true, Read | Write
+PermissionsExtensions.TryParseFast("1, Execute", true, true, out Permissions g, ",");   // true, Read | Execute
+PermissionsExtensions.TryParseFast("3", true, true, out Permissions h, ",");            // true, Read | Write
+PermissionsExtensions.TryParseFast("8", true, true, out Permissions i, ",");            // false, undefined bit
 ```

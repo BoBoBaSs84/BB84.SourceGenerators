@@ -11,6 +11,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Globalization;
 
 namespace TestNamespace
 {
@@ -147,6 +148,68 @@ namespace TestNamespace
     }
 
     /// <summary>
+    /// Tries to convert the specified <paramref name="value"/> to its
+    /// <see cref="Permissions"/> equivalent. Surrounding white space is ignored.
+    /// </summary>
+    /// <param name="value">The name or numeric value of the enumeration value to parse.</param>
+    /// <param name="ignoreCase">Whether member names are matched case-insensitively.</param>
+    /// <param name="allowNumeric">Whether a numeric value (e.g. <c>"3"</c>) is accepted; it may only contain bits of defined members.</param>
+    /// <param name="result">The parsed enumeration value, or the default value if parsing failed.</param>
+    /// <returns>True if <paramref name="value"/> was parsed successfully; otherwise, false.</returns>
+    public static bool TryParseFast(string? value, bool ignoreCase, bool allowNumeric, out Permissions result)
+    {
+      if (value is null)
+      {
+        result = default;
+        return false;
+      }
+
+      string trimmed = value.Trim();
+      if (ignoreCase)
+      {
+        if (string.Equals(trimmed, nameof(Permissions.None), StringComparison.OrdinalIgnoreCase))
+        {
+          result = Permissions.None;
+          return true;
+        }
+        if (string.Equals(trimmed, nameof(Permissions.Read), StringComparison.OrdinalIgnoreCase))
+        {
+          result = Permissions.Read;
+          return true;
+        }
+        if (string.Equals(trimmed, nameof(Permissions.Write), StringComparison.OrdinalIgnoreCase))
+        {
+          result = Permissions.Write;
+          return true;
+        }
+        if (string.Equals(trimmed, nameof(Permissions.Execute), StringComparison.OrdinalIgnoreCase))
+        {
+          result = Permissions.Execute;
+          return true;
+        }
+        if (string.Equals(trimmed, nameof(Permissions.All), StringComparison.OrdinalIgnoreCase))
+        {
+          result = Permissions.All;
+          return true;
+        }
+      }
+      else if (TryParseFast(trimmed, out result))
+      {
+        return true;
+      }
+
+      if (allowNumeric && long.TryParse(trimmed, NumberStyles.Integer, CultureInfo.InvariantCulture, out long number))
+      {
+        result = (Permissions)number;
+        if ((result & ~(Permissions.None | Permissions.Read | Permissions.Write | Permissions.Execute | Permissions.All)) == 0)
+          return true;
+      }
+
+      result = default;
+      return false;
+    }
+
+    /// <summary>
     /// Tries to convert the specified <paramref name="value"/>, containing one or more
     /// member names delimited by any of the <paramref name="separators"/>, to its combined
     /// <see cref="Permissions"/> equivalent.
@@ -169,6 +232,43 @@ namespace TestNamespace
           continue;
 
         if (!TryParseFast(name, out Permissions flag))
+        {
+          result = default;
+          return false;
+        }
+
+        combined |= flag;
+        parsed = true;
+      }
+
+      result = parsed ? combined : default;
+      return parsed;
+    }
+
+    /// <summary>
+    /// Tries to convert the specified <paramref name="value"/>, containing one or more
+    /// member names or numeric values delimited by any of the <paramref name="separators"/>,
+    /// to its combined <see cref="Permissions"/> equivalent. Surrounding white space is ignored.
+    /// </summary>
+    /// <param name="value">The delimited names or numeric values of the enumeration values to parse.</param>
+    /// <param name="ignoreCase">Whether member names are matched case-insensitively.</param>
+    /// <param name="allowNumeric">Whether numeric values (e.g. <c>"3"</c>) are accepted; they may only contain bits of defined members.</param>
+    /// <param name="result">The combined enumeration value, or the default value if parsing failed.</param>
+    /// <param name="separators">The delimiters between the values, for example <c>"|"</c>, <c>","</c>, <c>";"</c> or <c>" "</c>.</param>
+    /// <returns>True if every value in <paramref name="value"/> was parsed successfully; otherwise, false.</returns>
+    public static bool TryParseFast(string? value, bool ignoreCase, bool allowNumeric, out Permissions result, params string[] separators)
+    {
+      if (value is null || separators is null || separators.Length == 0)
+        return TryParseFast(value, ignoreCase, allowNumeric, out result);
+
+      Permissions combined = default;
+      bool parsed = false;
+      foreach (string token in value.Split(separators, StringSplitOptions.RemoveEmptyEntries))
+      {
+        if (string.IsNullOrWhiteSpace(token))
+          continue;
+
+        if (!TryParseFast(token, ignoreCase, allowNumeric, out Permissions flag))
         {
           result = default;
           return false;

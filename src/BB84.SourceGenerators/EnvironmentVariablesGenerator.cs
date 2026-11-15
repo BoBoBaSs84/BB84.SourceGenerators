@@ -76,7 +76,7 @@ public sealed class EnvironmentVariablesGenerator : IIncrementalGenerator
 		if (properties.Count > 0)
 			ValidateConstruction(collect, properties);
 
-		if (collect.Diagnostics.Count > 0)
+		if (collect.Diagnostics.Any(static d => d.IsError))
 			return GeneratorResult<EnvironmentVariablesRequest>.FromDiagnostics([.. collect.Diagnostics]);
 
 		if (properties.Count == 0 && partialProperties.Count == 0)
@@ -84,7 +84,7 @@ public sealed class EnvironmentVariablesGenerator : IIncrementalGenerator
 
 		EnvironmentVariablesRequest request = new(type, typeDeclaration is RecordDeclarationSyntax, properties.ToEquatableArray(), partialProperties.ToEquatableArray());
 
-		return GeneratorResult<EnvironmentVariablesRequest>.FromRequest(request);
+		return GeneratorResult<EnvironmentVariablesRequest>.FromRequest(request, [.. collect.Diagnostics]);
 	}
 
 	private static void Execute(SourceProductionContext context, EnvironmentVariablesRequest request)
@@ -319,8 +319,8 @@ public sealed class EnvironmentVariablesGenerator : IIncrementalGenerator
 			string format = conversion.Kind == ValueConversionKind.String
 				? "value"
 				: conversion.IsNullableValueType
-					? $"value.HasValue ? {ValueConversions.GetFormatExpression(conversion.Kind, "value.Value")} : null"
-					: ValueConversions.GetFormatExpression(conversion.Kind, "value");
+					? $"value.HasValue ? {ValueConversions.GetFormatExpression(conversion.Kind, "value.Value", conversion.UnderlyingTypeName)} : null"
+					: ValueConversions.GetFormatExpression(conversion.Kind, "value", conversion.UnderlyingTypeName);
 
 			sb.AppendLine($"{property.SetterPrefix}{property.SetterKeyword} => Environment.SetEnvironmentVariable({variableName}, {format});");
 		}
@@ -401,6 +401,9 @@ public sealed class EnvironmentVariablesGenerator : IIncrementalGenerator
 
 		if (!isValid)
 			return null;
+
+		if (ValueConversions.CouldUseEnumeratorExtensions(property.Type))
+			collect.Diagnostics.Add(DiagnosticInfo.Create(DiagnosticDescriptors.EnumCouldUseEnumeratorExtensionsDiagnostic, location, ValueConversions.GetUnderlyingType(property.Type).ToDisplayString(), property.Name));
 
 		return (variableName, ValueConversions.Create(property.Type, kind));
 	}

@@ -67,7 +67,7 @@ public sealed class CommandArgumentGenerator : IIncrementalGenerator
 		HashSet<string> excluded = AttributeHelpers.GetExcludedProperties(context.Attributes[0], nameof(GenerateCommandArgumentAttribute.ExcludeProperties));
 		List<CommandArgumentOption> options = CollectOptions(context.SemanticModel, typeSymbol, type, excluded, diagnostics, cancellationToken);
 
-		if (diagnostics.Count > 0)
+		if (diagnostics.Any(static d => d.IsError))
 			return GeneratorResult<CommandArgumentRequest>.FromDiagnostics([.. diagnostics]);
 
 		CommandArgumentRequest request = new(
@@ -78,7 +78,7 @@ public sealed class CommandArgumentGenerator : IIncrementalGenerator
 			options.Any(static o => o.Conversion.Kind == ValueConversionKind.Encoding),
 			options.ToEquatableArray());
 
-		return GeneratorResult<CommandArgumentRequest>.FromRequest(request);
+		return GeneratorResult<CommandArgumentRequest>.FromRequest(request, [.. diagnostics]);
 	}
 
 	private static void Execute(SourceProductionContext context, CommandArgumentRequest request)
@@ -366,6 +366,9 @@ public sealed class CommandArgumentGenerator : IIncrementalGenerator
 
 			if (!isValid)
 				continue;
+
+			if (ValueConversions.CouldUseEnumeratorExtensions(property.Type))
+				diagnostics.Add(DiagnosticInfo.Create(DiagnosticDescriptors.EnumCouldUseEnumeratorExtensionsDiagnostic, location, ValueConversions.GetUnderlyingType(property.Type).ToDisplayString(), property.Name));
 
 			options.Add(new CommandArgumentOption(
 				property.Name,

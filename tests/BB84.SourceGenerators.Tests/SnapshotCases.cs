@@ -1187,6 +1187,13 @@ internal static class SnapshotCases
 				[Flags]
 				public enum Features { None = 0, A = 1, B = 2 }
 
+				[GenerateEnumeratorExtensions]
+				public enum FastLevel { Low, High }
+
+				[Flags]
+				[GenerateEnumeratorExtensions]
+				public enum FastFeatures { None = 0, A = 1, B = 2 }
+
 				[GenerateEnvironmentVariables("App")]
 				public partial class AllTypes
 				{
@@ -1205,6 +1212,8 @@ internal static class SnapshotCases
 					public Guid? Guid { get; set; }
 					public Level Level { get; init; } = Level.High;
 					public Features? Features { get; set; }
+					public FastLevel FastLevel { get; init; } = FastLevel.High;
+					public FastFeatures? FastFeatures { get; set; }
 				}
 			}
 			""", NullableContextOptions.Enable),

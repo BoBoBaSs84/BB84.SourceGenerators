@@ -42,6 +42,7 @@ public sealed class EnumeratorExtensionsGenerator : IIncrementalGenerator
 		sb.AppendUsing(NamespaceNames.System);
 		sb.AppendUsing(NamespaceNames.SystemCollectionsGeneric);
 		sb.AppendUsing(NamespaceNames.SystemComponentModel);
+		sb.AppendUsing(NamespaceNames.SystemGlobalization);
 		sb.AppendLine();
 		sb.OpenNamespace(request.NamespaceName);
 
@@ -54,9 +55,13 @@ public sealed class EnumeratorExtensionsGenerator : IIncrementalGenerator
 
 		AppendIsDefinedFast(sb, enumName, members);
 		AppendTryParseFast(sb, enumName, members);
+		AppendTryParseFastOptions(sb, enumName, request.UnderlyingTypeName, members, request.IsFlags);
 
 		if (request.IsFlags)
+		{
 			AppendTryParseFastFlags(sb, enumName);
+			AppendTryParseFastFlagsOptions(sb, enumName);
+		}
 
 		AppendGetDescriptionFast(sb, enumName, members);
 		AppendGetNamesFast(sb, enumName, members);
@@ -89,7 +94,11 @@ public sealed class EnumeratorExtensionsGenerator : IIncrementalGenerator
 			? GetSingleBitMemberNames(members, semanticModel, cancellationToken)
 			: EquatableArray<string>.Empty;
 
-		return GeneratorResult<EnumeratorExtensionsRequest>.FromRequest(new EnumeratorExtensionsRequest(enumDeclaration.Identifier.Text, enumDeclaration.GetNamespace(), memberInfos, isFlags, flagMembers));
+		string underlyingTypeName = context.TargetSymbol is INamedTypeSymbol { EnumUnderlyingType: INamedTypeSymbol underlyingType }
+			? underlyingType.ToDisplayString()
+			: "int";
+
+		return GeneratorResult<EnumeratorExtensionsRequest>.FromRequest(new EnumeratorExtensionsRequest(enumDeclaration.Identifier.Text, enumDeclaration.GetNamespace(), underlyingTypeName, memberInfos, isFlags, flagMembers));
 	}
 
 	private static EquatableArray<(string Name, string? Description, bool IsAlias)> GetMemberInfos(ImmutableArray<EnumMemberDeclarationSyntax> members, SemanticModel semanticModel, INamedTypeSymbol? descriptionAttributeSymbol, CancellationToken cancellationToken)
@@ -295,6 +304,62 @@ public sealed class EnumeratorExtensionsGenerator : IIncrementalGenerator
 		sb.AppendLine();
 	}
 
+	private static void AppendTryParseFastOptions(SourceBuilder sb, string enumName, string underlyingTypeName, EquatableArray<(string Name, string? Description, bool IsAlias)> members, bool isFlags)
+	{
+		sb.AppendLine("/// <summary>");
+		sb.AppendLine("/// Tries to convert the specified <paramref name=\"value\"/> to its");
+		sb.AppendLine($"/// <see cref=\"{enumName}\"/> equivalent. Surrounding white space is ignored.");
+		sb.AppendLine("/// </summary>");
+		sb.AppendLine("/// <param name=\"value\">The name or numeric value of the enumeration value to parse.</param>");
+		sb.AppendLine("/// <param name=\"ignoreCase\">Whether member names are matched case-insensitively.</param>");
+		sb.AppendLine(isFlags
+			? "/// <param name=\"allowNumeric\">Whether a numeric value (e.g. <c>\"3\"</c>) is accepted; it may only contain bits of defined members.</param>"
+			: "/// <param name=\"allowNumeric\">Whether a numeric value (e.g. <c>\"1\"</c>) is accepted; it must be a defined value.</param>");
+		sb.AppendLine("/// <param name=\"result\">The parsed enumeration value, or the default value if parsing failed.</param>");
+		sb.AppendLine("/// <returns>True if <paramref name=\"value\"/> was parsed successfully; otherwise, false.</returns>");
+		sb.AppendLine($"public static bool TryParseFast(string? value, bool ignoreCase, bool allowNumeric, out {enumName} result)");
+		sb.OpenBrace();
+		sb.AppendLine("if (value is null)");
+		sb.OpenBrace();
+		sb.AppendLine("result = default;");
+		sb.AppendLine("return false;");
+		sb.CloseBrace();
+		sb.AppendLine();
+		sb.AppendLine("string trimmed = value.Trim();");
+		sb.AppendLine("if (ignoreCase)");
+		sb.OpenBrace();
+		foreach ((string memberName, _, _) in members)
+		{
+			sb.AppendLine($"if (string.Equals(trimmed, nameof({enumName}.{memberName}), StringComparison.OrdinalIgnoreCase))");
+			sb.OpenBrace();
+			sb.AppendLine($"result = {enumName}.{memberName};");
+			sb.AppendLine("return true;");
+			sb.CloseBrace();
+		}
+		sb.CloseBrace();
+		sb.AppendLine("else if (TryParseFast(trimmed, out result))");
+		sb.OpenBrace();
+		sb.AppendLine("return true;");
+		sb.CloseBrace();
+		sb.AppendLine();
+		sb.AppendLine($"if (allowNumeric && {underlyingTypeName}.TryParse(trimmed, NumberStyles.Integer, CultureInfo.InvariantCulture, out {underlyingTypeName} number))");
+		sb.OpenBrace();
+		sb.AppendLine($"result = ({enumName})number;");
+
+		// A flags value is valid if it only contains bits of defined members, so combinations are accepted.
+		string definedBits = string.Join(" | ", members.Select(member => $"{enumName}.{member.Name}"));
+		sb.AppendLine(isFlags ? $"if ((result & ~({definedBits})) == 0)" : "if (result.IsDefinedFast())");
+		sb.Indent();
+		sb.AppendLine("return true;");
+		sb.Outdent();
+		sb.CloseBrace();
+		sb.AppendLine();
+		sb.AppendLine("result = default;");
+		sb.AppendLine("return false;");
+		sb.CloseBrace();
+		sb.AppendLine();
+	}
+
 	private static void AppendTryParseFastFlags(SourceBuilder sb, string enumName)
 	{
 		sb.AppendLine("/// <summary>");
@@ -324,6 +389,51 @@ public sealed class EnumeratorExtensionsGenerator : IIncrementalGenerator
 		sb.Outdent();
 		sb.AppendLine();
 		sb.AppendLine($"if (!TryParseFast(name, out {enumName} flag))");
+		sb.OpenBrace();
+		sb.AppendLine("result = default;");
+		sb.AppendLine("return false;");
+		sb.CloseBrace();
+		sb.AppendLine();
+		sb.AppendLine("combined |= flag;");
+		sb.AppendLine("parsed = true;");
+		sb.CloseBrace();
+		sb.AppendLine();
+		sb.AppendLine("result = parsed ? combined : default;");
+		sb.AppendLine("return parsed;");
+		sb.CloseBrace();
+		sb.AppendLine();
+	}
+
+	private static void AppendTryParseFastFlagsOptions(SourceBuilder sb, string enumName)
+	{
+		sb.AppendLine("/// <summary>");
+		sb.AppendLine("/// Tries to convert the specified <paramref name=\"value\"/>, containing one or more");
+		sb.AppendLine("/// member names or numeric values delimited by any of the <paramref name=\"separators\"/>,");
+		sb.AppendLine($"/// to its combined <see cref=\"{enumName}\"/> equivalent. Surrounding white space is ignored.");
+		sb.AppendLine("/// </summary>");
+		sb.AppendLine("/// <param name=\"value\">The delimited names or numeric values of the enumeration values to parse.</param>");
+		sb.AppendLine("/// <param name=\"ignoreCase\">Whether member names are matched case-insensitively.</param>");
+		sb.AppendLine("/// <param name=\"allowNumeric\">Whether numeric values (e.g. <c>\"3\"</c>) are accepted; they may only contain bits of defined members.</param>");
+		sb.AppendLine("/// <param name=\"result\">The combined enumeration value, or the default value if parsing failed.</param>");
+		sb.AppendLine("/// <param name=\"separators\">The delimiters between the values, for example <c>\"|\"</c>, <c>\",\"</c>, <c>\";\"</c> or <c>\" \"</c>.</param>");
+		sb.AppendLine("/// <returns>True if every value in <paramref name=\"value\"/> was parsed successfully; otherwise, false.</returns>");
+		sb.AppendLine($"public static bool TryParseFast(string? value, bool ignoreCase, bool allowNumeric, out {enumName} result, params string[] separators)");
+		sb.OpenBrace();
+		sb.AppendLine("if (value is null || separators is null || separators.Length == 0)");
+		sb.Indent();
+		sb.AppendLine("return TryParseFast(value, ignoreCase, allowNumeric, out result);");
+		sb.Outdent();
+		sb.AppendLine();
+		sb.AppendLine($"{enumName} combined = default;");
+		sb.AppendLine("bool parsed = false;");
+		sb.AppendLine("foreach (string token in value.Split(separators, StringSplitOptions.RemoveEmptyEntries))");
+		sb.OpenBrace();
+		sb.AppendLine("if (string.IsNullOrWhiteSpace(token))");
+		sb.Indent();
+		sb.AppendLine("continue;");
+		sb.Outdent();
+		sb.AppendLine();
+		sb.AppendLine($"if (!TryParseFast(token, ignoreCase, allowNumeric, out {enumName} flag))");
 		sb.OpenBrace();
 		sb.AppendLine("result = default;");
 		sb.AppendLine("return false;");

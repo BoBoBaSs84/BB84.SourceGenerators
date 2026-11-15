@@ -4,6 +4,7 @@
 // This source code is licensed under the MIT license found in the
 // LICENSE file in the root directory of this source tree.
 using System.Collections.Immutable;
+using System.Globalization;
 using System.Reflection;
 
 using Microsoft.CodeAnalysis;
@@ -72,7 +73,8 @@ namespace TestNamespace
 
 		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources, ImmutableArray<Diagnostic> compilationDiagnostics) = RunGenerator(source);
 
-		Assert.IsEmpty(diagnostics);
+		Assert.HasCount(2, diagnostics);
+		Assert.IsTrue(diagnostics.All(d => d.Id == "BB84SG0040" && d.Severity == DiagnosticSeverity.Info));
 		AssertCompiles(compilationDiagnostics, allowWarnings: false);
 		string generated = GetGeneratedSource(generatedSources, "AllTypes");
 		Assert.Contains("public static AllTypes Read()", generated);
@@ -205,6 +207,83 @@ namespace TestNamespace
 		Assert.Contains("public static partial string? Token", generated);
 		Assert.Contains("private set => Environment.SetEnvironmentVariable(\"APP_PORT\", value.ToString(CultureInfo.InvariantCulture));", generated);
 		Assert.DoesNotContain("public static bool TryRead", generated);
+	}
+
+	[TestMethod]
+	public void ShouldUseEnumeratorExtensionsForAttributedEnums()
+	{
+		string source = @"
+#nullable enable
+using System;
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+	[GenerateEnumeratorExtensions]
+	public enum Level { Low, High }
+
+	[Flags]
+	[GenerateEnumeratorExtensions]
+	public enum Features { None = 0, A = 1, B = 2 }
+
+	[GenerateEnvironmentVariables(""App"")]
+	public sealed partial class Settings
+	{
+		public Level Level { get; init; }
+		public Features? Features { get; init; }
+	}
+
+	[GenerateEnvironmentVariables(""Live"", Writable = true)]
+	public static partial class Live
+	{
+		public static partial Level? Level { get; set; }
+		public static partial Features Features { get; set; }
+	}
+}";
+
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources, ImmutableArray<Diagnostic> compilationDiagnostics) = RunGenerator(source);
+
+		Assert.IsEmpty(diagnostics);
+		AssertCompiles(compilationDiagnostics, allowWarnings: false);
+		string settings = GetGeneratedSource(generatedSources, "Settings");
+		Assert.Contains("global::TestNamespace.LevelExtensions.TryParseFast(levelRaw!, true, true, out global::TestNamespace.Level levelParsed)", settings);
+		Assert.Contains("global::TestNamespace.FeaturesExtensions.TryParseFast(featuresRaw!, true, true, out global::TestNamespace.Features featuresParsed, \",\")", settings);
+		Assert.DoesNotContain("global::System.Enum", settings);
+		string live = GetGeneratedSource(generatedSources, "Live");
+		Assert.Contains("value.HasValue ? global::TestNamespace.LevelExtensions.ToStringFast(value.Value) : null", live);
+		Assert.Contains("global::TestNamespace.FeaturesExtensions.ToStringFast(value, \", \")", live);
+	}
+
+	[TestMethod]
+	public void ShouldReportInfoForEnumWithoutEnumeratorExtensions()
+	{
+		string source = @"
+using System;
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+	public enum Level { Low, High }
+
+	internal enum Hidden { A }
+
+	[GenerateEnvironmentVariables(""App"")]
+	public sealed partial class Settings
+	{
+		public Level Level { get; init; }
+		internal Hidden Hidden { get; init; }
+		public StringComparison Comparison { get; init; }
+	}
+}";
+
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources, ImmutableArray<Diagnostic> compilationDiagnostics) = RunGenerator(source);
+
+		Diagnostic diagnostic = Assert.ContainsSingle(diagnostics);
+		Assert.AreEqual("BB84SG0040", diagnostic.Id);
+		Assert.AreEqual(DiagnosticSeverity.Info, diagnostic.Severity);
+		Assert.AreEqual("Enum 'TestNamespace.Level' used by property 'Level' could use [GenerateEnumeratorExtensions] for reflection-free parsing", diagnostic.GetMessage(CultureInfo.InvariantCulture));
+		AssertCompiles(compilationDiagnostics, allowWarnings: false);
+		Assert.Contains("global::System.Enum.TryParse<global::TestNamespace.Level>", GetGeneratedSource(generatedSources, "Settings"));
 	}
 
 	[TestMethod]
@@ -507,7 +586,7 @@ namespace TestNamespace
 			references: References,
 			options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
-		IIncrementalGenerator[] generators = [new AttributeSourceGenerator(), new EnvironmentVariablesGenerator()];
+		IIncrementalGenerator[] generators = [new AttributeSourceGenerator(), new EnumeratorExtensionsGenerator(), new EnvironmentVariablesGenerator()];
 
 		GeneratorDriver driver = CSharpGeneratorDriver.Create(generators.Select(GeneratorExtensions.AsSourceGenerator), parseOptions: (CSharpParseOptions)syntaxTree.Options);
 		driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out Compilation outputCompilation, out ImmutableArray<Diagnostic> diagnostics);

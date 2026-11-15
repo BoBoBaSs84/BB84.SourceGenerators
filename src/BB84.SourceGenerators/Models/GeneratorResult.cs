@@ -17,12 +17,13 @@ internal sealed record GeneratorResult<TRequest>(TRequest? Request, EquatableArr
 	where TRequest : class
 {
 	/// <summary>
-	/// Creates a result that emits the given request without diagnostics.
+	/// Creates a result that emits the given request and reports the given (non-error) diagnostics.
 	/// </summary>
 	/// <param name="request">The request.</param>
+	/// <param name="diagnostics">The diagnostics, for example infos, that do not prevent emitting the request.</param>
 	/// <returns>The result.</returns>
-	internal static GeneratorResult<TRequest> FromRequest(TRequest request)
-		=> new(request, EquatableArray<DiagnosticInfo>.Empty);
+	internal static GeneratorResult<TRequest> FromRequest(TRequest request, params DiagnosticInfo[] diagnostics)
+		=> new(request, diagnostics.ToEquatableArray());
 
 	/// <summary>
 	/// Creates a result that only reports the given diagnostics.

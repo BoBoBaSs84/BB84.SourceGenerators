@@ -3,6 +3,7 @@
 //
 // This source code is licensed under the MIT license found in the
 // LICENSE file in the root directory of this source tree.
+using System.Collections;
 using System.Collections.Immutable;
 
 using Microsoft.CodeAnalysis;
@@ -59,6 +60,12 @@ internal static class IncrementalAssert
 	{
 		foreach ((object Value, IncrementalStepRunReason Reason) output in steps.SelectMany(static s => s.Outputs))
 		{
+			// The diagnostics output is combined with the compilation to resolve the locations, so it
+			// reruns after every edit by design; only outputs that emit source must come from the cache.
+			// The output value is a (sources, diagnostics) tuple whose source type is internal to Roslyn.
+			if (output.Value.GetType().GetField("Item1")?.GetValue(output.Value) is ICollection { Count: 0 })
+				continue;
+
 			Assert.IsTrue(
 				output.Reason is IncrementalStepRunReason.Cached or IncrementalStepRunReason.Unchanged,
 				$"Step '{stepName}' produced '{output.Reason}' for '{output.Value}'.");

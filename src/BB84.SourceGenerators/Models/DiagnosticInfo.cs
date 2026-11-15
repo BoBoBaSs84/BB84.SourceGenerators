@@ -16,6 +16,11 @@ namespace BB84.SourceGenerators.Models;
 internal sealed record DiagnosticInfo(DiagnosticDescriptor Descriptor, LocationInfo? Location, EquatableArray<string> MessageArgs)
 {
 	/// <summary>
+	/// Gets a value indicating whether the diagnostic is an error, which prevents emitting source.
+	/// </summary>
+	internal bool IsError => Descriptor.DefaultSeverity == DiagnosticSeverity.Error;
+
+	/// <summary>
 	/// Creates a diagnostic description.
 	/// </summary>
 	/// <param name="descriptor">The diagnostic descriptor.</param>

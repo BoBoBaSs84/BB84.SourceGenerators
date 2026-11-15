@@ -11,6 +11,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Globalization;
 
 namespace TestNamespace
 {
@@ -144,6 +145,73 @@ namespace TestNamespace
     }
 
     /// <summary>
+    /// Tries to convert the specified <paramref name="value"/> to its
+    /// <see cref="Access"/> equivalent. Surrounding white space is ignored.
+    /// </summary>
+    /// <param name="value">The name or numeric value of the enumeration value to parse.</param>
+    /// <param name="ignoreCase">Whether member names are matched case-insensitively.</param>
+    /// <param name="allowNumeric">Whether a numeric value (e.g. <c>"3"</c>) is accepted; it may only contain bits of defined members.</param>
+    /// <param name="result">The parsed enumeration value, or the default value if parsing failed.</param>
+    /// <returns>True if <paramref name="value"/> was parsed successfully; otherwise, false.</returns>
+    public static bool TryParseFast(string? value, bool ignoreCase, bool allowNumeric, out Access result)
+    {
+      if (value is null)
+      {
+        result = default;
+        return false;
+      }
+
+      string trimmed = value.Trim();
+      if (ignoreCase)
+      {
+        if (string.Equals(trimmed, nameof(Access.None), StringComparison.OrdinalIgnoreCase))
+        {
+          result = Access.None;
+          return true;
+        }
+        if (string.Equals(trimmed, nameof(Access.Read), StringComparison.OrdinalIgnoreCase))
+        {
+          result = Access.Read;
+          return true;
+        }
+        if (string.Equals(trimmed, nameof(Access.CanRead), StringComparison.OrdinalIgnoreCase))
+        {
+          result = Access.CanRead;
+          return true;
+        }
+        if (string.Equals(trimmed, nameof(Access.Write), StringComparison.OrdinalIgnoreCase))
+        {
+          result = Access.Write;
+          return true;
+        }
+        if (string.Equals(trimmed, nameof(Access.All), StringComparison.OrdinalIgnoreCase))
+        {
+          result = Access.All;
+          return true;
+        }
+        if (string.Equals(trimmed, nameof(Access.Everything), StringComparison.OrdinalIgnoreCase))
+        {
+          result = Access.Everything;
+          return true;
+        }
+      }
+      else if (TryParseFast(trimmed, out result))
+      {
+        return true;
+      }
+
+      if (allowNumeric && int.TryParse(trimmed, NumberStyles.Integer, CultureInfo.InvariantCulture, out int number))
+      {
+        result = (Access)number;
+        if ((result & ~(Access.None | Access.Read | Access.CanRead | Access.Write | Access.All | Access.Everything)) == 0)
+          return true;
+      }
+
+      result = default;
+      return false;
+    }
+
+    /// <summary>
     /// Tries to convert the specified <paramref name="value"/>, containing one or more
     /// member names delimited by any of the <paramref name="separators"/>, to its combined
     /// <see cref="Access"/> equivalent.
@@ -166,6 +234,43 @@ namespace TestNamespace
           continue;
 
         if (!TryParseFast(name, out Access flag))
+        {
+          result = default;
+          return false;
+        }
+
+        combined |= flag;
+        parsed = true;
+      }
+
+      result = parsed ? combined : default;
+      return parsed;
+    }
+
+    /// <summary>
+    /// Tries to convert the specified <paramref name="value"/>, containing one or more
+    /// member names or numeric values delimited by any of the <paramref name="separators"/>,
+    /// to its combined <see cref="Access"/> equivalent. Surrounding white space is ignored.
+    /// </summary>
+    /// <param name="value">The delimited names or numeric values of the enumeration values to parse.</param>
+    /// <param name="ignoreCase">Whether member names are matched case-insensitively.</param>
+    /// <param name="allowNumeric">Whether numeric values (e.g. <c>"3"</c>) are accepted; they may only contain bits of defined members.</param>
+    /// <param name="result">The combined enumeration value, or the default value if parsing failed.</param>
+    /// <param name="separators">The delimiters between the values, for example <c>"|"</c>, <c>","</c>, <c>";"</c> or <c>" "</c>.</param>
+    /// <returns>True if every value in <paramref name="value"/> was parsed successfully; otherwise, false.</returns>
+    public static bool TryParseFast(string? value, bool ignoreCase, bool allowNumeric, out Access result, params string[] separators)
+    {
+      if (value is null || separators is null || separators.Length == 0)
+        return TryParseFast(value, ignoreCase, allowNumeric, out result);
+
+      Access combined = default;
+      bool parsed = false;
+      foreach (string token in value.Split(separators, StringSplitOptions.RemoveEmptyEntries))
+      {
+        if (string.IsNullOrWhiteSpace(token))
+          continue;
+
+        if (!TryParseFast(token, ignoreCase, allowNumeric, out Access flag))
         {
           result = default;
           return false;

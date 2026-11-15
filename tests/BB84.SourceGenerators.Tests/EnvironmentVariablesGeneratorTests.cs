@@ -268,8 +268,110 @@ public sealed class EnvironmentVariablesGeneratorTests
 		}
 	}
 
+	[TestMethod]
+	[DataRow("high", EnvironmentFastLevel.High)]
+	[DataRow(" High ", EnvironmentFastLevel.High)]
+	[DataRow("LOW", EnvironmentFastLevel.Low)]
+	[DataRow("1", EnvironmentFastLevel.Low)]
+	[DataRow("2", EnvironmentFastLevel.High)]
+	public void TryReadShouldParseEnumWithEnumeratorExtensions(string value, EnvironmentFastLevel expected)
+	{
+		bool success = FastEnumSettings.TryRead(Lookup(new() { ["FAST_LEVEL"] = value }), out FastEnumSettings? result, out IReadOnlyList<string> errors);
+
+		Assert.IsTrue(success, string.Join(Environment.NewLine, errors));
+		Assert.IsNotNull(result);
+		Assert.AreEqual(expected, result.Level);
+	}
+
+	[TestMethod]
+	[DataRow("a, b", EnvironmentFastFeatures.A | EnvironmentFastFeatures.B)]
+	[DataRow("A,B", EnvironmentFastFeatures.A | EnvironmentFastFeatures.B)]
+	[DataRow("3", EnvironmentFastFeatures.A | EnvironmentFastFeatures.B)]
+	[DataRow("none", EnvironmentFastFeatures.None)]
+	public void TryReadShouldParseFlagsEnumWithEnumeratorExtensions(string value, EnvironmentFastFeatures expected)
+	{
+		bool success = FastEnumSettings.TryRead(Lookup(new() { ["FAST_FEATURES"] = value }), out FastEnumSettings? result, out IReadOnlyList<string> errors);
+
+		Assert.IsTrue(success, string.Join(Environment.NewLine, errors));
+		Assert.IsNotNull(result);
+		Assert.AreEqual(expected, result.Features);
+	}
+
+	[TestMethod]
+	[DataRow("FAST_LEVEL", "42", "EnvironmentFastLevel")]
+	[DataRow("FAST_LEVEL", "0", "EnvironmentFastLevel")]
+	[DataRow("FAST_LEVEL", "Medium", "EnvironmentFastLevel")]
+	[DataRow("FAST_FEATURES", "4", "EnvironmentFastFeatures")]
+	[DataRow("FAST_FEATURES", "A, C", "EnvironmentFastFeatures")]
+	public void TryReadShouldRejectInvalidEnumValuesWithEnumeratorExtensions(string variable, string value, string typeName)
+	{
+		bool success = FastEnumSettings.TryRead(Lookup(new() { [variable] = value }), out _, out IReadOnlyList<string> errors);
+
+		Assert.IsFalse(success);
+		Assert.AreEqual($"Environment variable '{variable}' has an invalid {typeName} value.", errors.Single());
+	}
+
+	[TestMethod]
+	public void PartialPropertiesShouldRoundTripEnumsWithEnumeratorExtensions()
+	{
+		try
+		{
+			FastEnumLiveSettings.Level = EnvironmentFastLevel.High;
+			FastEnumLiveSettings.Features = EnvironmentFastFeatures.A | EnvironmentFastFeatures.B;
+
+			Assert.AreEqual("High", Environment.GetEnvironmentVariable("BB84ENVTEST_FASTLIVE_LEVEL"));
+			Assert.AreEqual("A, B", Environment.GetEnvironmentVariable("BB84ENVTEST_FASTLIVE_FEATURES"));
+			Assert.AreEqual(EnvironmentFastLevel.High, FastEnumLiveSettings.Level);
+			Assert.AreEqual(EnvironmentFastFeatures.A | EnvironmentFastFeatures.B, FastEnumLiveSettings.Features);
+
+			Environment.SetEnvironmentVariable("BB84ENVTEST_FASTLIVE_LEVEL", "low");
+
+			Assert.AreEqual(EnvironmentFastLevel.Low, FastEnumLiveSettings.Level);
+
+			FastEnumLiveSettings.Level = null;
+
+			Assert.IsNull(Environment.GetEnvironmentVariable("BB84ENVTEST_FASTLIVE_LEVEL"));
+		}
+		finally
+		{
+			Environment.SetEnvironmentVariable("BB84ENVTEST_FASTLIVE_LEVEL", null);
+			Environment.SetEnvironmentVariable("BB84ENVTEST_FASTLIVE_FEATURES", null);
+		}
+	}
+
 	private static Func<string, string?> Lookup(Dictionary<string, string> variables)
 		=> name => variables.TryGetValue(name, out string? value) ? value : null;
+}
+
+[GenerateEnumeratorExtensions]
+public enum EnvironmentFastLevel
+{
+	Low = 1,
+	High = 2,
+}
+
+[Flags]
+[GenerateEnumeratorExtensions]
+public enum EnvironmentFastFeatures
+{
+	None = 0,
+	A = 1,
+	B = 2,
+}
+
+[GenerateEnvironmentVariables("Fast")]
+internal sealed partial class FastEnumSettings
+{
+	public EnvironmentFastLevel? Level { get; init; }
+	public EnvironmentFastFeatures? Features { get; init; }
+}
+
+[GenerateEnvironmentVariables("BB84EnvTest_FastLive", Writable = true)]
+internal static partial class FastEnumLiveSettings
+{
+	public static partial EnvironmentFastLevel? Level { get; set; }
+
+	public static partial EnvironmentFastFeatures Features { get; set; }
 }
 
 [GenerateEnvironmentVariables("Exporter")]
