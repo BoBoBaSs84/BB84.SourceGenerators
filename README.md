@@ -7,9 +7,9 @@ A collection of C# source generators that automatically generate boilerplate cod
 [![CodeQL](https://github.com/BoBoBaSs84/BB84.SourceGenerators/actions/workflows/github-code-scanning/codeql/badge.svg?branch=main)](https://github.com/BoBoBaSs84/BB84.SourceGenerators/actions/workflows/github-code-scanning/codeql)
 [![Dependabot](https://github.com/BoBoBaSs84/BB84.SourceGenerators/actions/workflows/dependabot/dependabot-updates/badge.svg?branch=main)](https://github.com/BoBoBaSs84/BB84.SourceGenerators/actions/workflows/dependabot/dependabot-updates)
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![C#](https://img.shields.io/badge/C%23-13.0-239120)](https://github.com/BoBoBaSs84/BB84.SourceGenerators)
 [![.NET Standard 2.0](https://img.shields.io/badge/.NET%20Standard-2.0-5C2D91)](https://docs.microsoft.com/en-us/dotnet/standard/net-standard)
+[![C#](https://img.shields.io/badge/C%23-14.0-239120)](https://learn.microsoft.com/en-us/dotnet/csharp/whats-new/csharp-version-history#c-version-14)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/BoBoBaSs84/BB84.SourceGenerators/blob/main/LICENSE)
 [![Issues](https://img.shields.io/github/issues/BoBoBaSs84/BB84.SourceGenerators)](https://github.com/BoBoBaSs84/BB84.SourceGenerators/issues)
 [![LastCommit](https://img.shields.io/github/last-commit/BoBoBaSs84/BB84.SourceGenerators)](https://github.com/BoBoBaSs84/BB84.SourceGenerators/commit/main)
 [![PullRequests](https://img.shields.io/github/issues-pr/BoBoBaSs84/BB84.SourceGenerators)](https://github.com/BoBoBaSs84/BB84.SourceGenerators/pulls)
@@ -22,8 +22,8 @@ This package provides eighteen powerful source generators:
 
 - **[Abstraction Generator](https://github.com/BoBoBaSs84/BB84.SourceGenerators/blob/main/docs/abstraction.md)** - Interface and implementation generation for static classes
 - **[ActionCommand Generator](https://github.com/BoBoBaSs84/BB84.SourceGenerators/blob/main/docs/action-command.md)** - Compile-time `ICommand` property generation (sync, async, parameterized, cancellable) for MVVM
-- **[AutoMapper Generator](https://github.com/BoBoBaSs84/BB84.SourceGenerators/blob/main/docs/auto-mapper.md)** - Compile-time property-to-property mapping method generation
 - **[Assembly Information Generator](https://github.com/BoBoBaSs84/BB84.SourceGenerators/blob/main/docs/assembly-information.md)** - Compile-time assembly metadata constants without reflection
+- **[AutoMapper Generator](https://github.com/BoBoBaSs84/BB84.SourceGenerators/blob/main/docs/auto-mapper.md)** - Compile-time property-to-property mapping method generation
 - **[Builder Generator](https://github.com/BoBoBaSs84/BB84.SourceGenerators/blob/main/docs/builder.md)** - Fluent builder pattern generation for classes and structs
 - **[Cloneable Generator](https://github.com/BoBoBaSs84/BB84.SourceGenerators/blob/main/docs/cloneable.md)** - Compile-time `Clone()` and `DeepClone()` method generation with collection and struct support
 - **[Command Argument Generator](https://github.com/BoBoBaSs84/BB84.SourceGenerators/blob/main/docs/command-argument.md)** - Compile-time command line argument parsing with usage text and error reporting
@@ -96,11 +96,11 @@ Contributions are welcome! If you have an idea for a new feature, improvement, o
 
 ## Code of Conduct
 
-We expect all contributors to adhere to the [Code of Conduct](CODE_OF_CONDUCT.md).
+We expect all contributors to adhere to the [Code of Conduct](https://github.com/BoBoBaSs84/BB84.SourceGenerators/blob/main/CODE_OF_CONDUCT.md).
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License - see the [LICENSE](https://github.com/BoBoBaSs84/BB84.SourceGenerators/blob/main/LICENSE) file for details.
 
 ## Author
 
