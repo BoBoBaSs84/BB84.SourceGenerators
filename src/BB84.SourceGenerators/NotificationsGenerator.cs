@@ -31,6 +31,7 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 	private static readonly string[] FileUsings =
 	[
 		NamespaceNames.System,
+		NamespaceNames.SystemCollectionsGeneric,
 		NamespaceNames.SystemComponentModel,
 	];
 
@@ -55,8 +56,9 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 
 		TypeTargetInfo type = TypeTargetInfo.Create(typeDeclaration, typeSymbol);
 		bool isRecord = typeDeclaration is RecordDeclarationSyntax;
+		List<(TypeDeclarationSyntax Syntax, SemanticModel SemanticModel)> declarations = GetDeclarations(typeSymbol, context.SemanticModel, cancellationToken);
 
-		if (isRecord && ((RecordDeclarationSyntax)typeDeclaration).ParameterList is not null)
+		if (isRecord && declarations.Any(static d => d.Syntax is RecordDeclarationSyntax { ParameterList: not null }))
 			return GeneratorResult<NotificationsRequest>.FromDiagnostics(type.CreateDiagnostic(DiagnosticDescriptors.NotificationsPositionalRecordNotSupportedDiagnostic, type.Name));
 
 		List<DiagnosticInfo> diagnostics = [];
@@ -67,11 +69,9 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 		if (!options.RaiseChanged && !options.RaiseChanging)
 			return null;
 
-		(EquatableArray<NotificationsField> fields, EquatableArray<NotificationsPartialProperty> partialProperties) = CollectMembers(diagnostics, typeDeclaration, typeSymbol, context.SemanticModel);
+		(EquatableArray<NotificationsField> fields, EquatableArray<NotificationsPartialProperty> partialProperties) = CollectMembers(diagnostics, declarations, typeSymbol, GetFields(typeSymbol));
 
-		bool isSealed = typeDeclaration.Modifiers.Any(SyntaxKind.SealedKeyword);
-
-		NotificationsRequest request = new(type, isRecord, isSealed, options, fields, partialProperties);
+		NotificationsRequest request = new(type, isRecord, typeSymbol.IsSealed, options, fields, partialProperties);
 
 		return new GeneratorResult<NotificationsRequest>(request, diagnostics.ToEquatableArray());
 	}
@@ -119,32 +119,66 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 	}
 
 	/// <summary>
-	/// Collects the notifying fields and partial properties of the type together with the commands
-	/// each of them notifies, adding diagnostics for invalid partial properties and unknown commands.
+	/// Gets all declarations of the given type, one per <c>partial</c> part, each paired with
+	/// the semantic model of its syntax tree.
+	/// </summary>
+	/// <param name="typeSymbol">The type symbol.</param>
+	/// <param name="semanticModel">The semantic model of the declaration carrying the attribute.</param>
+	/// <param name="cancellationToken">The cancellation token.</param>
+	/// <returns>The type declarations together with their semantic models.</returns>
+	private static List<(TypeDeclarationSyntax Syntax, SemanticModel SemanticModel)> GetDeclarations(INamedTypeSymbol typeSymbol, SemanticModel semanticModel, CancellationToken cancellationToken)
+	{
+		Dictionary<SyntaxTree, SemanticModel> semanticModels = new() { [semanticModel.SyntaxTree] = semanticModel };
+		List<(TypeDeclarationSyntax Syntax, SemanticModel SemanticModel)> declarations = [];
+
+		foreach (SyntaxReference reference in typeSymbol.DeclaringSyntaxReferences)
+		{
+			if (reference.GetSyntax(cancellationToken) is not TypeDeclarationSyntax declaration)
+				continue;
+
+			if (!semanticModels.TryGetValue(reference.SyntaxTree, out SemanticModel? declarationModel))
+				semanticModels[reference.SyntaxTree] = declarationModel = semanticModel.Compilation.GetSemanticModel(reference.SyntaxTree);
+
+			declarations.Add((declaration, declarationModel));
+		}
+
+		return declarations;
+	}
+
+	/// <summary>
+	/// Collects the notifying fields and partial properties of all declarations of the type together with
+	/// the commands each of them notifies, adding diagnostics for invalid partial properties and unknown commands.
 	/// </summary>
 	/// <param name="diagnostics">The list the diagnostics are added to.</param>
-	/// <param name="typeDeclaration">The type declaration syntax.</param>
+	/// <param name="declarations">The type declarations together with their semantic models.</param>
 	/// <param name="typeSymbol">The type symbol.</param>
-	/// <param name="semanticModel">The semantic model of the type declaration.</param>
+	/// <param name="generateFields">Indicates whether notifying properties are generated for the fields.</param>
 	/// <returns>The notifying fields, one per declared variable, and the partial properties to implement.</returns>
-	private static (EquatableArray<NotificationsField> Fields, EquatableArray<NotificationsPartialProperty> PartialProperties) CollectMembers(List<DiagnosticInfo> diagnostics, TypeDeclarationSyntax typeDeclaration, INamedTypeSymbol typeSymbol, SemanticModel semanticModel)
+	private static (EquatableArray<NotificationsField> Fields, EquatableArray<NotificationsPartialProperty> PartialProperties) CollectMembers(List<DiagnosticInfo> diagnostics, List<(TypeDeclarationSyntax Syntax, SemanticModel SemanticModel)> declarations, INamedTypeSymbol typeSymbol, bool generateFields)
 	{
-		List<FieldDeclarationSyntax> fieldDeclarations = [.. typeDeclaration.Members
-			.OfType<FieldDeclarationSyntax>()
-			.Where(field => IsAssignable(field) && !HasAttribute(field, semanticModel, ExcludeFromNotificationAttributeName))];
+		List<(FieldDeclarationSyntax Syntax, SemanticModel SemanticModel)> fieldDeclarations = [];
+		List<PartialPropertyInfo> partialProperties = [];
 
-		List<PartialPropertyInfo> partialProperties = GetPartialProperties(diagnostics, typeDeclaration, typeSymbol, semanticModel);
+		foreach ((TypeDeclarationSyntax declaration, SemanticModel semanticModel) in declarations)
+		{
+			if (generateFields)
+			{
+				fieldDeclarations.AddRange(declaration.Members
+					.OfType<FieldDeclarationSyntax>()
+					.Where(field => IsAssignable(field) && !HasAttribute(field, semanticModel, ExcludeFromNotificationAttributeName))
+					.Select(field => (field, semanticModel)));
+			}
+
+			partialProperties.AddRange(GetPartialProperties(diagnostics, declaration, typeSymbol, semanticModel));
+		}
 
 		HashSet<string> knownCommands = GetKnownCommandNames(typeSymbol);
-		Dictionary<MemberDeclarationSyntax, List<string>> notifyCommands = [];
-		foreach (MemberDeclarationSyntax member in fieldDeclarations.Cast<MemberDeclarationSyntax>().Concat(partialProperties.Select(static p => p.Syntax)))
-			notifyCommands[member] = GetNotifyCanExecuteChangedCommands(diagnostics, member, semanticModel, knownCommands);
 
 		List<NotificationsField> fields = [];
-		foreach (FieldDeclarationSyntax fieldDeclaration in fieldDeclarations)
+		foreach ((FieldDeclarationSyntax fieldDeclaration, SemanticModel semanticModel) in fieldDeclarations)
 		{
 			EquatableArray<string> alsoNotifyFor = GetAlsoNotifyForProperties(fieldDeclaration, semanticModel).ToEquatableArray();
-			EquatableArray<string> commands = notifyCommands[fieldDeclaration].ToEquatableArray();
+			EquatableArray<string> commands = GetNotifyCanExecuteChangedCommands(diagnostics, fieldDeclaration, semanticModel, knownCommands).ToEquatableArray();
 			string fieldType = $"{fieldDeclaration.Declaration.Type}";
 
 			foreach (VariableDeclaratorSyntax variable in fieldDeclaration.Declaration.Variables)
@@ -164,8 +198,8 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 				GetAccessorPrefix(property.Getter),
 				GetAccessorPrefix(property.Setter),
 				property.IsExcluded,
-				property.IsExcluded ? EquatableArray<string>.Empty : GetAlsoNotifyForProperties(property.Syntax, semanticModel).ToEquatableArray(),
-				notifyCommands[property.Syntax].ToEquatableArray()))
+				property.IsExcluded ? EquatableArray<string>.Empty : GetAlsoNotifyForProperties(property.Syntax, property.SemanticModel).ToEquatableArray(),
+				GetNotifyCanExecuteChangedCommands(diagnostics, property.Syntax, property.SemanticModel, knownCommands).ToEquatableArray()))
 			.ToEquatableArray();
 
 		return (fields.ToEquatableArray(), properties);
@@ -202,6 +236,9 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 
 	private static bool GetPartialMethods(INamedTypeSymbol namedTypeSymbol)
 		=> AttributeHelpers.GetConstructorArgument(namedTypeSymbol, AttributeNames.MetadataName, 3, false);
+
+	private static bool GetFields(INamedTypeSymbol namedTypeSymbol)
+		=> AttributeHelpers.GetConstructorArgument(namedTypeSymbol, AttributeNames.MetadataName, 4, true);
 
 	/// <summary>
 	/// Determines whether the base type chain of the given type already provides the change notification
@@ -410,7 +447,8 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 	private static void AppendNotifyingSetterBody(SourceBuilder sb, string fieldName, string propertyName, string typeName, EquatableArray<string> alsoNotifyFor, EquatableArray<string> commands, NotificationsOptions options)
 	{
 		sb.OpenBrace();
-		sb.AppendLine($"if ({fieldName} != value)");
+		// EqualityComparer<T>.Default treats double.NaN as equal to itself and works for structs without an == operator.
+		sb.AppendLine($"if (!EqualityComparer<{typeName}>.Default.Equals({fieldName}, value))");
 		sb.OpenBrace();
 		if (options.PartialMethods)
 		{
@@ -495,8 +533,8 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 		=> accessor.Modifiers.Count == 0 ? string.Empty : $"{accessor.Modifiers} ";
 
 	/// <summary>
-	/// Collects the partial property defining declarations of the type and adds diagnostics
-	/// for those that cannot be implemented with change notification.
+	/// Collects the partial property defining declarations of one declaration of the type and adds
+	/// diagnostics for those that cannot be implemented with change notification.
 	/// </summary>
 	/// <param name="diagnostics">The list the diagnostics are added to.</param>
 	/// <param name="typeDeclaration">The type declaration syntax.</param>
@@ -544,7 +582,7 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 			string typeName = symbol.Type.ToPropertyTypeDisplayString();
 			bool isExcluded = AttributeHelpers.HasAttribute(symbol, ExcludeFromNotificationAttributeName);
 
-			properties.Add(new PartialPropertyInfo(property, symbol, getter, setter, typeName, fieldName, isExcluded));
+			properties.Add(new PartialPropertyInfo(property, symbol, semanticModel, getter, setter, typeName, fieldName, isExcluded));
 		}
 
 		return properties;
@@ -744,6 +782,7 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 	/// </summary>
 	/// <param name="Syntax">The defining declaration syntax.</param>
 	/// <param name="Symbol">The property symbol.</param>
+	/// <param name="SemanticModel">The semantic model of the defining declaration.</param>
 	/// <param name="Getter">The <c>get</c> accessor of the defining declaration.</param>
 	/// <param name="Setter">The <c>set</c> accessor of the defining declaration.</param>
 	/// <param name="TypeName">The fully qualified property type name.</param>
@@ -752,6 +791,7 @@ public sealed class NotificationsGenerator : IIncrementalGenerator
 	private sealed record PartialPropertyInfo(
 		PropertyDeclarationSyntax Syntax,
 		IPropertySymbol Symbol,
+		SemanticModel SemanticModel,
 		AccessorDeclarationSyntax Getter,
 		AccessorDeclarationSyntax Setter,
 		string TypeName,

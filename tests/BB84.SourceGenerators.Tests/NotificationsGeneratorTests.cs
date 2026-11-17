@@ -53,6 +53,35 @@ public sealed class NotificationsGeneratorTests
 	}
 
 	[TestMethod]
+	public void SettingNaNTwiceShouldNotifyOnce()
+	{
+		int changedCount = 0;
+		EqualityComparerModel model = new();
+		model.PropertyChanged += (s, e) => changedCount++;
+
+		model.Ratio = double.NaN;
+		model.Ratio = double.NaN;
+		model.Factor = double.NaN;
+		model.Factor = double.NaN;
+
+		Assert.AreEqual(2, changedCount);
+	}
+
+	[TestMethod]
+	public void StructWithoutEqualityOperatorShouldNotifyOnChangeOnly()
+	{
+		int changedCount = 0;
+		EqualityComparerModel model = new();
+		model.PropertyChanged += (s, e) => changedCount++;
+
+		model.Point = new PlainPoint(1, 2);
+		model.Point = new PlainPoint(1, 2);
+		model.Point = new PlainPoint(3, 4);
+
+		Assert.AreEqual(2, changedCount);
+	}
+
+	[TestMethod]
 	public void InternalClassShouldCompileAndWork()
 	{
 		int changingCount = 0;
@@ -382,6 +411,21 @@ public partial class NotificationProperties(int id, string name, string descript
 public sealed partial class SealedNotificationModel
 {
 	private int _value;
+}
+
+[GenerateNotifications]
+public sealed partial class EqualityComparerModel
+{
+	private double _ratio;
+	private PlainPoint _point;
+
+	public partial double Factor { get; set; }
+}
+
+public readonly struct PlainPoint(int x, int y)
+{
+	public int X { get; } = x;
+	public int Y { get; } = y;
 }
 
 [GenerateNotifications]

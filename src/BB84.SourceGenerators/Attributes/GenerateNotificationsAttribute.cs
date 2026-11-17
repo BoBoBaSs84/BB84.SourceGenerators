@@ -7,7 +7,8 @@ namespace BB84.SourceGenerators.Attributes;
 
 /// <summary>
 /// Indicates that the decorated <c>class</c> should have properties with changing and changed
-/// notifications generated for its fields. The generated code can use the following interfaces:
+/// notifications generated for its fields and partial properties, declared in any part of the
+/// <c>partial</c> type. The generated code can use the following interfaces:
 /// <list type="bullet">
 /// <item>The <see cref="System.ComponentModel.INotifyPropertyChanged"/> interface for property changed notifications.</item>
 /// <item>The <see cref="System.ComponentModel.INotifyPropertyChanging"/> interface for property changing notifications.</item>
@@ -26,8 +27,12 @@ namespace BB84.SourceGenerators.Attributes;
 /// Indicates whether <c>On[PropertyName]Changing</c> and <c>On[PropertyName]Changed</c> partial methods
 /// should be declared and called from the generated property setters.
 /// </param>
+/// <param name="fields">
+/// Indicates whether notifying properties should be generated for the assignable fields. When
+/// <see langword="false"/>, only partial properties are implemented and fields are left untouched.
+/// </param>
 [AttributeUsage(AttributeTargets.Class, Inherited = false, AllowMultiple = false)]
-internal sealed class GenerateNotificationsAttribute(bool propertyChanged = true, bool propertyChanging = true, bool hasChanged = false, bool partialMethods = false) : Attribute
+internal sealed class GenerateNotificationsAttribute(bool propertyChanged = true, bool propertyChanging = true, bool hasChanged = false, bool partialMethods = false, bool fields = true) : Attribute
 {
 	/// <summary>
 	/// Indicates whether the <see cref="System.ComponentModel.INotifyPropertyChanged"/> interface should be implemented.
@@ -49,4 +54,9 @@ internal sealed class GenerateNotificationsAttribute(bool propertyChanged = true
 	/// should be declared and called from the generated property setters.
 	/// </summary>
 	public bool PartialMethods => partialMethods;
+
+	/// <summary>
+	/// Indicates whether notifying properties should be generated for the assignable fields.
+	/// </summary>
+	public bool Fields => fields;
 }
