@@ -711,25 +711,235 @@ namespace TestNamespace
 		Assert.DoesNotContain("Skipped", generated);
 	}
 
-	private static (ImmutableArray<Diagnostic> Diagnostics, string[] GeneratedSources) RunGenerator(string source)
+	[TestMethod]
+	public void ShouldImplementPartialPropertyDeclaredInNonAttributedPart()
 	{
-		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources, _) = RunGeneratorWithCompilation(source);
+		string attributedPart = @"
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+	[GenerateNotifications]
+	public partial class SplitModel
+	{
+		public partial int Id { get; set; }
+	}
+}";
+		string otherPart = @"
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+	public partial class SplitModel
+	{
+		[AlsoNotify(nameof(Title))]
+		public partial string Name { get; set; }
+
+		public string Title => Name;
+	}
+}";
+
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources, ImmutableArray<Diagnostic> compilationErrors) = RunGeneratorWithCompilation(attributedPart, otherPart);
+
+		Assert.IsEmpty(diagnostics);
+		Assert.IsEmpty(compilationErrors, string.Join(Environment.NewLine, compilationErrors));
+		string generated = generatedSources.Single(s => s.Contains("partial class SplitModel"));
+		Assert.Contains("public partial int Id", generated);
+		Assert.Contains("public partial string Name", generated);
+		Assert.Contains("RaisePropertyChanged(nameof(Name), nameof(Title));", generated);
+	}
+
+	[TestMethod]
+	public void ShouldGeneratePropertyForFieldDeclaredInNonAttributedPart()
+	{
+		string attributedPart = @"
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+	[GenerateNotifications]
+	public partial class SplitFieldModel
+	{
+		private int _id;
+	}
+}";
+		string otherPart = @"
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+	public partial class SplitFieldModel
+	{
+		private string _name;
+
+		[ExcludeFromNotification]
+		private string _secret;
+	}
+}";
+
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources, ImmutableArray<Diagnostic> compilationErrors) = RunGeneratorWithCompilation(attributedPart, otherPart);
+
+		Assert.IsEmpty(diagnostics);
+		Assert.IsEmpty(compilationErrors, string.Join(Environment.NewLine, compilationErrors));
+		string generated = generatedSources.Single(s => s.Contains("partial class SplitFieldModel"));
+		Assert.Contains("public int Id", generated);
+		Assert.Contains("public string Name", generated);
+		Assert.DoesNotContain("Secret", generated);
+	}
+
+	[TestMethod]
+	public void ShouldOnlyImplementPartialPropertiesWhenFieldsDisabled()
+	{
+		string attributedPart = @"
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+	[GenerateNotifications(fields: false)]
+	public partial class PropertiesOnlyModel
+	{
+		private object _session;
+		private bool _applying;
+
+		public partial bool IsBusy { get; set; }
+	}
+}";
+		string otherPart = @"
+namespace TestNamespace
+{
+	public partial class PropertiesOnlyModel
+	{
+		private int _counter;
+
+		public partial string Name { get; set; }
+	}
+}";
+
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources, ImmutableArray<Diagnostic> compilationErrors) = RunGeneratorWithCompilation(attributedPart, otherPart);
+
+		Assert.IsEmpty(diagnostics);
+		Assert.IsEmpty(compilationErrors, string.Join(Environment.NewLine, compilationErrors));
+		string generated = generatedSources.Single(s => s.Contains("partial class PropertiesOnlyModel"));
+		Assert.Contains("public partial bool IsBusy", generated);
+		Assert.Contains("public partial string Name", generated);
+		Assert.DoesNotContain("Session", generated);
+		Assert.DoesNotContain("Applying", generated);
+		Assert.DoesNotContain("Counter", generated);
+	}
+
+	[TestMethod]
+	public void ShouldRaiseCanExecuteChangedForCommandDeclaredInOtherPart()
+	{
+		string attributedPart = @"
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+	[GenerateNotifications(fields: false)]
+	public partial class SplitCommandModel
+	{
+		[ActionCommand]
+		private void Save() { }
+	}
+}";
+		string otherPart = @"
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+	public partial class SplitCommandModel
+	{
+		[NotifyCanExecuteChanged(nameof(SaveCommand))]
+		public partial bool IsBusy { get; set; }
+	}
+}";
+
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources) = RunGenerator(attributedPart, otherPart);
+
+		Assert.IsEmpty(diagnostics);
+		string generated = generatedSources.Single(s => s.Contains("partial class SplitCommandModel"));
+		Assert.Contains("SaveCommand.RaiseCanExecuteChanged();", generated);
+	}
+
+	[TestMethod]
+	[DataRow("public partial string Name { get; }", "BB84SG0015")]
+	[DataRow("[ExcludeFromNotification] private string _name; public partial string Name { get; set; }", "BB84SG0016")]
+	[DataRow("public static partial string Name { get; set; }", "BB84SG0017")]
+	[DataRow("[NotifyCanExecuteChanged(\"MissingCommand\")] public partial string Name { get; set; }", "BB84SG0024")]
+	[DataRow("[NotifyCanExecuteChanged(\"MissingCommand\")] private string _name;", "BB84SG0024")]
+	public void ShouldReportDiagnosticAtMemberInNonAttributedPart(string member, string diagnosticId)
+	{
+		string attributedPart = @"
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+	[GenerateNotifications]
+	public partial class SplitDiagnosticModel
+	{
+	}
+}";
+		string otherPart = $@"
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{{
+	public partial class SplitDiagnosticModel
+	{{
+		{member}
+	}}
+}}";
+
+		(ImmutableArray<Diagnostic> diagnostics, _) = RunGenerator(attributedPart, otherPart);
+
+		Diagnostic diagnostic = diagnostics.Single(d => d.Id == diagnosticId);
+		Assert.AreEqual("Source1.cs", diagnostic.Location.SourceTree?.FilePath);
+	}
+
+	[TestMethod]
+	public void ShouldReportDiagnosticForPositionalRecordInNonAttributedPart()
+	{
+		string attributedPart = @"
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+	[GenerateNotifications]
+	public partial record SplitRecord
+	{
+	}
+}";
+		string otherPart = @"
+namespace TestNamespace
+{
+	public partial record SplitRecord(int Id);
+}";
+
+		(ImmutableArray<Diagnostic> diagnostics, _) = RunGenerator(attributedPart, otherPart);
+
+		Assert.AreEqual(DiagnosticSeverity.Error, diagnostics.Single(d => d.Id == "BB84SG0014").Severity);
+	}
+
+	private static (ImmutableArray<Diagnostic> Diagnostics, string[] GeneratedSources) RunGenerator(params string[] sources)
+	{
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources, _) = RunGeneratorWithCompilation(sources);
 		return (diagnostics, generatedSources);
 	}
 
-	private static (ImmutableArray<Diagnostic> Diagnostics, string[] GeneratedSources, ImmutableArray<Diagnostic> CompilationErrors) RunGeneratorWithCompilation(string source)
+	private static (ImmutableArray<Diagnostic> Diagnostics, string[] GeneratedSources, ImmutableArray<Diagnostic> CompilationErrors) RunGeneratorWithCompilation(params string[] sources)
 	{
-		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources, ImmutableArray<Diagnostic> compilationDiagnostics) = RunGeneratorWithAllDiagnostics(source);
+		(ImmutableArray<Diagnostic> diagnostics, string[] generatedSources, ImmutableArray<Diagnostic> compilationDiagnostics) = RunGeneratorWithAllDiagnostics(sources);
 		return (diagnostics, generatedSources, [.. compilationDiagnostics.Where(d => d.Severity == DiagnosticSeverity.Error)]);
 	}
 
-	private static (ImmutableArray<Diagnostic> Diagnostics, string[] GeneratedSources, ImmutableArray<Diagnostic> CompilationDiagnostics) RunGeneratorWithAllDiagnostics(string source)
+	private static (ImmutableArray<Diagnostic> Diagnostics, string[] GeneratedSources, ImmutableArray<Diagnostic> CompilationDiagnostics) RunGeneratorWithAllDiagnostics(params string[] sources)
 	{
-		SyntaxTree syntaxTree = CSharpSyntaxTree.ParseText(source);
+		// Each source becomes its own syntax tree named Source<index>.cs, so diagnostics can be traced back to their part.
+		SyntaxTree[] syntaxTrees = [.. sources.Select((source, index) => CSharpSyntaxTree.ParseText(source, path: $"Source{index}.cs"))];
 
 		CSharpCompilation compilation = CSharpCompilation.Create(
 			assemblyName: "NotificationsDriverTestAssembly",
-			syntaxTrees: [syntaxTree],
+			syntaxTrees: syntaxTrees,
 			references: References,
 			options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 

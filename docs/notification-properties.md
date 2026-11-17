@@ -10,7 +10,7 @@ Implementing `INotifyPropertyChanged` by hand means writing the same backing-fie
 
 ## Benefits
 
-- Generates optimized property setters with inline equality checks
+- Generates property setters that only notify on an actual change, compared with `EqualityComparer<T>.Default` (so `double.NaN` does not notify repeatedly and structs without an `==` operator are supported)
 - Avoids reflection overhead of PropertyChanged.Fody or similar tools
 - Compile-time code generation means zero runtime overhead
 - Able to generate additional notifications without runtime attribute scanning
@@ -19,7 +19,7 @@ Implementing `INotifyPropertyChanged` by hand means writing the same backing-fie
 ## Attributes
 
 ```csharp
-[GenerateNotifications(bool propertyChanged = true, bool propertyChanging = true, bool hasChanged = false, bool partialMethods = false)]
+[GenerateNotifications(bool propertyChanged = true, bool propertyChanging = true, bool hasChanged = false, bool partialMethods = false, bool fields = true)]
 [AlsoNotify(params string[] propertyNames)]
 [ExcludeFromNotification]
 [NotifyCanExecuteChanged(params string[] commandNames)]
@@ -31,6 +31,7 @@ Implementing `INotifyPropertyChanged` by hand means writing the same backing-fie
 - `propertyChanging` - When `true` (default), implements `INotifyPropertyChanging` and generates `PropertyChanging` event and `RaisePropertyChanging()` method
 - `hasChanged` - When `true`, generates an additional `HasChanged` boolean property that is set to `true` when any property changes
 - `partialMethods` - When `true`, declares `On[PropertyName]Changing` / `On[PropertyName]Changed` partial methods for each generated property and calls them from the setter (see [Partial Method Hooks](#partial-method-hooks))
+- `fields` - When `true` (default), generates a notifying property for each assignable field. When `false`, only partial properties are implemented and fields are left untouched, so private state needs no `[ExcludeFromNotification]` (see [Partial Property Support](#partial-property-support))
 
 **Field-Level Attributes:**
 
@@ -80,7 +81,7 @@ public partial class Person
 
 The generator creates:
 
-- Public properties for each private field with change notification (unless excluded with `[ExcludeFromNotification]`); `readonly` and `const` fields are skipped because a setter cannot assign them
+- Public properties for each private field with change notification (unless excluded with `[ExcludeFromNotification]` or disabled with `fields: false`); `readonly` and `const` fields are skipped because a setter cannot assign them
 - Implementation of `INotifyPropertyChanged` and/or `INotifyPropertyChanging` interfaces (configurable)
 - `PropertyChanged` and/or `PropertyChanging` events
 - `RaisePropertyChanged()` and/or `RaisePropertyChanging()` methods (`protected virtual` for non-sealed classes, `private` for sealed classes)
@@ -164,7 +165,7 @@ public partial string FirstName
     get => _firstName;
     set
     {
-        if (_firstName != value)
+        if (!EqualityComparer<string>.Default.Equals(_firstName, value))
         {
             RaisePropertyChanging(nameof(FirstName), nameof(FullName));
             _firstName = value;
@@ -175,7 +176,28 @@ public partial string FirstName
 }
 ```
 
-Only partial properties of the declaration carrying `[GenerateNotifications]` are considered; non-partial properties are ignored. The following compile-time errors are reported:
+Fields and partial properties are collected from every part of the `partial` type, not only from the declaration carrying `[GenerateNotifications]`, so members can be split across files (e.g. `MainViewModel.cs` and `MainViewModel.Fields.cs`). Non-partial properties are ignored. Diagnostics are reported at the member in whichever part it is declared.
+
+If the type uses partial properties for its bindable state, pass `fields: false` so that its private fields (cancellation sources, flags, caches, ...) do not become public notifying properties:
+
+```csharp
+// MainViewModel.cs
+[GenerateNotifications(fields: false)]
+public sealed partial class MainViewModel
+{
+    private CancellationTokenSource? _cancel; // no property generated
+
+    public partial bool IsBusy { get; set; }
+}
+
+// MainViewModel.Fields.cs - second part, no attribute
+public sealed partial class MainViewModel
+{
+    public partial string Name { get; set; } // implemented as well
+}
+```
+
+The following compile-time errors are reported:
 
 - `BB84SG0015` - The partial property does not declare both a `get` and a `set` accessor (get-only and `init` properties are not supported)
 - `BB84SG0016` - The backing field name (e.g. `_firstName`) collides with an existing member
@@ -210,7 +232,7 @@ The generated setter calls the hooks in this order (only when the value actually
 ```csharp
 set
 {
-    if (_name != value)
+    if (!EqualityComparer<string?>.Default.Equals(_name, value))
     {
         string? __oldValue = _name;
         OnNameChanging(value);

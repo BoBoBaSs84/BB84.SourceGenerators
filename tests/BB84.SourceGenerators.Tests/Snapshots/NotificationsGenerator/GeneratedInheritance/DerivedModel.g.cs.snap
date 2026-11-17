@@ -9,6 +9,7 @@
 //------------------------------------------------------------------------------
 #nullable enable
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 
 namespace TestNamespace
@@ -20,7 +21,7 @@ namespace TestNamespace
       get => _age;
       set
       {
-        if (_age != value)
+        if (!EqualityComparer<int>.Default.Equals(_age, value))
         {
           RaisePropertyChanging(nameof(Age), nameof(Name));
           _age = value;

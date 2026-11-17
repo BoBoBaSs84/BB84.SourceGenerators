@@ -9,6 +9,7 @@
 //------------------------------------------------------------------------------
 #nullable enable
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 
 namespace TestNamespace
@@ -45,7 +46,7 @@ namespace TestNamespace
       get => _firstName;
       set
       {
-        if (_firstName != value)
+        if (!EqualityComparer<string>.Default.Equals(_firstName, value))
         {
           RaisePropertyChanging(nameof(FirstName), nameof(FullName));
           _firstName = value;
@@ -60,7 +61,7 @@ namespace TestNamespace
       get => _lastName;
       set
       {
-        if (_lastName != value)
+        if (!EqualityComparer<string>.Default.Equals(_lastName, value))
         {
           RaisePropertyChanging(nameof(LastName), nameof(FullName), nameof(Initials));
           _lastName = value;
@@ -77,7 +78,7 @@ namespace TestNamespace
       get => _title;
       set
       {
-        if (_title != value)
+        if (!EqualityComparer<string>.Default.Equals(_title, value))
         {
           RaisePropertyChanging(nameof(Title), nameof(FullName));
           _title = value;

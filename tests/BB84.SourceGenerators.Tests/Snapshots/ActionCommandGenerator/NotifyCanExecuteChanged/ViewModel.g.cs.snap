@@ -9,6 +9,7 @@
 //------------------------------------------------------------------------------
 #nullable enable
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 
 namespace TestNamespace
@@ -26,7 +27,7 @@ namespace TestNamespace
       get => _canRun;
       set
       {
-        if (_canRun != value)
+        if (!EqualityComparer<bool>.Default.Equals(_canRun, value))
         {
           RaisePropertyChanging(nameof(CanRun));
           _canRun = value;
@@ -41,7 +42,7 @@ namespace TestNamespace
       get => _unknown;
       set
       {
-        if (_unknown != value)
+        if (!EqualityComparer<int>.Default.Equals(_unknown, value))
         {
           RaisePropertyChanging(nameof(Unknown));
           _unknown = value;
@@ -57,7 +58,7 @@ namespace TestNamespace
       get => _isReady;
       set
       {
-        if (_isReady != value)
+        if (!EqualityComparer<bool>.Default.Equals(_isReady, value))
         {
           RaisePropertyChanging(nameof(IsReady));
           _isReady = value;

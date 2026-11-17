@@ -9,6 +9,7 @@
 //------------------------------------------------------------------------------
 #nullable enable
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 
 namespace TestNamespace
@@ -28,7 +29,7 @@ namespace TestNamespace
       get => _name;
       set
       {
-        if (_name != value)
+        if (!EqualityComparer<string>.Default.Equals(_name, value))
         {
           RaisePropertyChanging(nameof(Name));
           _name = value;
@@ -44,7 +45,7 @@ namespace TestNamespace
       get => _count;
       set
       {
-        if (_count != value)
+        if (!EqualityComparer<int>.Default.Equals(_count, value))
         {
           RaisePropertyChanging(nameof(Count));
           _count = value;
@@ -60,7 +61,7 @@ namespace TestNamespace
       get => _notes;
       set
       {
-        if (_notes != value)
+        if (!EqualityComparer<string?>.Default.Equals(_notes, value))
         {
           RaisePropertyChanging(nameof(Notes));
           _notes = value;
@@ -76,7 +77,7 @@ namespace TestNamespace
       get => _version;
       private set
       {
-        if (_version != value)
+        if (!EqualityComparer<int>.Default.Equals(_version, value))
         {
           RaisePropertyChanging(nameof(Version));
           _version = value;
@@ -92,7 +93,7 @@ namespace TestNamespace
       get => _items;
       set
       {
-        if (_items != value)
+        if (!EqualityComparer<global::System.Collections.Generic.List<global::OtherNamespace.Foo>>.Default.Equals(_items, value))
         {
           RaisePropertyChanging(nameof(Items));
           _items = value;

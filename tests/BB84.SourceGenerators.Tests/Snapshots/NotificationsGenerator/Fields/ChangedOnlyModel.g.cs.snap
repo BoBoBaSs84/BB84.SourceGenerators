@@ -9,6 +9,7 @@
 //------------------------------------------------------------------------------
 #nullable enable
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 
 namespace TestNamespace
@@ -23,7 +24,7 @@ namespace TestNamespace
       get => _value;
       set
       {
-        if (_value != value)
+        if (!EqualityComparer<int>.Default.Equals(_value, value))
         {
           _value = value;
           RaisePropertyChanged(nameof(Value));
