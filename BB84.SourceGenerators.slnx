@@ -8,6 +8,7 @@
     <File Path="CODE_OF_CONDUCT.md" />
     <File Path="Directory.Build.props" />
     <File Path="Directory.Packages.props" />
+    <File Path="global.json" />
     <File Path="icon.png" />
     <File Path="LICENSE" />
     <File Path="README.md" />
