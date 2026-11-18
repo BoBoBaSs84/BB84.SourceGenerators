@@ -89,6 +89,7 @@ public sealed class AbstractionGenerator : IIncrementalGenerator
 		}
 		foreach ((_, string signature, string methodUsing) in request.Methods)
 		{
+			sb.AppendLine("/// <inheritdoc/>");
 			sb.AppendLine($"public {signature}");
 			sb.Indent();
 			sb.AppendLine($"=> {methodUsing};");

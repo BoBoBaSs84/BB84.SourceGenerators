@@ -18,8 +18,10 @@ namespace TestNamespace
     public int ReadOnlyValue { get => TestNamespace.Calculator.ReadOnlyValue; }
     /// <inheritdoc cref="TestNamespace.Calculator.WriteOnlyValue"/>
     public int WriteOnlyValue {  set => TestNamespace.Calculator.WriteOnlyValue = value; }
+    /// <inheritdoc/>
     public int Add(int a, int b)
       => TestNamespace.Calculator.Add(a, b);
+    /// <inheritdoc/>
     public void Reset()
       => TestNamespace.Calculator.Reset();
   }

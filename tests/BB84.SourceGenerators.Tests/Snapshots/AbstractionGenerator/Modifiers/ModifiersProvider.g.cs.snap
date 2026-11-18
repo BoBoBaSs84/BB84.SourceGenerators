@@ -12,16 +12,22 @@ namespace TestNamespace
 {
   internal partial class ModifiersProvider : IModifiersProvider
   {
+    /// <inheritdoc/>
     public bool TryParse(string text, out int result)
       => TestNamespace.Modifiers.TryParse(text, out result);
+    /// <inheritdoc/>
     public int Sum(params int[] values)
       => TestNamespace.Modifiers.Sum(values);
+    /// <inheritdoc/>
     public void ByRef(ref int x)
       => TestNamespace.Modifiers.ByRef(ref x);
+    /// <inheritdoc/>
     public void ByIn(in int x)
       => TestNamespace.Modifiers.ByIn(x);
+    /// <inheritdoc/>
     public void ByRefReadOnly(int x)
       => TestNamespace.Modifiers.ByRefReadOnly(x);
+    /// <inheritdoc/>
     public int Defaulted(int value, string name)
       => TestNamespace.Modifiers.Defaulted(value, name);
   }

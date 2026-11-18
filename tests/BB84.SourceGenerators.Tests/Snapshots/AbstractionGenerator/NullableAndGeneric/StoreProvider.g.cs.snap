@@ -16,10 +16,13 @@ namespace TestNamespace
     public string? Current { get => TestNamespace.Store.Current; set => TestNamespace.Store.Current = value; }
     /// <inheritdoc cref="TestNamespace.Store.Items"/>
     public System.Collections.Generic.List<string> Items { get => TestNamespace.Store.Items; }
+    /// <inheritdoc/>
     public T Echo(T value)
       => TestNamespace.Store.Echo(value);
+    /// <inheritdoc/>
     public string? Find(string? key)
       => TestNamespace.Store.Find(key);
+    /// <inheritdoc/>
     public System.Collections.Generic.IReadOnlyDictionary<string, int?> Map(System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<string, int?>> pairs)
       => TestNamespace.Store.Map(pairs);
   }
