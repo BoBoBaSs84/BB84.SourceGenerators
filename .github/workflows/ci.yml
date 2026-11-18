@@ -1,18 +1,27 @@
 name: Continuous Integration
 
 on:
-  push:
-    branches: [ "main" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [main]
+  push:
+    branches: [main]
 
-permissions:
-  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  SOLUTION: BB84.SourceGenerators.slnx
+  CONFIGURATION: Release
 
 jobs:
   build-and-test:
     name: Build & Test
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout repository
@@ -20,6 +29,8 @@ jobs:
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
 
       - name: Install mono
         run: |
@@ -27,29 +38,29 @@ jobs:
           sudo apt-get install -y mono-complete
 
       - name: Restore dependencies
-        run: dotnet restore BB84.SourceGenerators.slnx
+        run: dotnet restore ${{ env.SOLUTION }}
 
       - name: Build solution
-        run: dotnet build BB84.SourceGenerators.slnx --configuration Release
+        run: dotnet build ${{ env.SOLUTION }} --configuration ${{ env.CONFIGURATION }}
           --no-restore
 
       - name: Run tests
-        run: dotnet test BB84.SourceGenerators.slnx --configuration Release --no-build
-          --report-trx --results-directory ./test-results
+        run: dotnet test ${{ env.SOLUTION }} --configuration ${{ env.CONFIGURATION }} --no-build
+          --report-trx --results-directory ${{ github.workspace }}/test-results
 
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: test-results
-          path: ./test-results/*.trx
+          path: test-results/*.trx
 
       - name: Validate NuGet package
         run: dotnet pack src/BB84.SourceGenerators/BB84.SourceGenerators.csproj
-          --configuration Release --no-build --output ./artifacts
+          --configuration ${{ env.CONFIGURATION }} --no-build --output ${{ github.workspace }}/artifacts
 
       - name: Upload NuGet package artifact
         uses: actions/upload-artifact@v7
         with:
           name: nuget-package
-          path: ./artifacts/*.nupkg
+          path: artifacts/*.nupkg

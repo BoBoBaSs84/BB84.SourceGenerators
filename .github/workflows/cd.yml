@@ -5,17 +5,19 @@ on:
     tags:
       - "v[0-9]+.[0-9]+.[0-9]+.[0-9]+"
 
-permissions:
-  contents: write
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  SOLUTION: BB84.SourceGenerators.slnx
+  CONFIGURATION: Release
 
 jobs:
   deploy:
     name: Build, Test & Publish
     runs-on: ubuntu-latest
-
-    env:
-      DOTNET_NOLOGO: true
-      DOTNET_CLI_TELEMETRY_OPTOUT: true
+    permissions:
+      contents: write
+      id-token: write
 
     steps:
       - name: Checkout repository
@@ -23,6 +25,8 @@ jobs:
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
 
       - name: Install mono
         run: |
@@ -37,43 +41,37 @@ jobs:
           echo "Extracted version: ${TAG_NAME}"
 
       - name: Restore dependencies
-        run: dotnet restore BB84.SourceGenerators.slnx
+        run: dotnet restore ${{ env.SOLUTION }}
 
       - name: Build solution
         run: >
-          dotnet build BB84.SourceGenerators.slnx --configuration Release
+          dotnet build ${{ env.SOLUTION }} --configuration ${{ env.CONFIGURATION }}
           --no-restore -p:VersionPrefix=${{ steps.version.outputs.VERSION }}
           -p:VersionSuffix= -p:FileVersion=${{ steps.version.outputs.VERSION }}
           -p:PackageVersion=${{ steps.version.outputs.VERSION }}
 
       - name: Run tests
-        run: dotnet test BB84.SourceGenerators.slnx --configuration Release --no-build
-          --report-trx --results-directory ./test-results
+        run: dotnet test ${{ env.SOLUTION }} --configuration ${{ env.CONFIGURATION }} --no-build
+          --report-trx --results-directory ${{ github.workspace }}/test-results
 
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: test-results
-          path: ./test-results/*.trx
+          path: test-results/*.trx
 
       - name: Create NuGet package
         run: >
           dotnet pack src/BB84.SourceGenerators/BB84.SourceGenerators.csproj
-          --configuration Release --no-build --output ./artifacts
+          --configuration ${{ env.CONFIGURATION }} --no-build --output ${{ github.workspace }}/artifacts
           -p:PackageVersion=${{ steps.version.outputs.VERSION }}
 
       - name: Upload NuGet package artifact
         uses: actions/upload-artifact@v7
         with:
           name: nuget-package
-          path: ./artifacts/*.nupkg
-
-      - name: Publish to NuGet.org
-        run: >
-          dotnet nuget push ./artifacts/*.nupkg --api-key ${{
-          secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json
-          --skip-duplicate
+          path: artifacts/*.nupkg
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
@@ -81,4 +79,16 @@ jobs:
           tag_name: ${{ github.ref_name }}
           name: Release ${{ steps.version.outputs.VERSION }}
           generate_release_notes: true
-          files: ./artifacts/*.nupkg
+          files: artifacts/*.nupkg
+
+      - name: NuGet Login
+        id: login
+        uses: NuGet/login@v1
+        with:
+          user: ${{ secrets.NUGET_USER }}
+
+      - name: Publish to NuGet.org
+        run: >
+          dotnet nuget push artifacts/*.nupkg --api-key ${{
+          steps.login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json
+          --skip-duplicate
