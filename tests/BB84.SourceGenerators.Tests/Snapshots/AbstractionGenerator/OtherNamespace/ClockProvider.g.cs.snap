@@ -16,6 +16,7 @@ namespace TestNamespace
   {
     /// <inheritdoc cref="TestNamespace.Clock.Ticks"/>
     public long Ticks { get => TestNamespace.Clock.Ticks; set => TestNamespace.Clock.Ticks = value; }
+    /// <inheritdoc/>
     public long Now()
       => TestNamespace.Clock.Now();
   }

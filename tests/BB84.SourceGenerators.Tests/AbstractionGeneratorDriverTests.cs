@@ -192,6 +192,52 @@ namespace TestNamespace
 		Assert.DoesNotContain("ReadOnlyValue { get; set;", iface);
 	}
 
+	[TestMethod]
+	public void PublicImplementationShouldNotReportMissingXmlComments()
+	{
+		const string source = @"
+using BB84.SourceGenerators.Attributes;
+
+namespace TestNamespace
+{
+	/// <summary>Calculator.</summary>
+	public static class Calculator
+	{
+		/// <summary>Value.</summary>
+		public static int Value { get; set; }
+		/// <summary>Add.</summary>
+		public static int Add(int a, int b) => a + b;
+	}
+
+	/// <summary>Calculator provider.</summary>
+	[GenerateAbstraction(typeof(Calculator), typeof(ICalculatorProvider), typeof(CalculatorProvider))]
+	public sealed partial class CalculatorProvider { }
+
+	/// <summary>Calculator abstraction.</summary>
+	public partial interface ICalculatorProvider { }
+}";
+		CSharpParseOptions parseOptions = new(LanguageVersion.Latest, DocumentationMode.Diagnose);
+		SyntaxTree syntaxTree = CSharpSyntaxTree.ParseText(source, parseOptions);
+
+		CSharpCompilation compilation = CSharpCompilation.Create(
+			assemblyName: "AbstractionDriverTestAssembly",
+			syntaxTrees: [syntaxTree],
+			references: References,
+			options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+
+		IIncrementalGenerator[] generators = [new AttributeSourceGenerator(), new AbstractionGenerator()];
+
+		// The generated trees must be parsed with documentation diagnostics enabled for CS1591 to surface.
+		GeneratorDriver driver = CSharpGeneratorDriver.Create(generators.Select(GeneratorExtensions.AsSourceGenerator), parseOptions: parseOptions);
+		driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out Compilation outputCompilation, out _);
+
+		string impl = driver.GetRunResult().GeneratedTrees.Select(t => t.GetText().ToString()).First(s => s.Contains("partial class CalculatorProvider"));
+		Assert.Contains("/// <inheritdoc/>", impl);
+
+		ImmutableArray<Diagnostic> missingDocs = [.. outputCompilation.GetDiagnostics().Where(d => d.Id == "CS1591")];
+		Assert.IsEmpty(missingDocs);
+	}
+
 	private static string[] RunGenerator(string source)
 	{
 		SyntaxTree syntaxTree = CSharpSyntaxTree.ParseText(source);
