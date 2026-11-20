@@ -12,6 +12,7 @@ namespace BB84.SourceGenerators.Tests;
 [TestClass]
 public sealed class ToStringGeneratorTests
 {
+
 	[TestMethod]
 	public void ToStringShouldReturnAllProperties()
 	{

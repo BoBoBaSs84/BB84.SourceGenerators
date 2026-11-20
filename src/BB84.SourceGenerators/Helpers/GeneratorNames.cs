@@ -30,5 +30,6 @@ internal static class GeneratorNames
 	internal static readonly string NotificationsGeneratorFullName = typeof(NotificationsGenerator).FullName;
 	internal static readonly string SingletonGeneratorFullName = typeof(SingletonGenerator).FullName;
 	internal static readonly string ToStringGeneratorFullName = typeof(ToStringGenerator).FullName;
+	internal static readonly string OptInToStringGeneratorFullName = typeof(OptInToStringGenerator).FullName;
 	internal static readonly string ValidatorGeneratorFullName = typeof(ValidatorGenerator).FullName;
 }
